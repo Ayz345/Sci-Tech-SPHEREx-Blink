@@ -225,6 +225,7 @@ async function loadTarget() {
   status(`${S.m.epochs.length} epochs, ${S.m.bands.length} bands. Loading ${S.band}…`);
 
   fetchLogged(src.gaia(S.key)).then((g) => { S.gaia = g; draw(); }).catch(() => { S.gaia = []; });
+  loadCandidates().then(draw);
   // static: spectrum.json is the target position; API: ask for the latest track point (or the query position)
   const at = S.m.target_track?.at(-1) || S.m.query || {};
   S.specTarget = at;
@@ -844,6 +845,7 @@ function overlays(ctx, ep) {
   ctx.lineWidth = 1.5; ctx.strokeStyle = "#eee"; ctx.beginPath(); ctx.moveTo(10, H - 12); ctx.lineTo(10 + len, H - 12); ctx.stroke();
   label(`30″  (grid ${pixArcsec().toFixed(2)}″/px)`, 10, H - 18);
   label("N ↑  E ←", ctx.canvas.width - 64, 16);
+  drawCandidates(ctx, ep);
   drawMarks(ctx);
 }
 
@@ -1075,6 +1077,75 @@ async function openAladin() {
   return aladinLoading;
 }
 
+// ---------- automatic candidates (F2): {key}/candidates.json or /api/candidates?key= ----------
+// Places to look at, not detection claims. Without a file the control stays hidden.
+S.cands = null;
+const CAND_COLOR = "#ffd84f";
+function candLabel(c) {
+  if (c.near_gaia) return `known: Gaia ${String(c.near_gaia.source_id ?? "").slice(-6)}`;
+  return c.kind || "candidate";
+}
+async function loadCandidates() {
+  const url = USE_API ? `${API}/api/candidates?key=${enc(S.key)}` : `${DATA}/${S.key}/candidates.json`;
+  try {
+    const r = await fetch(url); // quiet: a missing file only means no candidates for this field
+    if (!r.ok) return;
+    S.cands = await r.json();
+  } catch { return; }
+  const cs = S.cands.candidates || [];
+  $("candBox").hidden = false;
+  $("candList").replaceChildren(...cs.map((c) => {
+    const li = document.createElement("li"), b = document.createElement("button");
+    const rate = c.rate_arcsec_per_year ? ` · ${Math.hypot(...c.rate_arcsec_per_year).toFixed(1)}″/yr` : "";
+    b.textContent = `${c.id} ${candLabel(c)} · ${(c.bands || []).join(", ")} · S/N ${(+c.snr).toFixed(1)}${rate}`;
+    b.title = `${c.notes || ""}\nclick: load its ${c.positions?.length || 0} positions as marks in the measure tool`;
+    b.onclick = () => candidateToMarks(c);
+    li.append(b); return li;
+  }));
+  const rej = Object.entries(S.cands.rejected || {}).map(([k, v]) => `  ${v} × ${k}`).join("\n");
+  $("candHow").textContent = [
+    S.cands.method && `method: ${S.cands.method}`,
+    S.cands.params && `parameters: ${Object.entries(S.cands.params).map(([k, v]) => `${k} ${v}`).join(", ")}`,
+    S.cands.bands_searched && `bands searched: ${S.cands.bands_searched.join(", ")}`,
+    `${cs.length} candidates shown`, rej && `rejected:\n${rej}`,
+    ...[].concat(S.cands.validation || []),
+  ].filter(Boolean).join("\n");
+}
+// a candidate's positions become marks in the measure tool (then refine/report as usual)
+function candidateToMarks(c) {
+  S.marks = (c.positions || []).map((p) => {
+    const i = S.m.epochs.findIndex((e) => e.id === p.epoch), ep = S.m.epochs[i];
+    return ep && { n: ++S.markSeq, ra: +p.ra, dec: +p.dec, mjd: ep.mjd_mid, epoch: i, date: ep.date, band: (c.bands || [])[0] || S.band };
+  }).filter(Boolean);
+  if (c.bands?.[0] && c.bands[0] !== S.band && S.m.bands.some((b) => b.id === c.bands[0])) selectBand(c.bands[0]);
+  renderMarks(); draw();
+  status(`Candidate ${c.id}: ${S.marks.length} positions loaded as marks in the measure tool.`);
+  $("measureBox").scrollIntoView({ block: "nearest" });
+}
+function drawCandidates(ctx, ep) {
+  if (!S.cands || !$("ovCand").checked) return;
+  const z = S.zoom;
+  ctx.save(); ctx.font = "11px system-ui";
+  for (const c of S.cands.candidates || []) {
+    const ps = c.positions || [];
+    // the position at this epoch; otherwise the nearest in time, drawn faint
+    let p = ps.find((q) => q.epoch === ep.id), faint = false;
+    if (!p && ps.length) {
+      faint = true;
+      const mjdOf = (q) => S.m.epochs.find((e) => e.id === q.epoch)?.mjd_mid ?? 0;
+      p = ps.reduce((a, q) => (Math.abs(mjdOf(q) - ep.mjd_mid) < Math.abs(mjdOf(a) - ep.mjd_mid) ? q : a));
+    }
+    if (!p) continue;
+    const [x, y] = toScreen(+p.ra, +p.dec), r = Math.max(7, 3.5 * z);
+    ctx.globalAlpha = faint ? 0.4 : 1; ctx.strokeStyle = CAND_COLOR; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.stroke(); ctx.setLineDash([]);
+    const t = `${c.id} ${candLabel(c)}`;
+    ctx.lineWidth = 3; ctx.strokeStyle = "#000"; ctx.strokeText(t, x + r + 3, y + r);
+    ctx.fillStyle = CAND_COLOR; ctx.fillText(t, x + r + 3, y + r);
+  }
+  ctx.restore();
+}
+
 // ---------- user wavelength windows ----------
 // nm: lo rounded down, hi up; narrower than 50 nm is widened around its centre (the server's minimum)
 function windowId(lo, hi) {
@@ -1292,7 +1363,7 @@ function wire() {
     S.userScale = { vmin: +$("vmin").value, vmax: +$("vmax").value, soft: +$("soft").value }; draw();
   };
   $("autoScale").onclick = () => { S.userScale = null; draw(); };
-  for (const id of ["ovQuery", "ovTrack", "ovGaia"]) $(id).onchange = draw;
+  for (const id of ["ovQuery", "ovTrack", "ovGaia", "ovCand"]) $(id).onchange = draw;
 
   const cv = $("canvas");
   const gridAt = (ev) => {

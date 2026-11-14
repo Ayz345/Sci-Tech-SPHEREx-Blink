@@ -97,6 +97,12 @@
       <label><input type="checkbox" id="ovQuery" checked> query position (+)</label>
       <label><input type="checkbox" id="ovTrack" checked> target track</label>
       <label><input type="checkbox" id="ovGaia"> Gaia DR3 (propagated to epoch)</label>
+      <div id="candBox" hidden>
+        <label><input type="checkbox" id="ovCand"> Automatic candidates</label>
+        <div class="muted">Automatic candidates are places to look at, not detection claims.</div>
+        <ul id="candList" class="mono"></ul>
+        <details><summary class="muted">How candidates are found</summary><div id="candHow" class="mono"></div></details>
+      </div>
     </fieldset>
   </aside>
 </main>

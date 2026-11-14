@@ -53,6 +53,9 @@ footer { margin-top: 16px; font-size: 12px; }
 body.embed #winBox, body.embed #winNote, body.embed #aladinBox { display: none; }
 #aladinBox { margin-top: 12px; }
 #flagBox { font-size: 12px; margin-top: 4px; }
+#candList { padding-left: 0; list-style: none; margin: 4px 0; }
+#candList button { font-size: 11px; padding: 1px 5px; margin: 1px 0; text-align: left; }
+#candHow { white-space: pre-wrap; font-size: 11px; }
 #flagList dt { margin-top: 3px; font-family: ui-monospace, Consolas, monospace; }
 #flagList dd { margin: 0 0 0 12px; }
 #aladinBox summary { cursor: pointer; }
