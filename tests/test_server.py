@@ -159,7 +159,7 @@ def test_manifest_band_frame(client):
 
 def test_spectrum_and_gaia(client):
     m = client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}).json()
-    client.get("/api/band", params={"key": m["key"], "band": "D1"})
+    assert client.get("/api/band", params={"key": m["key"], "band": "D1"}).status_code == 200
     r = client.get("/api/spectrum", params={"key": m["key"], "ra": RA0, "dec": DEC0})
     assert r.status_code == 200
     s = _strict(r)
@@ -293,3 +293,12 @@ def test_touch_moves_field_first_in_background():
     reg.background = [("a", "D2"), ("a", "D3"), ("b", "D2"), ("b", "D3")]
     reg.touch("b")
     assert reg.background == [("b", "D2"), ("b", "D3"), ("a", "D2"), ("a", "D3")]
+
+
+def test_manifest_queue0_starts_no_band(client):
+    m = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0 + 1, "queue": 0}))
+    assert m["bands"] and all(b["status"] == "pending" for b in m["bands"])
+    _wait_idle()
+    assert client.calls["fetch"] == 0
+    assert client.get("/api/band", params={"key": m["key"], "band": "D4"}).status_code == 200  # still builds on request
+    assert client.calls["fetch"] >= 1

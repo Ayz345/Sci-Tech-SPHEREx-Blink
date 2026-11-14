@@ -82,19 +82,41 @@ def dumps(o, indent=None) -> str:
     return json.dumps(json_safe(o), allow_nan=False, ensure_ascii=False, indent=indent)
 
 
+def _tmp_name(path: Path) -> Path:
+    """Temp file unique to this process and thread: two writers of the same file never share it."""
+    import threading
+    return path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+
+
+def _replace(tmp: Path, path: Path, tries: int = 8) -> None:
+    """os.replace, retried while Windows reports the target busy (another process reading it)."""
+    for i in range(tries):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if i == tries - 1:
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+                raise
+            time.sleep(0.05 * (i + 1))
+
+
 def write_json(path: Path, o, indent=1) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp = _tmp_name(path)
     tmp.write_text(dumps(o, indent), encoding="utf-8", newline="\n")
-    os.replace(tmp, path)
+    _replace(tmp, path)
 
 
 def write_f32(path: Path, a: np.ndarray) -> None:
     """Little-endian float32, row 0 = south (grid y = 0). NaN and +Inf are kept as they are."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp = _tmp_name(path)
     tmp.write_bytes(np.ascontiguousarray(a, dtype="<f4").tobytes())
-    os.replace(tmp, path)
+    _replace(tmp, path)
 
 
 def _enc(x: float, nd: int) -> str:

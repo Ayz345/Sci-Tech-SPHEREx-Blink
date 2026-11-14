@@ -401,53 +401,66 @@ def check_wise(rep: Report, s: Static):
 
 
 def check_variable(rep: Report, s: Static, key: str):
-    """Provisional epoch-to-epoch flux ratio at the target vs. control stars; the threshold belongs to the
-    image-quality session, so the item stays PENDING until that metric exists."""
+    """The image-quality session's metric (spx.photometry VARIABILITY_METHOD): the target's binned per-epoch
+    ratio per band vs control stars measured the same way in the same cutouts. A band is variable when its
+    ratio > the controls' 99th percentile in that band AND > 1.15. The target passes when at least one band is.
+    R Dra: every aperture point is saturated, so this metric cannot apply; its criterion (halo on the common
+    scale + wing series) is not published yet -> PENDING."""
     sec = f"target:{key}"
-    info = {}
-    g = strict_json(s.d / "gaia.json")
-    for b in sorted(s.bj):
-        fr = s.frames(b)
-        if len(fr) < MIN_EPOCHS:
-            continue
-        def fluxes(ra, dec):
-            out = []
-            for e, (img, ej) in sorted(fr.items()):
-                x, y = s.w.world_to_pixel_values(ra, dec)
-                ap = aperture(img, float(x), float(y), r=3.0, r_in=6.0, r_out=10.0)
-                if ap is None or ap[2] or ap[0] <= 0:
-                    return None
-                out.append(ap[0])
-            return out
-        tr = s.track
-        tf = []
-        for e, (img, ej) in sorted(fr.items()):
-            if e not in tr:
-                tf = None
-                break
-            x, y = s.track_px(e)
-            ap = aperture(img, x, y, r=3.0, r_in=6.0, r_out=10.0)
-            if ap is None or ap[2] or ap[0] <= 0:
-                tf = None
-                break
-            tf.append(ap[0])
-        if not tf:
-            info[b] = "target saturated or missing in some epoch"
-            continue
-        ctrl = []
-        for row in sorted(g, key=lambda r: r["g_mag"] if r["g_mag"] is not None else 99)[:60]:
-            if SkyCoord(row["ra"] * u.deg, row["dec"] * u.deg).separation(
-                    SkyCoord(*s.track[min(tr)], unit="deg")).arcsec < 20:
-                continue
-            f = fluxes(row["ra"], row["dec"])
-            if f:
-                ctrl.append(max(f) / min(f))
-            if len(ctrl) >= 20:
-                break
-        info[b] = {"target_max_over_min": round(max(tf) / min(tf), 3),
-                   "control_p95": round(float(np.percentile(ctrl, 95)), 3) if ctrl else None, "n_control": len(ctrl)}
-    rep.add(sec, "brightness change at the target (quality session's metric)", PENDING,
-            measured=info, detail="provisional ratio shown; threshold to come from the image-quality session")
+    try:
+        from spx import photometry as ph
+        need = ("binned_series", "variability", "select_controls")
+        if not all(hasattr(ph, n) for n in need):
+            rep.add(sec, "brightness change at the target", PENDING, detail="spx.photometry has no variability yet")
+            return
+    except Exception as e:
+        rep.add(sec, "brightness change at the target", FAIL, detail=repr(e)[:200])
+        return
+    sp = strict_json(s.d / "spectrum.json")
+    tser = ph.binned_series(sp["points"])
+    tvar = ph.variability(tser)
+    if key == "r-dra":
+        rep.add(sec, "brightness change at the target", PENDING, measured={"target": tvar},
+                detail="aperture points all saturated; criterion (halo + wing series) not published yet")
+        return
+    # controls, measured in the same cutouts (gallery squares from the disk cache)
+    from server import pipeline as P
+    f = P.open_field(target=key)
+    cuts = []
+    for d in range(1, 7):
+        c, _ = P.fetch_band_cutouts(f, f"D{d}", ("IMAGE", "FLAGS", "VARIANCE"))
+        cuts += c
+    gaia = strict_json(s.d / "gaia.json")
+    t = TARGETS[key]
+    tc = SkyCoord(t["ra"] * u.deg, t["dec"] * u.deg)
+    # the target's own G: the brightest Gaia source within 3" (RW Aur is a 1.5" binary: A, not B)
+    close = [r_ for r_ in gaia if r_.get("g_mag") is not None
+             and SkyCoord(r_["ra"] * u.deg, r_["dec"] * u.deg).separation(tc).arcsec < 3]
+    tg = min((r_["g_mag"] for r_ in close), default=None)
+    ctrl = ph.select_controls(gaia, (t["ra"], t["dec"]), tg)
+    from astropy.time import Time
+    cvar = {}
+    for r_ in ctrl:
+        cc = SkyCoord(ra=r_["ra"] * u.deg, dec=r_["dec"] * u.deg, pm_ra_cosdec=(r_.get("pmra") or 0) * u.mas / u.yr,
+                      pm_dec=(r_.get("pmdec") or 0) * u.mas / u.yr, obstime=Time(2016.0, format="jyear"))
+        v = ph.variability(ph.binned_series(ph.spectrum_points(cuts, cc, epochs=f.epochs)["points"]))
+        for b, d in v.items():
+            cvar.setdefault(b, []).append(d["ratio"])
+    per = {}
+    variable = []
+    for b, d in tvar.items():
+        cs = cvar.get(b, [])
+        p99 = float(np.percentile(cs, 99)) if len(cs) >= 3 else None
+        is_var = p99 is not None and d["ratio"] > p99 and d["ratio"] > 1.15
+        per[b] = {"ratio": d["ratio"], "n_bins": d["n_bins"], "controls_p99": None if p99 is None else round(p99, 3),
+                  "n_controls": len(cs), "controls": [round(x, 3) for x in cs], "variable": is_var,
+                  "note": None if p99 is not None else "fewer than 3 controls: no 99th percentile"}
+        if is_var:
+            variable.append(b)
+    rep.check(sec, "brightness change at the target (ratio > controls p99 and > 1.15 in at least one band)",
+              bool(variable), measured={"variable_bands": variable, "per_band": per},
+              threshold="ratio > p99(controls, >= 3 controls) and > 1.15",
+              detail=f"target G {tg}; {len(ctrl)} control stars; {ph.VARIABILITY_METHOD[:80]}...")
 
 
 # --------------------------------------------------------------------------- server
@@ -502,8 +515,16 @@ def free_field(rep: Report, sess, api, prof, ra, dec, label, need_epochs=1):
         rep.add(sec, f"manifest ({ra}, {dec})", FAIL, measured=r.status_code, detail=r.text[:200])
         return None
     m = strict_json(r.content)
-    rep.check(sec, f"manifest seconds ({ra}, {dec})", t_man <= prof["manifest"], measured=round(t_man, 1),
-              threshold=f"<= {prof['manifest']}")
+    # manifest time = median of 3 cold SIA2 lookups: this position and two 11"/22" away (queue=0: no bands)
+    times = [t_man]
+    for k in (1, 2):
+        d2 = max(-90.0, min(90.0, dec + 0.003 * k * (1 if dec < 89 else -1)))
+        _, t_k = get(sess, f"{api}/api/manifest", ra=ra, dec=round(d2, 4), queue=0)
+        times.append(t_k)
+    t_med = float(np.median(times))
+    rep.check(sec, f"manifest seconds, median of 3 cold ({ra}, {dec})", t_med <= prof["manifest"],
+              measured=round(t_med, 1), threshold=f"<= {prof['manifest']}",
+              detail="each: " + ", ".join(f"{t:.1f}" for t in times))
     rep.check(sec, "epochs", len(m["epochs"]) >= need_epochs, measured=len(m["epochs"]), threshold=f">= {need_epochs}")
     if not m["epochs"]:
         return m
@@ -668,6 +689,8 @@ def main():
     ap.add_argument("--static-only", action="store_true")
     ap.add_argument("--seed", type=int, default=None, help="random positions (default: time-based, so caches are cold)")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--docs", action="store_true",
+                    help="also copy the report to docs/acceptance/ (the final run, kept in the repository)")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.simplefilter("ignore")
@@ -727,6 +750,11 @@ def main():
                                               "STATIC_MAX": STATIC_MAX, "profile": PROFILES[a.profile]},
                                "items": rep.items}, indent=1, default=str), encoding="utf-8", newline="\n")
     print(f"report: {out}")
+    if a.docs:
+        dst = ROOT / "docs" / "acceptance" / out.name
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_bytes(out.read_bytes())
+        print(f"copied: {dst}")
     sys.exit(0 if counts[FAIL] == 0 and counts[PENDING] == 0 else 1)
 
 

@@ -81,6 +81,7 @@ class FieldState:
     out: Path
     jobs: dict
     created: float = dc_field(default_factory=time.time)
+    write_lock: threading.Lock = dc_field(default_factory=threading.Lock)  # one manifest writer at a time
 
     def status(self) -> dict:
         return {b: ("ready" if j.state == "ready" else "empty" if j.state == "empty" else "pending")
@@ -105,8 +106,9 @@ class Registry:
             w.start()
 
     # ---- fields
-    def get(self, key: str, open_kw: dict | None = None) -> FieldState:
-        """open_kw: exact position for a new free field (the key itself is rounded)."""
+    def get(self, key: str, open_kw: dict | None = None, queue: bool = True) -> FieldState:
+        """open_kw: exact position for a new free field (the key itself is rounded).
+        queue=False: open the field without queueing its bands (they still build when asked for)."""
         with self.lock:
             fs = self.fields.get(key)
             if fs is not None:
@@ -127,14 +129,14 @@ class Registry:
         try:
             kw = open_kw or parse_key(key)
             f = P.open_field(**kw)
-            fs = self._register(f)
+            fs = self._register(f, queue)
             return fs
         finally:
             with self.lock:
                 self.opening.pop(key, None)
             ev.set()
 
-    def _register(self, f: P.Field) -> FieldState:
+    def _register(self, f: P.Field, queue: bool = True) -> FieldState:
         out = FIELDS_DIR / f.key
         jobs = {}
         for b in f.band_defs():
@@ -157,6 +159,8 @@ class Registry:
         if f.tinfo and f.tinfo.get("default_band") in order:
             order.remove(f.tinfo["default_band"])
             order.insert(0, f.tinfo["default_band"])
+        if not queue:
+            return fs
         self.enqueue(f.key, order[0], urgent=True)  # the page asks for this one first
         for b in order[1:]:
             self.enqueue(f.key, b, urgent=False)
@@ -232,7 +236,13 @@ class Registry:
         bj, _, frames = P.build_band(f, band, fs.out, cuts=cuts)
         job.n_exposures = P.band_n_exposures(f, band, cuts)
         job.state = "ready" if frames else "empty"
-        P.write_json(fs.out / "manifest.json", P.manifest(f, status=fs.status(), n_exposures=self.n_exposures(fs)))
+        # the band is done; the manifest copy on disk is only a convenience and must not turn it into an error
+        try:
+            with fs.write_lock:
+                P.write_json(fs.out / "manifest.json",
+                             P.manifest(f, status=fs.status(), n_exposures=self.n_exposures(fs)))
+        except OSError as e:
+            log.warning("manifest copy for %s not written: %r", f.key, e)
         log.info("built %s %s: %d frames in %.1fs", f.key, band, len(frames), time.time() - job.t_start)
 
     def _cutout_set(self, key: str) -> dict:
@@ -383,16 +393,17 @@ async def _fetch_error(request: Request, exc: access.FetchError):
     return jresp({"schema": P.SCHEMA, "message": f"SPHEREx data on S3 is not reachable: {exc}"}, 503)
 
 
-async def _field(key: str, open_kw: dict | None = None) -> FieldState:
-    return await asyncio.to_thread(registry().get, key, open_kw)
+async def _field(key: str, open_kw: dict | None = None, queue: bool = True) -> FieldState:
+    return await asyncio.to_thread(registry().get, key, open_kw, queue)
 
 
 @app.get("/api/manifest")
 async def api_manifest(target: str | None = None, ra: str | None = None, dec: str | None = None,
                        fov: float | None = None, pmra: float | None = None, pmdec: float | None = None,
-                       ref_epoch: float | None = None, name: str | None = None):
+                       ref_epoch: float | None = None, name: str | None = None, queue: int = 1):
     """pmra/pmdec (mas/yr) and ref_epoch (Julian year, default 2000.0) make a free position move like a
-    named target (e.g. pass on what /api/resolve returned)."""
+    named target (e.g. pass on what /api/resolve returned). queue=0 lists the field without starting any
+    band (used by scripts/acceptance.py to time SIA2 alone)."""
     if target:
         if target not in TARGETS:
             raise ApiError(404, f"unknown target {target!r}; known: {list(TARGETS)}")
@@ -411,7 +422,7 @@ async def api_manifest(target: str | None = None, ra: str | None = None, dec: st
         key = P.free_key(r, d, fv, pm)
         kw = {"ra": r, "dec": d, "fov_deg": fv, "pm": pm, "name": name,
               "source": "SIMBAD via CDS Sesame (proper motion given)" if pm else None}
-    fs = await _field(key, kw)
+    fs = await _field(key, kw, bool(queue))
     registry().touch(fs.field.key)
     return jresp(registry().manifest(fs))
 
