@@ -90,6 +90,17 @@ def test_eros_track_to_ades_draft(tmp_path):
         psv = r.text
     rows = _psv_rows(psv)
     assert len(rows) >= mpc.MIN_DETECTIONS
+    # logSNR = log10(snr_image), the S/N of the source in the image, row by row (matched on the obsID remark).
+    # This pass (2025W29-W30, D3) gave 2.11-2.19 on 14 Nov; the quality session's 2.06-2.09 is its 52-exposure
+    # 2025W28 pass. The old rule, min(snr_fit, snr_calibrated), is lower on every row (the fit S/N).
+    assert all("snr_image" in m and "snr_variance" in m for m in tr["measurements"])
+    by_id = {m["obs_id"]: m for m in tr["measurements"] if m.get("in_ades")}
+    log_snr = []
+    for x in rows:
+        m = by_id[x["remarks"].split("obsID ")[1].split()[0]]
+        assert x["logSNR"] == f"{np.log10(m['snr_image']):.2f}", (x["logSNR"], m)
+        assert float(x["logSNR"]) > np.log10(min(m["snr_fit"], m["snr_calibrated"]))
+        log_snr.append(float(x["logSNR"]))
     mjds = [float(Time(x["obsTime"][:-1], format="isot", scale="utc").mjd) for x in rows]
     geo = TA.horizons_geocentric("433;", mjds)
     d_ra, d_dec = [], []
@@ -109,6 +120,7 @@ def test_eros_track_to_ades_draft(tmp_path):
            "median_dra_arcsec": float(np.median(d_ra)), "median_ddec_arcsec": float(np.median(d_dec)),
            "max_abs_offset_arcsec": float(np.max(np.hypot(d_ra, d_dec))),
            "rms_ra_median_reported": float(np.median([float(x["rmsRA"]) for x in rows])),
+           "log_snr_range": [min(log_snr), max(log_snr)],
            "official_valsubmit": msg, "schema_checked_on_server": mpc.SCHEMA_PASSED in psv}
     out = ROOT / "cache" / "acceptance" / "track_e2e_eros.json"
     out.parent.mkdir(parents=True, exist_ok=True)
