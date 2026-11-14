@@ -1,10 +1,11 @@
 {
  "schema": 1,
  "key": "r-dra",
- "generated_utc": "2026-11-14T09:55:08+00:00",
+ "generated_utc": "2026-11-14T10:41:20+00:00",
  "spx_version": "0.1",
- "spx_commit": "b6b039d",
+ "spx_commit": "8a5c415",
  "spx_uncommitted_code": [],
+ "spx_code_hash": "342a1d5f0b05",
  "collections": [
   "spherex_dr1",
   "spherex_qr3"
@@ -69,7 +70,7 @@
      24
     ]
    ],
-   "t_coadd": 6.0,
+   "t_coadd": 5.9,
    "fetch": {
     "D1": {
      "n_refs": 91,
@@ -77,7 +78,7 @@
      "n_skipped": 0,
      "n_from_cache": 91,
      "bytes": 0,
-     "seconds": 2.455294370651245
+     "seconds": 2.895318031311035
     }
    }
   },
@@ -113,7 +114,7 @@
      "n_skipped": 0,
      "n_from_cache": 89,
      "bytes": 0,
-     "seconds": 2.888005018234253
+     "seconds": 2.7856781482696533
     }
    }
   },
@@ -137,7 +138,7 @@
      9
     ]
    ],
-   "t_coadd": 6.6,
+   "t_coadd": 6.5,
    "fetch": {
     "D3": {
      "n_refs": 91,
@@ -145,7 +146,7 @@
      "n_skipped": 0,
      "n_from_cache": 91,
      "bytes": 0,
-     "seconds": 2.973994255065918
+     "seconds": 2.8802330493927
     }
    }
   },
@@ -169,7 +170,7 @@
      23
     ]
    ],
-   "t_coadd": 4.9,
+   "t_coadd": 6.3,
    "fetch": {
     "D4": {
      "n_refs": 88,
@@ -177,7 +178,7 @@
      "n_skipped": 0,
      "n_from_cache": 88,
      "bytes": 0,
-     "seconds": 3.180234670639038
+     "seconds": 2.855548620223999
     }
    }
   },
@@ -205,7 +206,7 @@
      19
     ]
    ],
-   "t_coadd": 4.3,
+   "t_coadd": 6.5,
    "fetch": {
     "D5": {
      "n_refs": 89,
@@ -213,7 +214,7 @@
      "n_skipped": 0,
      "n_from_cache": 89,
      "bytes": 0,
-     "seconds": 1.9741253852844238
+     "seconds": 2.7634589672088623
     }
    }
   },
@@ -237,7 +238,7 @@
      9
     ]
    ],
-   "t_coadd": 5.4,
+   "t_coadd": 6.4,
    "fetch": {
     "D6": {
      "n_refs": 91,
@@ -245,7 +246,7 @@
      "n_skipped": 0,
      "n_from_cache": 91,
      "bytes": 0,
-     "seconds": 1.9948713779449463
+     "seconds": 3.2670230865478516
     }
    }
   }
@@ -263,5 +264,5 @@
   "numpy": "2.3.3",
   "astropy": "7.1.0"
  },
- "seconds": 163.7
+ "seconds": 190.3
 }
