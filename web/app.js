@@ -555,8 +555,16 @@ function plots() {
     scatter($("wing"), wb, "mjd", "wing_flux", "MJD", "MJy/sr");
     // meta.wing (control-star systematics) is shown verbatim
     const mw = meta.wing;
-    $("wingNote").textContent = mw == null ? "" : typeof mw === "string" ? mw
+    const method = mw == null ? "" : typeof mw === "string" ? mw
       : mw.text ?? Object.entries(mw).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ");
+    // meta.wing_bands[band] = {ratio, threshold, significant}: the selected band first, then a short summary
+    const wbs = meta.wing_bands || {}, cur = wbs[S.band];
+    const fx = (v) => `×${(+v).toFixed(2)}`;
+    const line = cur ? `${S.band}: ${fx(cur.ratio)} between epochs; control stars reach ${fx(cur.threshold)}` +
+      (cur.significant === false ? " — not significant" : "") : "";
+    const summary = Object.keys(wbs).length ? "All bands: " + Object.entries(wbs).map(([b, v]) =>
+      `${b} ${fx(v.ratio)}${v.significant === false ? " (not significant)" : ""}`).join(", ") : "";
+    $("wingNote").replaceChildren(...[line, summary, method].filter(Boolean).map((t) => Object.assign(document.createElement("div"), { textContent: t })));
   }
   const nf = pts.filter((p) => p.flagged).length, ns = pts.filter((p) => p.saturated).length;
   const no = pts.filter((p) => p.overflow && !p.saturated).length;

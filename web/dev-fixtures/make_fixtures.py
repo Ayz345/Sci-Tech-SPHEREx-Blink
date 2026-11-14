@@ -165,6 +165,9 @@ def make_mover():
             p["wing_err"] = 0.2
     meta = {"flux_unit": "mJy", "aperture_radius_px": 2, "background_annulus_px": [4, 7], "aperture_corrected": False,
             "method": "synthetic", "photometry": "psf_deblended",
+            "wing": "synthetic: wing brightness relative to control stars",
+            "wing_bands": {"D1": {"ratio": 2.42, "threshold": 1.47, "significant": True},
+                           "D2": {"ratio": 1.31, "threshold": 1.47, "significant": False}},
             "deblended_neighbors": [{"source_id": "0000000000000000001", "g_mag": 16.3, "ra": 133.76, "dec": -7.24},
                                     {"source_id": None, "g_mag": None, "ra": 133.77, "dec": -7.25}],
             "n_points": len(spec), "n_flagged": sum(p["flagged"] for p in spec)}
