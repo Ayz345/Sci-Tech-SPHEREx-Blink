@@ -1,7 +1,9 @@
 """Validation of spx.astrometry (single-exposure positions for MPC/ADES drafts).
 
 Run:  python tests/test_astrometry.py        (network: IRSA MOST + SIA2, JPL Horizons, Gaia; S3 cutouts are cached)
-Writes handoff/results/astrometry_validation_v2.json (read by spx/mpc.py and /api/track).
+Result: astrometry_validation_v2.json (the tracked copy in handoff/results/ is read by spx/mpc.py and /api/track).
+      Default run writes to cache/test_results/; `--write` updates the tracked file (tests/resultio.py).
+      python tests/test_astrometry.py --object --write   adds/updates only the "second_object" section.
 
 Parts
   axes     X_SC/Y_SC/Z_SC frame: treating them as GCRS (ICRF axes, geocentric) must reproduce the header ground-track
@@ -38,13 +40,14 @@ from astropy.io import ascii, fits
 from astropy.time import Time
 
 import spx
+from resultio import write_json
 from spx import access
 from spx.astrometry import MOVER_ALLOWED_BITS, TRAIL_LIMIT_ARCSEC, WCS_ERR_ARCSEC, fit_position, measure_track
 from spx.coadd import assign_epochs, half_px_for, target_at
 from spx.photometry import _move
 from spx.targets import target_coord
 
-OUT = ROOT / "handoff" / "results" / "astrometry_validation_v2.json"
+OUT_NAME = "astrometry_validation_v2.json"
 CACHE = ROOT / "cache" / "astrometry"
 CACHE.mkdir(parents=True, exist_ok=True)
 N_EROS = 450
@@ -266,7 +269,7 @@ def run():
                       "along_track_median_arcsec": eros.get("median_along_track_arcsec"),
                       "note": TIMING_NOTE},
            "axes": axes_test(keys), "static_stars": static_test(), "eros": eros, "wise0855": wise_test()}
-    OUT.write_text(json.dumps(res, indent=1, default=float), encoding="utf-8", newline="\n")
+    write_json(OUT_NAME, res, default=float)
     return res
 
 
@@ -294,10 +297,9 @@ def test_astrometry():
 
 def second_object(number="31", name="(31) Euphrosyne", n=350):
     """Same validation on a second asteroid with a different motion direction and speed; merged into the JSON."""
-    res = json.loads(OUT.read_text(encoding="utf-8"))
-    res["second_object"] = eros_test(n=n, number=number, name=name)
-    OUT.write_text(json.dumps(res, indent=1, default=float), encoding="utf-8", newline=chr(10))
-    return res["second_object"]
+    sec = {**eros_test(n=n, number=number, name=name), "code_hash": spx.code_hash(), "frame_code_hash": spx.frame_code_hash()}
+    write_json(OUT_NAME, {"second_object": sec}, default=float)  # merged: the other sections are kept
+    return sec
 
 
 if __name__ == "__main__":

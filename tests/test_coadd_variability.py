@@ -1,7 +1,7 @@
 """RW Aurigae variability against control stars, as defined in spx.photometry.VARIABILITY_METHOD.
 
 Run:  python tests/test_coadd_variability.py
-Writes handoff/results/variability_v2.json.
+Result: variability_v2.json. Default run writes to cache/test_results/; `--write` updates the tracked file (tests/resultio.py).
 
 Same method as server/pipeline.variability_report (the published numbers): target points PSF-deblended against
 Gaia DR3 neighbours (G < 19, sources within 3" of the target at 2016.0 - RW Aur A and its 1.5" companion B - are not
@@ -32,7 +32,9 @@ from spx.coadd import half_px_for, target_at
 from spx.photometry import VARIABILITY_METHOD, binned_series, is_variable, select_controls, spectrum_points, variability
 from spx.targets import TARGETS, target_coord
 
-OUT = ROOT / "handoff" / "results" / "variability_v2.json"
+from resultio import write_json
+
+OUT_NAME = "variability_v2.json"
 KEY = "rw-aur"
 
 
@@ -71,7 +73,7 @@ def run():
            "photometry": "psf_deblended", "n_controls": len(ctl),
            "controls": [{"ra": round(r["ra"], 5), "dec": round(r["dec"], 5), "g_mag": round(r["g_mag"], 2)} for r in ctl],
            "bands": bands}
-    OUT.write_text(json.dumps(res, indent=1), encoding="utf-8")
+    write_json(OUT_NAME, res)
     return res
 
 

@@ -1,7 +1,8 @@
 """Before/after measurement table: the v0 prototype co-add (handoff/code/spherex_explore.py) vs spx.coadd.
 
 Run:  python tests/test_coadd_metrics.py
-Writes handoff/results/coadd_metrics_v2.csv and handoff/results/spherex_coadd_v2.png (same asinh scale per row).
+Result: coadd_metrics_v2.csv and spherex_coadd_v2.png (same asinh scale per row).
+Default run writes to cache/test_results/; `--write` updates the tracked file (tests/resultio.py).
 
 Metrics, identical for both methods, on the same cutouts:
   n_used        exposures in the co-add
@@ -40,7 +41,8 @@ from spx.coadd import (BAD_MASK, asinh_stretch, build_frames, common_scale, epoc
 from spx.photometry import matched_filter, measure_fwhm
 from spx.targets import TARGETS, target_coord
 
-OUT = ROOT / "handoff" / "results"
+from resultio import out_path
+
 FOV = 7.0
 EM_MIN = {1: 0.75, 2: 1.10, 3: 1.63, 4: 2.40, 5: 3.81, 6: 4.41}  # SIA2 em_min per detector (v0 filter)
 CASES = [  # (target, v0 window, new LVF windows)
@@ -169,7 +171,7 @@ def run():
                              "flag_frac": float(np.nanmedian(f.flag_frac))})
                 if win == wins[-1]:
                     panels.append((key, e["id"], f"spx.coadd {win[0]}-{win[1]}um", f.image, f.target_xy, 3.0, f.n_used, f.epoch_label, f))
-    with open(OUT / "coadd_metrics_v2.csv", "w", newline="", encoding="utf-8") as fh:
+    with open(out_path("coadd_metrics_v2.csv"), "w", newline="", encoding="utf-8") as fh:
         wr = csv.DictWriter(fh, fieldnames=list(rows[0]))
         wr.writeheader()
         for r in rows:
@@ -199,7 +201,7 @@ def figure(panels):
             a.set_title(f"{p[0]} {p[2]}\n{p[7]}  N={p[6]}  {p[5]}\"/px", fontsize=8)
     fig.suptitle("Before (v0 prototype) / after (spx.coadd), same cutouts, same asinh scale per target", fontsize=10)
     fig.tight_layout(rect=(0, 0, 1, 0.975))
-    fig.savefig(OUT / "spherex_coadd_v2.png", dpi=100)
+    fig.savefig(out_path("spherex_coadd_v2.png"), dpi=100)
     plt.close(fig)
 
 

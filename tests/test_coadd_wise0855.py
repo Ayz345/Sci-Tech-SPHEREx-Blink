@@ -2,7 +2,8 @@
 
 Run:  python tests/test_coadd_wise0855.py        (or: python -m pytest tests/test_coadd_wise0855.py -s)
 Needs network on the first run (IRSA SIA2 + public S3); later runs read cache/.
-Writes handoff/results/wise0855_detection_v2.json and prints the table.
+Result: wise0855_detection_v2.json, and prints the table.
+Default run writes to cache/test_results/; `--write` updates the tracked file (tests/resultio.py).
 
 Method (one line each):
   frames   spx.coadd.build_frames, band W = exposures whose LVF wavelength at the target is 4.3-5.0 um,
@@ -60,7 +61,9 @@ W2_ZP_JY = 171.787  # WISE W2 Vega zero point
 W2_MAG = {"wise0855": (13.704, 0.033, "AllWISE J085510.74-071442.5"),
           "star_catwise": (15.202, 0.032, "CatWISE2020 J085501.95-071428.2"),
           "star_allwise": (15.051, 0.075, "AllWISE J085501.95-071428.1")}
-OUT = ROOT / "handoff" / "results" / "wise0855_detection_v2.json"
+from resultio import write_json
+
+OUT_NAME = "wise0855_detection_v2.json"
 
 
 def gaia_stars(center, radius_deg, gmax=15.0):
@@ -214,7 +217,7 @@ def run():
            "literature_pm_arcsec_per_yr": LIT_PM, "flux_check": flux_check,
            "spectrum_deblended": spec_summary(cuts, tgt, ep, center),
            "method": __doc__.split("Method (one line each):")[1].strip()}
-    OUT.write_text(json.dumps(res, indent=1, ensure_ascii=False), encoding="utf-8")
+    write_json(OUT_NAME, res, ensure_ascii=False)
     return res
 
 
@@ -239,7 +242,6 @@ def report(res):
           f"ratio SPHEREx W {fc['W_ratio_mover_over_star']} vs WISE W2 {fc['W2_ratio_mover_over_star']}; W2 fluxes {[(k, v['flux_mjy']) for k, v in fc['W2_catalog'].items()]}")
     for label, rows in res["spectrum_deblended"].items():
         print(f"spectrum {label:14s} " + "  ".join(f"{r['um'][0]}-{r['um'][1]}:{r['flux_mjy']:+.3f}" for r in rows) + " mJy")
-    print("written", OUT)
 
 
 def test_wise0855_detected():

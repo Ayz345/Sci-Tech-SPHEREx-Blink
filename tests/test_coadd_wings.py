@@ -1,7 +1,7 @@
 """Validate wing_flux (relative brightness from the PSF wings) against aperture photometry before publishing it.
 
 Run:  python tests/test_coadd_wings.py
-Writes handoff/results/wing_validation_v2.json.
+Result: wing_validation_v2.json. Default run writes to cache/test_results/; `--write` updates the tracked file (tests/resultio.py).
 
 Condition (orchestrator, 14 Nov): on exposures where BOTH are valid, wing_flux must be proportional to the aperture
 flux, i.e. the ratio wing/aperture must not change between epochs. Measured
@@ -36,7 +36,9 @@ from spx.photometry import spectrum_points
 from spx.targets import target_coord
 from test_coadd_wise0855 import gaia_stars
 
-OUT = ROOT / "handoff" / "results" / "wing_validation_v2.json"
+from resultio import write_json
+
+OUT_NAME = "wing_validation_v2.json"
 NBINS = 6
 
 
@@ -121,7 +123,7 @@ def run():
         cs, _ = access.fetch_cutouts(refs, c.ra.deg, c.dec.deg, half_px=half_px_for(7.0))
         pts = spectrum_points(cs, t, epochs=e, wings=True)["points"]
         res["wing_variability"][key] = variability(binned_series(pts, kind="wing"))
-    OUT.write_text(json.dumps(res, indent=1), encoding="utf-8")
+    write_json(OUT_NAME, res)
     return res
 
 

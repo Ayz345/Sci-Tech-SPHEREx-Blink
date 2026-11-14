@@ -1,7 +1,7 @@
 """Regression test for saturated cores (no "no data" ring around bright stars).
 
 Run:  python tests/test_coadd_saturation.py      (all five gallery targets, all six detector bands)
-Writes handoff/results/saturation_check_v2.json as {"spx_code_hash": spx.code_hash(), "frames": [...]}, so a check can
+Result: saturation_check_v2.json (Default run writes to cache/test_results/; `--write` updates the tracked file (tests/resultio.py).) as {"spx_code_hash": spx.code_hash(), "frames": [...]}, so a check can
 tell whether it was made by the same spx code as the gallery (provenance.json carries the same field).
 
 Rules checked inside 36" of the target, on grid pixels that have coverage (flag_frac finite):
@@ -47,7 +47,9 @@ from scipy.ndimage import binary_dilation, distance_transform_edt, label, map_co
 from spx.coadd import build_frames, half_px_for, prepare, saturated_pixels, target_at
 from spx.targets import TARGETS, target_coord
 
-OUT = ROOT / "handoff" / "results" / "saturation_check_v2.json"
+from resultio import write_json
+
+OUT_NAME = "saturation_check_v2.json"
 R_ARCSEC = 36.0
 
 
@@ -160,7 +162,7 @@ def run():
                              "core": "inf" if np.isposinf(core) else ("nan" if np.isnan(core) else round(core, 4)),
                              "peak_offset_px": round(peak_off, 2) if peak_off is not None else None})
     from spx import code_hash
-    OUT.write_text(json.dumps({"spx_code_hash": code_hash(), "frames": rows}, indent=1), encoding="utf-8", newline=chr(10))
+    write_json(OUT_NAME, {"spx_code_hash": code_hash(), "frames": rows})
     return rows
 
 

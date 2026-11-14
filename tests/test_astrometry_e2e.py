@@ -1,7 +1,8 @@
 """End-to-end check of the MPC draft chain on a real (433) Eros pass.
 
 Run:  python tests/test_astrometry_e2e.py      (network: MOST table cached by test_astrometry, Horizons, Gaia; S3 cached)
-Writes handoff/results/astrometry_e2e_v2.json and the draft handoff/results/astrometry_e2e_draft_v2.psv.
+Result: astrometry_e2e_v2.json and the draft astrometry_e2e_draft_v2.psv.
+Default run writes to cache/test_results/; `--write` updates the tracked file (tests/resultio.py).
 
 Chain: two user marks on one pass (Horizons position at two exposures + 3" random click error)
 -> spx.astrometry.measure_track (cutouts centred on the mark model, Gaia neighbours) -> spx.mpc.write_ades_psv
@@ -32,8 +33,10 @@ from spx import access, code_hash, frame_code_hash, mpc
 from spx.astrometry import measure_track, track_model
 from test_astrometry import gaia_rows, horizons_geocentric, most_table, topocentric
 
-OUT = ROOT / "handoff" / "results" / "astrometry_e2e_v2.json"
-DRAFT = ROOT / "handoff" / "results" / "astrometry_e2e_draft_v2.psv"
+from resultio import write_json, write_text
+
+OUT_NAME = "astrometry_e2e_v2.json"
+DRAFT_NAME = "astrometry_e2e_draft_v2.psv"
 
 
 def run():
@@ -73,7 +76,7 @@ def run():
 
     psv = mpc.write_ades_psv(det_rows, {"submitter": "J. Doe", "tool_version": "test_astrometry_e2e"})
     errs = mpc.validate_psv(psv)
-    DRAFT.write_text(psv, encoding="utf-8", newline=chr(10))
+    write_text(DRAFT_NAME, psv)
 
     lines = [ln for ln in psv.splitlines() if ln and not ln.startswith(("#", "!"))]
     hdr = [h.strip() for h in lines[0].split("|")]
@@ -111,7 +114,7 @@ def run():
                    "n": len(pa), "median_diff_arcsec": [float(np.median(pa[:, 0])), float(np.median(pa[:, 1]))] if len(pa) else None,
                    "rms_diff_arcsec": [float(np.sqrt(np.mean(pa[:, 0] ** 2))), float(np.sqrt(np.mean(pa[:, 1] ** 2)))] if len(pa) else None,
                    "expected_arcsec": [float(np.median(pa[:, 2])), float(np.median(pa[:, 3]))] if len(pa) else None}}
-    OUT.write_text(json.dumps(summary, indent=1), encoding="utf-8", newline=chr(10))
+    write_json(OUT_NAME, summary)
     return summary
 
 
