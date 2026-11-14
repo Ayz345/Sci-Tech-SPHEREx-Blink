@@ -18,6 +18,8 @@ RUN pip install --no-cache-dir numpy==2.3.3 scipy==1.16.2 astropy==7.1.0 request
 
 COPY spx/ spx/
 COPY server/ server/
+# threshold for meta.wing_bands (R Dra), read at run time
+COPY handoff/results/wing_validation_v2.json handoff/results/wing_validation_v2.json
 
 ARG SPX_COMMIT=unknown
 ENV SPX_COMMIT=${SPX_COMMIT}

@@ -321,3 +321,18 @@ def test_wings_only_for_r_dra_target(monkeypatch):
     P.spectrum(F(TARGETS["rw-aur"]), [])                      # other targets: off
     P.spectrum(F(None), [])                                   # free field: off
     assert seen == [True, False, False, False]
+
+
+def test_wing_bands_threshold_from_quality_file(monkeypatch, tmp_path):
+    from server import pipeline as P
+    from spx import photometry as ph
+    f = tmp_path / "wing_validation_v2.json"
+    f.write_text('{"summary": {"controls_p90": 1.5}}', encoding="utf-8")
+    monkeypatch.setattr(P, "WING_VALIDATION", f)
+    monkeypatch.setattr(ph, "variability", lambda series: {"D1": {"ratio": 1.2, "n_bins": 8},
+                                                           "D2": {"ratio": 2.0, "n_bins": 8}})
+    monkeypatch.setattr(ph, "binned_series", lambda points, kind="flux": [])
+    assert P.wing_bands([]) == {"D1": {"ratio": 1.2, "threshold": 1.5, "significant": False},
+                                "D2": {"ratio": 2.0, "threshold": 1.5, "significant": True}}
+    monkeypatch.setattr(P, "WING_VALIDATION", tmp_path / "missing.json")
+    assert P.wing_bands([]) is None  # no threshold -> the field is left out, never guessed

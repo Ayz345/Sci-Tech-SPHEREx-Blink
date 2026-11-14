@@ -47,6 +47,8 @@ DEBLENDED_MAX_SIGMA = 2.0            # deblended motion vs literature, per compo
 CORE_RADIUS_ARCSEC = 36.0            # region around the track checked for holes
 CORE_PX = 2.0                        # "the core": within 2 grid px of the track
 SATURATED_CORE = {"barnard": "inf", "r-dra": "inf", "rw-aur": "finite"}   # expected core per target
+SAT_FRACTION_MAX = 0.15              # a non-finite "finite" core is allowed only where > 15 % of exposures saturate
+SATURATION_CHECK = ROOT / "handoff" / "results" / "saturation_check_v2.json"
 PROFILES = {  # seconds
     "local": {"manifest": 5.0, "first_band": 30.0, "cached": 3.0, "six_bands": None},
     "deployed": {"manifest": 5.0, "first_band": 20.0, "cached": 3.0, "six_bands": 90.0},
@@ -245,6 +247,11 @@ def check_core(rep: Report, s: Static, key: str):
     ny, nx = s.shape
     yy, xx = np.mgrid[0:ny, 0:nx]
     holes, n_inf, n_core_nonfinite, per = 0, 0, 0, {}
+    excused, unexcused = {}, {}
+    satfrac = {}
+    if SATURATION_CHECK.exists():
+        for r_ in strict_json(SATURATION_CHECK):
+            satfrac[(r_["target"], r_["band"], int(r_["epoch"]))] = r_.get("sat_fraction_at_target")
     for b in sorted(s.bj):
         for e, (img, ej) in sorted(s.frames(b).items()):
             if e not in s.track:
@@ -265,6 +272,10 @@ def check_core(rep: Report, s: Static, key: str):
             holes += h
             n_inf += i
             n_core_nonfinite += c
+            if c:
+                fr = satfrac.get((key, b, int(e)))
+                (excused if fr is not None and fr > SAT_FRACTION_MAX else unexcused)[f"{e}_{b}"] = \
+                    {"nonfinite_core_px": c, "sat_fraction_at_target": fr}
             if h or i:
                 per[f"{e}_{b}"] = {"nan_holes": h, "inf": i}
     rep.check(sec, f"no NaN holes within {CORE_RADIUS_ARCSEC:g} arcsec of the track (weight > 0 or filled neighbours)",
@@ -274,8 +285,10 @@ def check_core(rep: Report, s: Static, key: str):
         rep.check(sec, "saturated core is +Inf (pixels near the track, all frames)", n_inf > 0, measured=n_inf,
                   threshold="> 0")
     elif want == "finite":
-        rep.check(sec, f"core finite (non-finite pixels within {CORE_PX:g} px of the track, all frames)",
-                  n_core_nonfinite == 0, measured=n_core_nonfinite, threshold="0")
+        rep.check(sec, f"core finite, or truly saturated there (> {SAT_FRACTION_MAX:.0%} of exposures, "
+                       f"{SATURATION_CHECK.name})", not unexcused,
+                  measured={"nonfinite_core_px": n_core_nonfinite, "excused": excused, "not_excused": unexcused},
+                  threshold=f"every non-finite core pixel has sat_fraction_at_target > {SAT_FRACTION_MAX}")
 
 
 def measure_motion(s: Static, band: str, r=4.0):
@@ -400,30 +413,27 @@ def check_wise(rep: Report, s: Static):
               measured=round(sp, 2), threshold=f"<= {STATIC_MAX} arcsec/yr", detail=json.dumps(rows))
 
 
+VARIABILITY_KIND = {"rw-aur": "flux", "r-dra": "wing"}   # R Dra: every aperture point saturated -> wing series
+MIN_VARIABLE_BANDS = {"rw-aur": 3, "r-dra": 1}
+
+
 def check_variable(rep: Report, s: Static, key: str):
-    """The image-quality session's metric (spx.photometry VARIABILITY_METHOD): the target's binned per-epoch
-    ratio per band vs control stars measured the same way in the same cutouts. A band is variable when its
-    ratio > the controls' 99th percentile in that band AND > 1.15. The target passes when at least one band is.
-    R Dra: every aperture point is saturated, so this metric cannot apply; its criterion (halo on the common
-    scale + wing series) is not published yet -> PENDING."""
+    """The co-add session's metric (spx.photometry VARIABILITY_METHOD and is_variable): per band, the target's
+    binned per-epoch ratio vs control stars measured the same way in the same cutouts. A band is variable with
+    >= 5 controls and a ratio > 1.15 and > every control; fewer controls -> undetermined. The target PASSES
+    when a band is variable, FAILS when every band is decided and none is, and is INFO when undetermined."""
     sec = f"target:{key}"
-    try:
-        from spx import photometry as ph
-        need = ("binned_series", "variability", "select_controls")
-        if not all(hasattr(ph, n) for n in need):
-            rep.add(sec, "brightness change at the target", PENDING, detail="spx.photometry has no variability yet")
-            return
-    except Exception as e:
-        rep.add(sec, "brightness change at the target", FAIL, detail=repr(e)[:200])
+    kind = VARIABILITY_KIND[key]
+    from spx import photometry as ph
+    if not all(hasattr(ph, n) for n in ("binned_series", "variability", "select_controls", "is_variable")):
+        rep.add(sec, f"brightness change at the target ({kind})", FAIL, detail="spx.photometry lacks the metric")
         return
     sp = strict_json(s.d / "spectrum.json")
-    tser = ph.binned_series(sp["points"])
-    tvar = ph.variability(tser)
-    if key == "r-dra":
-        rep.add(sec, "brightness change at the target", PENDING, measured={"target": tvar},
-                detail="aperture points all saturated; criterion (halo + wing series) not published yet")
+    tvar = ph.variability(ph.binned_series(sp["points"], kind=kind))
+    if not tvar:
+        rep.add(sec, f"brightness change at the target ({kind})", FAIL,
+                detail=f"no {kind} series in spectrum.json (wings published for this target?)")
         return
-    # controls, measured in the same cutouts (gallery squares from the disk cache)
     from server import pipeline as P
     f = P.open_field(target=key)
     cuts = []
@@ -437,30 +447,33 @@ def check_variable(rep: Report, s: Static, key: str):
     close = [r_ for r_ in gaia if r_.get("g_mag") is not None
              and SkyCoord(r_["ra"] * u.deg, r_["dec"] * u.deg).separation(tc).arcsec < 3]
     tg = min((r_["g_mag"] for r_ in close), default=None)
-    ctrl = ph.select_controls(gaia, (t["ra"], t["dec"]), tg)
+    n_pts = len(sp["points"]) or 1
+    saturated = sum(bool(q.get("saturated")) for q in sp["points"]) / n_pts > 0.5
+    ctrl = ph.select_controls(gaia, (t["ra"], t["dec"]), tg, saturated=saturated)
     from astropy.time import Time
     cvar = {}
     for r_ in ctrl:
         cc = SkyCoord(ra=r_["ra"] * u.deg, dec=r_["dec"] * u.deg, pm_ra_cosdec=(r_.get("pmra") or 0) * u.mas / u.yr,
                       pm_dec=(r_.get("pmdec") or 0) * u.mas / u.yr, obstime=Time(2016.0, format="jyear"))
-        v = ph.variability(ph.binned_series(ph.spectrum_points(cuts, cc, epochs=f.epochs)["points"]))
-        for b, d in v.items():
+        pts = ph.spectrum_points(cuts, cc, epochs=f.epochs, wings=(kind == "wing"))["points"]
+        for b, d in ph.variability(ph.binned_series(pts, kind=kind)).items():
             cvar.setdefault(b, []).append(d["ratio"])
-    per = {}
-    variable = []
+    per, variable, undetermined, decided_no = {}, [], [], []
     for b, d in tvar.items():
         cs = cvar.get(b, [])
-        p99 = float(np.percentile(cs, 99)) if len(cs) >= 3 else None
-        is_var = p99 is not None and d["ratio"] > p99 and d["ratio"] > 1.15
-        per[b] = {"ratio": d["ratio"], "n_bins": d["n_bins"], "controls_p99": None if p99 is None else round(p99, 3),
-                  "n_controls": len(cs), "controls": [round(x, 3) for x in cs], "variable": is_var,
-                  "note": None if p99 is not None else "fewer than 3 controls: no 99th percentile"}
-        if is_var:
-            variable.append(b)
-    rep.check(sec, "brightness change at the target (ratio > controls p99 and > 1.15 in at least one band)",
-              bool(variable), measured={"variable_bands": variable, "per_band": per},
-              threshold="ratio > p99(controls, >= 3 controls) and > 1.15",
-              detail=f"target G {tg}; {len(ctrl)} control stars; {ph.VARIABILITY_METHOD[:80]}...")
+        v = ph.is_variable(d["ratio"], cs)
+        per[b] = {"ratio": d["ratio"], "n_bins": d["n_bins"], "n_controls": len(cs),
+                  "controls_max": round(max(cs), 3) if cs else None, "variable": v}
+        (variable if v else undetermined if v is None else decided_no).append(b)
+    need = MIN_VARIABLE_BANDS.get(key, 1)
+    status = PASS if len(variable) >= need else (INFO if undetermined else FAIL)
+    rep.add(sec, "bands where is_variable is true", INFO, measured=variable)
+    rep.add(sec, f"brightness change at the target ({kind} series; >= {need} bands variable)", status,
+            measured={"variable": variable, "not_variable": decided_no, "undetermined": undetermined,
+                      "per_band": per},
+            threshold="spx.photometry.is_variable: >= 5 controls, ratio > 1.15 and > every control",
+            detail=f"target G {tg}, saturated={saturated}; {len(ctrl)} control stars"
+                   + ("; undetermined = fewer than 5 controls, not counted as a pass" if status == INFO else ""))
 
 
 # --------------------------------------------------------------------------- server

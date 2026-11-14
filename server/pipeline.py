@@ -521,6 +521,29 @@ def gaia_neighbors(coord: SkyCoord, gaia: list[dict] | None, self_match_arcsec: 
     return c[keep], [r for r, k in zip(rows, keep) if k]
 
 
+#: The co-add session's wing validation: summary.controls_p90 = 90th percentile of the wing-series epoch ratio on
+#: unsaturated control stars; a target ratio above it is significant. Read from the file, never typed in here.
+WING_VALIDATION = Path(__file__).resolve().parent.parent / "handoff" / "results" / "wing_validation_v2.json"
+
+
+def wing_threshold() -> float | None:
+    try:
+        return float(json.loads(WING_VALIDATION.read_text(encoding="utf-8"))["summary"]["controls_p90"])
+    except (OSError, KeyError, ValueError, TypeError) as e:
+        log.warning("wing threshold unavailable (%s): %r", WING_VALIDATION, e)
+        return None
+
+
+def wing_bands(points) -> dict | None:
+    """meta.wing_bands (contract): per band with wing points, {ratio, threshold, significant}."""
+    from spx import photometry as ph
+    thr = wing_threshold()
+    if thr is None:
+        return None
+    v = ph.variability(ph.binned_series(points, kind="wing"))
+    return {b: {"ratio": d["ratio"], "threshold": thr, "significant": bool(d["ratio"] > thr)} for b, d in v.items()}
+
+
 def wings_for(f: Field, ra: float | None) -> bool:
     """PSF-wing flux series: only for a gallery target that asks for it (TARGETS[...]["wings"]), and only at
     the target itself; never for a clicked position or a free field."""
@@ -533,5 +556,10 @@ def spectrum(f: Field, cuts, ra: float | None = None, dec: float | None = None, 
     from spx.photometry import spectrum_points
     coord = f.target if ra is None else SkyCoord(float(ra) * u.deg, float(dec) * u.deg, frame="icrs")
     nb, info = gaia_neighbors(coord, gaia)
-    return spectrum_points(cuts, coord, epochs=f.epochs, neighbors=nb, neighbor_info=info or None,
-                           wings=wings_for(f, ra))
+    wings = wings_for(f, ra)
+    out = spectrum_points(cuts, coord, epochs=f.epochs, neighbors=nb, neighbor_info=info or None, wings=wings)
+    if wings:
+        wb = wing_bands(out["points"])
+        if wb is not None:
+            out["meta"]["wing_bands"] = wb
+    return out
