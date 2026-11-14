@@ -244,7 +244,43 @@ function loadBand(band) {
   // frames after the band file: an epoch with n_used 0 has no file, so it is not requested (no 404 noise)
   return Promise.resolve(S.bandInfo.get(band))
     .then(() => Promise.all(S.m.epochs.map((ep, i) => loadFrame(band, ep.id, S.layer, emptyEpoch(band, i)))))
-    .then(() => { renderBands(); if (band === S.band) { status(""); draw(); } });
+    .then(() => { renderBands(); if (band === S.band) { if (!$("status").textContent.includes("low-coverage")) status(""); fixEpoch(); draw(); syncUrl(); } });
+}
+
+// ---------- low-coverage frames ({band}.json epochs[].quality === "low", fewer than 5 exposures) ----------
+// skipped by the player unless "show low-coverage frames" (?low=1) is on; without the field nothing changes
+S.showLow = params.get("low") === "1";
+function bandEpoch(band, i) {
+  const bj = S.bandInfo.get(band);
+  return bj && !(bj instanceof Promise) ? bj.epochs?.find((e) => e.id === S.m.epochs[i].id) : null;
+}
+const isLow = (band, i) => bandEpoch(band, i)?.quality === "low";
+const allowed = (band, i) => S.showLow || !isLow(band, i);
+// keep the current epoch on a frame that is shown; switch low frames on when fewer than 2 good frames remain
+function fixEpoch() {
+  if (!S.m?.epochs?.length || !S.band) return;
+  const idx = S.m.epochs.map((_, i) => i);
+  const good = idx.filter((i) => !isLow(S.band, i) && !emptyEpoch(S.band, i));
+  if (!S.showLow && good.length < 2 && idx.some((i) => isLow(S.band, i))) {
+    S.showLow = true; $("showLow").checked = true;
+    status(`${S.band}: fewer than 2 frames with 5 or more exposures, so low-coverage frames are shown.`);
+    syncUrl();
+  }
+  if (!allowed(S.band, S.epoch)) {
+    const ok = idx.filter((i) => allowed(S.band, i));
+    S.epoch = ok.find((i) => i > S.epoch) ?? ok[0] ?? S.epoch;
+  }
+}
+// epoch markers under the slider: skipped (low-coverage) epochs are drawn faint
+function renderEpochMarks() {
+  if (!S.m?.epochs) return;
+  $("epochMarks").replaceChildren(...S.m.epochs.map((e, i) => {
+    const s = document.createElement("span"), low = isLow(S.band, i), n = bandEpoch(S.band, i)?.n_used;
+    s.textContent = e.date.slice(2, 7);
+    s.className = (low ? "low" : "") + (i === S.epoch ? " cur" : "");
+    s.title = low ? `low coverage: ${n ?? "?"} exposures — ${S.showLow ? "shown" : "skipped"}` : e.date;
+    return s;
+  }));
 }
 
 // no data for this band/epoch: listed with 0 exposures, or the band file says n_used 0
@@ -273,21 +309,28 @@ const frameOf = (band, epoch, kind = S.layer) => {
 // A pixel that is +Infinity in any epoch of a band is shown saturated in every epoch of that band (blink, sum,
 // false colour) and as "no data" in the difference; otherwise a changing saturated fraction blinks like a
 // variable star. The files are unchanged; ?satunion=0 turns this off for comparison.
+// Only frames on screen take part (low-coverage frames are left out while they are skipped), and the union is
+// applied to an epoch only where that epoch is bright there too (value >= the band's scale.vmax): a saturated
+// core stays steady, but a one-epoch artefact is not printed onto empty sky in the other epochs.
 const SATUNION = params.get("satunion") !== "0";
 function satMask(band) {
   if (!SATUNION || !S.m?.epochs) return null;
-  const frames = S.m.epochs.map((e) => frameOf(band, e.id, "image")).filter(Boolean);
-  const c = (S.satCache ||= {})[band];
-  if (c && c.n === frames.length) return c.mask; // frames are only ever added, so the count is a valid key
+  const frames = S.m.epochs.map((e, i) => (allowed(band, i) ? frameOf(band, e.id, "image") : null)).filter(Boolean);
+  const key = `${frames.length}|${S.showLow}`, c = (S.satCache ||= {})[band];
+  if (c && c.key === key) return c.mask; // frames are only ever added, so count + low flag is a valid key
   let mask = null;
   for (const f of frames) for (let i = 0; i < f.length; i++) if (f[i] === Infinity) (mask ||= new Uint8Array(f.length))[i] = 1;
-  S.satCache[band] = { n: frames.length, mask };
+  S.satCache[band] = { key, mask };
   return mask;
 }
-function applySat(a, mask, value) {
+// ref = this epoch's own frame (null: apply wherever the mask is set); thr = the band's vmax
+function satHere(mask, i, ref, thr) {
+  return !!mask?.[i] && (!ref || ref[i] === Infinity || ref[i] >= thr);
+}
+function applySat(a, mask, value, ref = null, thr = Infinity) {
   if (!a || !mask) return a;
   const o = Float32Array.from(a);
-  for (let i = 0; i < o.length; i++) if (mask[i]) o[i] = value;
+  for (let i = 0; i < o.length; i++) if (satHere(mask, i, ref, thr)) o[i] = value;
   return o;
 }
 
@@ -296,9 +339,11 @@ function displayArray() {
   const eps = S.m.epochs.map((e) => e.id);
   const cur = frameOf(S.band, eps[S.epoch]);
   if (S.layer !== "image") return cur;
-  const sat = satMask(S.band);
-  if (S.mode === "blink") return applySat(cur, sat, Infinity);
-  const others = eps.filter((_, i) => S.mode === "sum" || i !== S.epoch).map((e) => frameOf(S.band, e)).filter(Boolean);
+  const sat = satMask(S.band), thr = sat ? bandScale(S.band).vmax : Infinity;
+  if (S.mode === "blink") return applySat(cur, sat, Infinity, cur, thr);
+  // sum and difference use only the frames on screen (low-coverage frames are left out while they are skipped)
+  const others = eps.filter((_, i) => allowed(S.band, i) && (S.mode === "sum" || i !== S.epoch))
+    .map((e) => frameOf(S.band, e)).filter(Boolean);
   if (!others.length || (S.mode === "diff" && !cur)) return null;
   // +Infinity (saturated) propagates into the sum; any non-finite result is shown as "no data" (contract v1)
   const n = others[0].length, mean = new Float32Array(n);
@@ -310,7 +355,7 @@ function displayArray() {
   if (S.mode === "sum") return applySat(mean, sat, Infinity);
   const d = new Float32Array(n);
   for (let i = 0; i < n; i++) { const v = cur[i] - mean[i]; d[i] = Number.isFinite(v) ? v : NaN; }
-  return applySat(d, sat, NaN);
+  return applySat(d, sat, NaN, cur, thr);
 }
 
 function percentile(arrs, ps) {
@@ -366,7 +411,8 @@ function bandScale(band) {
 }
 function drawRGB(ctx, ep, nx, ny, z) {
   const ch = rgbBands(), ids = [ch.r, ch.g, ch.b];
-  const fr = ids.map((b) => applySat(frameOf(b, ep.id, "image"), satMask(b), Infinity)), sc = ids.map(bandScale);
+  const sc = ids.map(bandScale);
+  const fr = ids.map((b, k) => { const f = frameOf(b, ep.id, "image"); return applySat(f, satMask(b), Infinity, f, sc[k].vmax); });
   $("scaleSrc").textContent = `false colour: R ${ch.r} · G ${ch.g} · B ${ch.b}, each with its band's own scale`;
   if (!fr.some(Boolean)) {
     ctx.fillStyle = "#888"; ctx.font = "14px system-ui";
@@ -415,6 +461,7 @@ function draw() {
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, cv.width, cv.height);
   const ep = S.m.epochs[S.epoch];
   $("epoch").value = S.epoch;
+  renderEpochMarks();
   const n = S.m.bands.find((b) => b.id === S.band)?.n_exposures?.[S.epoch];
   const bj = S.bandInfo.get(S.band);
   const used = bj?.epochs?.find((e) => e.id === ep.id)?.n_used;
@@ -450,6 +497,19 @@ function draw() {
     ctx.fillText(pending ? "loading…" : offline ? "server not reachable, retrying…" : "no data for this band/epoch", 12, 24);
   }
   overlays(ctx, ep);
+  lowLabel(ctx);
+}
+
+// visible label on a low-coverage frame (only reachable with "show low-coverage frames" on)
+function lowLabel(ctx) {
+  const bands = S.mode === "rgb" ? [...new Set(Object.values(rgbBands()))] : [S.band];
+  const low = bands.filter((b) => isLow(b, S.epoch));
+  if (!low.length) return;
+  const txt = `low coverage: ${low.map((b) => `${bandEpoch(b, S.epoch)?.n_used ?? "?"} exposures` + (bands.length > 1 ? ` (${b})` : "")).join(", ")}`;
+  ctx.font = "bold 13px system-ui";
+  const w = ctx.measureText(txt).width + 12, x = (ctx.canvas.width - w) / 2;
+  ctx.fillStyle = "rgba(0,0,0,0.75)"; ctx.fillRect(x, 6, w, 22);
+  ctx.fillStyle = "#ffcc66"; ctx.fillText(txt, x + 6, 22);
 }
 
 function toScreen(ra, dec) {
@@ -609,7 +669,7 @@ function selectBand(id) {
   if (id === S.band) return;
   S.prevBand = S.band; S.band = id; S.userScale = null;
   $("swapBand").textContent = `⇄ ${S.prevBand} (t)`; $("swapBand").disabled = false;
-  renderBands(); draw(); syncUrl(); plots();
+  fixEpoch(); renderBands(); draw(); syncUrl(); plots();
   loadBand(id).then(draw);
 }
 
@@ -713,13 +773,17 @@ function syncUrl() {
   p.set("band", S.band); p.set("mode", S.mode); p.set("frame", S.epoch); p.set("zoom", S.zoom);
   if (S.layer !== "image") p.set("layer", S.layer); else p.delete("layer");
   if (S.mode === "rgb" && S.m?.bands) { const c = rgbBands(); p.set("rgb", [c.r, c.g, c.b].join(",")); } else p.delete("rgb");
+  if (S.showLow) p.set("low", "1"); else p.delete("low");
   history.replaceState(null, "", "?" + p.toString());
   updateLinks();
 }
 
 function step(d) {
   if (!S.m?.epochs?.length) return;
-  S.epoch = (S.epoch + d + S.m.epochs.length) % S.m.epochs.length;
+  const n = S.m.epochs.length;
+  let e = S.epoch;
+  for (let k = 0; k < n; k++) { e = (e + d + n) % n; if (allowed(S.band, e)) break; } // skip low-coverage frames
+  S.epoch = e;
   draw(); syncUrl();
 }
 function setPlaying(on) {
@@ -752,7 +816,14 @@ function wire() {
   $("copyEmbed").onclick = copyEmbed;
   $("swapBand").onclick = () => S.prevBand && selectBand(S.prevBand);
   $("speed").oninput = () => S.playing && setPlaying(true);
-  $("epoch").oninput = (e) => { S.epoch = +e.target.value; draw(); syncUrl(); };
+  $("epoch").oninput = (e) => {
+    const v = +e.target.value, prev = S.epoch;
+    S.epoch = v;
+    if (!allowed(S.band, v)) { S.epoch = prev; step(v > prev ? 1 : -1); return; } // a skipped frame: move past it
+    draw(); syncUrl();
+  };
+  $("showLow").checked = S.showLow;
+  $("showLow").onchange = (e) => { S.showLow = e.target.checked; status(""); fixEpoch(); draw(); syncUrl(); };
   $("mode").onchange = (e) => setMode(e.target.value);
   $("layer").onchange = (e) => {
     S.layer = e.target.value; S.userScale = null;
@@ -783,7 +854,7 @@ function wire() {
       const c = rgbBands(), ep = S.m.epochs[S.epoch].id;
       $("readout").textContent = head + [["R", c.r], ["G", c.g], ["B", c.b]].map(([k, b]) => {
         const f = frameOf(b, ep, "image"), raw = f && inside ? f[yi * nx + xi] : NaN;
-        const other = inside && satMask(b)?.[yi * nx + xi] && raw !== Infinity;
+        const other = inside && raw !== Infinity && satHere(satMask(b), yi * nx + xi, f, bandScale(b).vmax);
         return `${k} ${b} ${fmt(raw)}${other ? " (saturated in another epoch)" : ""}`;
       }).join("   ");
       return;
@@ -792,7 +863,8 @@ function wire() {
     const i = yi * nx + xi, epId = S.m.epochs[S.epoch].id;
     const a = displayArray(), shown = a && inside ? a[i] : NaN;
     const raw = S.mode === "blink" && S.layer === "image" ? frameOf(S.band, epId)?.[i] ?? NaN : shown;
-    const other = S.layer === "image" && inside && satMask(S.band)?.[i] && frameOf(S.band, epId)?.[i] !== Infinity;
+    const own = frameOf(S.band, epId);
+    const other = S.layer === "image" && inside && own?.[i] !== Infinity && satHere(satMask(S.band), i, own, bandScale(S.band).vmax);
     const w = frameOf(S.band, epId, "weight"), fw = w && inside ? w[i] : null;
     $("readout").textContent = head + `${S.layer} value ${fmt(inside ? raw : NaN)}` +
       (other ? " (saturated in another epoch)" : "") + (fw != null ? `   weight ${fw}` : "");

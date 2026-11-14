@@ -115,6 +115,11 @@ def make_mover():
         }
         if bid == "D2":
             del band_json["scale"]  # tests the percentile fallback
+        # low-coverage frames: D4 epoch 0 is skipped by default; D6 has only one good frame, so the page
+        # switches "show low-coverage frames" on by itself
+        for e in band_json["epochs"]:
+            if (bid == "D4" and e["id"] == 0) or (bid == "D6" and e["id"] in (0, 1)):
+                e["n_used"], e["quality"] = 3, "low"
         (d / f"{bid}.json").write_text(json.dumps(band_json, indent=1, ensure_ascii=False), encoding="utf-8")
 
     qra, qdec = pix2world(30, 40)  # "catalogue position" far from where the mover is now
