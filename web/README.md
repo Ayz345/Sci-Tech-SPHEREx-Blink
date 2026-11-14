@@ -100,6 +100,11 @@ live server, also for a gallery target opened from static files. The window gets
 centre falls in the window) are shown. Without the live server the page says so. Developer: `?winmock=1` serves
 any window as the target's `W` band, to try the interface before the server builds windows.
 
+## Credits in the footer
+
+While the WISE image or the CatWISE layer is in use, the footer shows the AllWISE and CatWISE2020 credit lines;
+while the Gaia overlay is on, the Gaia DR3 acknowledgement. Texts verbatim from the IRSA and ESA pages.
+
 ## WISE image in the blink
 
 When `{key}/wise.json` and `wise_W1.f32` / `wise_W2.f32` exist (resampled onto this field's grid, row 0 = south),
@@ -117,7 +122,7 @@ When the field has it (`{key}/catwise.json` for gallery targets, `/api/catwise?k
 Overlays box shows "CatWISE2020": squares (Gaia uses circles). Sources with `pmra`/`pmdec` are moved to each
 epoch from `ref_mjd`; when the catalogue has no proper motions the note says "positions at the catalogue epoch
 (2015.4), not moved". Rows with `pm_reliable: false` (CatWISE fits of objects faster than about 1″/yr) are not moved: they are drawn as dashed squares at the catalogue position and the note quotes `meta.fast_note`. The cursor readout names the source under it with W1/W2. Live server: 202 = "being
-prepared" (asked again every 5 s), 503 = "WISE catalogue is not available right now"; a gallery target without the file says the same. A live field without a layer: not shown.
+prepared" (asked again every 5 s), 503 = "WISE catalogue is not available right now"; no file (e.g. R Dra): the control is not shown. The layer's info line quotes `meta.pm_convention` and `meta.fast_note`; the readout adds `pm_check` when present.
 Field names (`source_name, ra, dec, pmra, pmdec, w1mag, w2mag, ref_mjd`) are mapped in `normCatwise()`.
 
 ## Automatic candidates (F2)

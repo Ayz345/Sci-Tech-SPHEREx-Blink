@@ -522,8 +522,15 @@ function loadRGB() {
 
 // ---------- drawing ----------
 const off = document.createElement("canvas");
+// credit lines in the footer while the matching layer is in use (texts verbatim from the IRSA / ESA pages)
+function updateCredits() {
+  const wiseUsed = !!(S.wise && S.wiseOn), catUsed = !!(S.catwise && $("ovCat").checked);
+  $("creditWise").hidden = $("creditCat").hidden = !(wiseUsed || catUsed);
+  $("creditGaia").hidden = !(S.gaia?.length && $("ovGaia").checked);
+}
 function draw() {
   if (!S.m?.grid) return;
+  updateCredits();
   const [ny, nx] = S.m.grid.shape, z = S.zoom, cv = $("canvas"), ctx = cv.getContext("2d");
   cv.width = nx * z; cv.height = ny * z;
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, cv.width, cv.height);
@@ -1172,7 +1179,7 @@ function normCatwise(j) {
   return (Array.isArray(j) ? j : j.sources || []).map((s) => ({
     name: s.source_name ?? s.name ?? "", ra: +s.ra, dec: +s.dec,
     pmra: s.pmra == null ? null : +s.pmra, pmdec: s.pmdec == null ? null : +s.pmdec,
-    w1: s.w1mag ?? null, w2: s.w2mag ?? null, reliable: s.pm_reliable !== false,
+    w1: s.w1mag ?? null, w2: s.w2mag ?? null, reliable: s.pm_reliable !== false, pmCheck: s.pm_check ?? null,
     refMjd: s.ref_mjd != null ? +s.ref_mjd : mjdOfYear(s.ref_epoch ?? CAT_EPOCH) }));
 }
 async function loadCatwise() {
@@ -1184,17 +1191,17 @@ async function loadCatwise() {
     box.hidden = false; $("ovCat").disabled = true; note.textContent = "The WISE catalogue is being prepared…";
     setTimeout(() => loadCatwise().then(draw), 5000); return;
   }
-  // 503, or a gallery target without the file (the catalogue service did not answer when it was built)
-  if (r.status === 503 || (r.status === 404 && !USE_API)) { box.hidden = false; $("ovCat").disabled = true; note.textContent = "WISE catalogue is not available right now."; return; }
-  if (!r.ok) { box.hidden = true; return; } // a live field without a layer
+  if (r.status === 503) { box.hidden = false; $("ovCat").disabled = true; note.textContent = "WISE catalogue is not available right now."; return; }
+  if (!r.ok) { box.hidden = true; return; } // no layer for this field (e.g. R Dra in the gallery): no button
   let j;
   try { j = await r.json(); S.catwise = normCatwise(j); } catch { box.hidden = true; return; }
   box.hidden = false; $("ovCat").disabled = false;
   const moved = S.catwise.some((s) => s.pmra != null && s.pmdec != null && s.reliable), fast = S.catwise.filter((s) => !s.reliable).length;
-  note.textContent = `${S.catwise.length} sources; ` + (moved ? "moved to each epoch with their proper motion"
-    : `positions at the catalogue epoch (${CAT_EPOCH}), not moved`) +
-    (fast ? `. ${fast} with an unreliable motion are drawn dashed at the catalogue position, not moved` +
-      (j?.meta?.fast_note ? `: ${j.meta.fast_note}` : ".") : "");
+  const m = j?.meta || {};
+  note.textContent = [`${S.catwise.length} sources; ` + (moved ? "moved to each epoch with their proper motion"
+    : `positions at the catalogue epoch (${CAT_EPOCH}), not moved`),
+    fast && `${fast} with an unreliable catalogue motion are drawn dashed at the catalogue position, not moved`,
+    m.pm_convention, m.fast_note].filter(Boolean).map((t) => String(t).trim().replace(/([^.])$/, "$1.")).join(" ");
 }
 function catPos(s, mjd) {
   // unreliable motions (pm_reliable false: CatWISE fits of fast movers) stay at the catalogue position
@@ -1553,7 +1560,9 @@ function wire() {
     const fmt = (v) => (v === Infinity ? "saturated" : Number.isFinite(v) ? v.toPrecision(4) : "no data");
     const cr = cv.getBoundingClientRect(), ck = cv.width / cr.width;
     const cw = catwiseAt((ev.clientX - cr.left) * ck, (ev.clientY - cr.top) * ck, S.m.epochs[S.epoch]?.mjd_mid);
-    const catTxt = cw ? `   CatWISE ${cw.name}  W1 ${cw.w1 ?? "—"}  W2 ${cw.w2 ?? "—"}${cw.reliable ? "" : " (motion unreliable, not moved)"}` : "";
+    const pmc = cw?.pmCheck == null ? "" : `  check: ${typeof cw.pmCheck === "object" ? JSON.stringify(cw.pmCheck) : cw.pmCheck}`;
+    const mag = (v) => (v == null || !Number.isFinite(+v) ? "—" : (+v).toFixed(2));
+    const catTxt = cw ? `   CatWISE ${cw.name}  W1 ${mag(cw.w1)}  W2 ${mag(cw.w2)}${cw.reliable ? "" : " (catalogue motion not reliable)"}${pmc}` : "";
     const head = `x ${xi}  y ${yi}   RA ${ra.toFixed(5)}  Dec ${dec.toFixed(5)}${catTxt}\n`;
     if (S.onWise && wiseActive()) { // the WISE frame's own value
       const a = S.wise.frames[S.wiseBand], v = inside ? a[yi * nx + xi] : NaN;
