@@ -9,12 +9,26 @@ This is **not the final design**. No build step, no dependencies.
 python -m http.server 8765 --bind 127.0.0.1 -d web
 ```
 
+On start the page checks the live server named in `config.js` (`window.SPX_API`, one `/api/health` request with a
+1.5 s timeout; set it to the deployed server, or `""` for gallery only). Users never add parameters:
+
+- Gallery targets (`?target=`) always open from the static files under `web/data/`, at once, without waiting for
+  the check, and keep working when the server is down.
+- Free coordinates, name lookup, field changes and the spectrum at a clicked point go to the live server if the
+  check found one; otherwise the page says "The live server is not reachable right now, so only the five gallery
+  targets are available."
+- A target that is not in the static gallery is asked from the live server.
+- The header ("source: …") says which source is in use.
+
+Developer parameters (they override the check):
+
 | URL | Data source |
 |---|---|
-| `http://127.0.0.1:8765/?target=wise-0855` | static files under `web/data/` (default) |
+| `http://127.0.0.1:8765/?target=wise-0855` | gallery from `web/data/`, live server from `config.js` |
 | `http://127.0.0.1:8765/?data=dev-fixtures/data&target=fake-mover` | synthetic fixtures |
-| `http://127.0.0.1:8765/?api=http://127.0.0.1:8000&target=wise-0855` | API (`/api/manifest`, `/api/band`, `/api/frame`, …) |
-| `…&ra=133.79&dec=-7.24&fov=0.1` | free coordinates (API only) |
+| `http://127.0.0.1:8765/?api=http://127.0.0.1:8000&target=wise-0855` | everything, gallery included, from that server |
+| `http://127.0.0.1:8765/?api=none` | no server check (gallery only) |
+| `…&ra=133.79&dec=-7.24&fov=0.1` | free coordinates (needs a live server) |
 
 State in the URL: `band`, `mode` (blink · diff · sum), `frame`, `zoom`, `layer` (image · weight · flagfrac).
 

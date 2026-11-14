@@ -1,27 +1,45 @@
 // SPHEREx Blink — placeholder test harness for the v1 data contract (PLAN.md section 5).
-// Plain ES module, no build step. Reads either static files (?data=) or the API (?api=).
+// Plain ES module, no build step. Gallery targets come from static files; free positions, name lookup and field
+// changes go to the live server found on start (config.js), or to the server forced with ?api= (developer).
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-const API = (params.get("api") || "").replace(/\/$/, "");
+// ?api=<url> (developer): everything goes to that server, no probe. ?api=none: no server. No ?api=: the page
+// probes window.SPX_API (config.js) once on start; gallery targets stay static, the rest uses the server if found.
+const API_PARAM = params.get("api");
+const FORCED = !!API_PARAM && API_PARAM !== "none";
+let API = FORCED ? API_PARAM.replace(/\/$/, "") : ""; // the live server in use ("" = none)
+let USE_API = FORCED; // whether the target on screen is read from the server (otherwise static files)
+function probeServer() {
+  const url = (window.SPX_API || "").replace(/\/$/, "");
+  if (FORCED) return fetch(`${API}/api/health`).then((r) => r.json()).then((h) => { S.health = h; return true; }).catch(() => false);
+  if (API_PARAM === "none" || !url) return Promise.resolve(false);
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 1500), t0 = performance.now();
+  const li = document.createElement("li");
+  return fetch(`${url}/api/health`, { signal: ctl.signal })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((h) => { li.textContent = `${h ? 200 : "ERR"} ${Math.round(performance.now() - t0)} ms ${url}/api/health (probe)`; if (!h) return false; API = url; S.health = h; return true; })
+    .catch(() => { li.textContent = `no answer ${Math.round(performance.now() - t0)} ms ${url}/api/health (probe): gallery only`; return false; })
+    .finally(() => { clearTimeout(timer); $("log").prepend(li); });
+}
 const EMBED = params.get("embed") === "1";
 const DATA = (params.get("data") || "data").replace(/\/$/, "");
 const D2R = Math.PI / 180;
 
-// ---------- data source: one code path for static files and API ----------
+// ---------- data source: one code path for static files and API (USE_API decides per target) ----------
 const src = {
   index: () => `${DATA}/index.json`,
-  manifest: (q) => API
+  manifest: (q) => USE_API
     ? `${API}/api/manifest?` + new URLSearchParams(q.target ? { target: q.target } : Object.fromEntries(
       Object.entries({ ra: q.ra, dec: q.dec, fov: q.fov, pmra: q.pmra, pmdec: q.pmdec, ref_epoch: q.ref_epoch, name: q.name })
         .filter(([, v]) => v != null && v !== ""))) // optional pm/name: the server then builds target_track
     : q.key || q.target ? `${DATA}/${q.key || q.target}/manifest.json` : null,
-  band: (key, band) => API ? `${API}/api/band?key=${enc(key)}&band=${enc(band)}` : `${DATA}/${key}/${band}.json`,
-  frame: (key, epoch, band, kind) => API
+  band: (key, band) => USE_API ? `${API}/api/band?key=${enc(key)}&band=${enc(band)}` : `${DATA}/${key}/${band}.json`,
+  frame: (key, epoch, band, kind) => USE_API
     ? `${API}/api/frame?key=${enc(key)}&epoch=${epoch}&band=${enc(band)}` + (kind === "image" ? "" : `&kind=${kind}`)
     : `${DATA}/${key}/${epoch}_${band}${kind === "image" ? "" : "_" + kind}.f32`,
-  gaia: (key) => API ? `${API}/api/gaia?key=${enc(key)}` : `${DATA}/${key}/gaia.json`,
-  spectrum: (key, ra, dec) => API
+  gaia: (key) => USE_API ? `${API}/api/gaia?key=${enc(key)}` : `${DATA}/${key}/gaia.json`,
+  spectrum: (key, ra, dec) => USE_API
     ? `${API}/api/spectrum?key=${enc(key)}` + (ra != null ? `&ra=${ra}&dec=${dec}` : "")
     : `${DATA}/${key}/spectrum.json`,
 };
@@ -67,9 +85,9 @@ let offline = false;
 function setOffline(on) {
   if (on === offline) return;
   offline = on;
-  if (on) status(`Server ${API} is not reachable; retrying every few seconds…`, true);
+  if (on) status("The live server is not reachable right now; retrying every few seconds…", true);
   else {
-    status("Server reachable again.");
+    status("Live server reachable again.");
     if (S.m?.bands && S.band) loadBand(S.band).then(draw);
   }
   if (S.m?.grid) draw();
@@ -132,7 +150,7 @@ async function loadIndex() {
 
 function navigate(q) {
   const p = new URLSearchParams();
-  if (API) p.set("api", API);
+  if (API_PARAM) p.set("api", API_PARAM); // only an explicit (developer) choice is carried; the probe runs again
   if (params.get("data")) p.set("data", DATA);
   for (const [k, v] of Object.entries(q)) if (v != null && v !== "" && !(typeof v === "number" && !Number.isFinite(v))) p.set(k, v);
   location.search = p.toString();
@@ -143,16 +161,23 @@ async function loadTarget() {
     fov: params.get("fov") || "0.1", pmra: params.get("pmra"), pmdec: params.get("pmdec"),
     ref_epoch: params.get("ref_epoch"), name: params.get("name") };
   if (!q.target && !q.key && !(q.ra && q.dec)) { status("Pick a target or enter coordinates."); return; }
-  const url = src.manifest(q);
-  if (!url) { status("Free coordinates need the server: add ?api=http://localhost:8000", true); return; }
+  const gallery = !!(q.target || q.key);
+  if (!FORCED) {
+    // gallery targets open from static files at once (no waiting for the probe); a free position needs the server
+    USE_API = !gallery && await serverReady;
+    if (!gallery && !USE_API) { status("The live server is not reachable right now, so only the five gallery targets are available.", true); return; }
+  }
+  let url = src.manifest(q);
   S.manifestUrl = url;
   status("Loading manifest…");
   try { S.m = await fetchLogged(url); } catch (e) {
     if (offline) { // server down: say so and try again, the page recovers by itself
-      status(`Server ${API} is not reachable; retrying every few seconds…`, true);
+      status("The live server is not reachable right now; retrying every few seconds…", true);
       setTimeout(loadTarget, 3000);
       return;
     }
+    // a target that is not in the static gallery: ask the live server instead, if there is one
+    if (!FORCED && gallery && !USE_API && await serverReady) { USE_API = true; return loadTarget(); }
     status(`Manifest failed: ${e.message}`, true); return;
   }
   S.key = S.m.key;
@@ -196,7 +221,7 @@ async function loadTarget() {
   S.specTarget = at;
   loadSpectrum(at.ra, at.dec, "target");
 
-  if (API) {
+  if (USE_API) {
     // the server builds default_band first and the rest in the background; ask only for the band on screen
     // (an /api/band request moves that band to the front of the queue) and poll the manifest for the others
     loadBand(S.band).then(async () => {
@@ -732,7 +757,7 @@ function renderFov() {
       b.type = "button"; b.textContent = label;
       b.className = cur && Math.abs(cur * 60 - am) < 0.6 ? "on" : "";
       let why = "";
-      if (!API) why = `the static gallery is fixed at ${cur ? (cur * 60).toFixed(1) + "′" : "its field"}; another field needs the server (?api=)`;
+      if (!API) why = `the gallery is fixed at ${cur ? (cur * 60).toFixed(1) + "′" : "its field"}; another field needs the live server, which is not reachable right now`;
       else if (max && deg > max + 1e-9) why = `this server allows at most ${(max * 60).toFixed(1)}′ (max_fov_deg ${(+max).toFixed(4)}°)`;
       b.disabled = !!why;
       b.title = why || `${label} field: larger fields catch faster movers but take longer to load`;
@@ -828,10 +853,11 @@ function wire() {
     e.preventDefault();
     const f = new FormData(e.target), name = (f.get("name") || "").trim();
     if (!name) { navigate({ ra: f.get("ra"), dec: f.get("dec"), fov: f.get("fov") }); return; }
-    if (!API) { // static: match a gallery entry by key or name
+    if (!(await serverReady)) { // no live server: match a gallery entry by key or name
       const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
       const hit = [...$("targets").children].find((b) => norm(b.dataset.key) === norm(name) || norm(b.textContent) === norm(name));
-      if (hit) navigate({ target: hit.dataset.key }); else status(`"${name}" is not in the static gallery; name lookup needs ?api=`, true);
+      if (hit) navigate({ target: hit.dataset.key });
+      else status(`"${name}" is not one of the five gallery targets, and the live server is not reachable right now to look it up.`, true);
       return;
     }
     status(`Resolving "${name}"…`);
@@ -902,9 +928,11 @@ function wire() {
   cv.onclick = (ev) => {
     if (!S.m?.grid) return;
     const [ra, dec] = pix2world(...gridAt(ev));
-    if (!API) { status("Spectrum at a clicked point needs the server (?api=); static data has the target spectrum only."); return; }
+    if (!API) { status("A spectrum at a clicked point needs the live server, which is not reachable right now; the gallery has the target's spectrum."); return; }
     S.specAt = [ra, dec]; draw();
-    fetchLogged(src.spectrum(S.key, ra.toFixed(6), dec.toFixed(6))).then((s) => { S.spectrum = s; plots(); }).catch((e) => status(`Spectrum failed: ${e.message}`, true));
+    // the live server measures any point, also for a gallery target opened from static files (same key)
+    fetchLogged(`${API}/api/spectrum?key=${enc(S.key)}&ra=${ra.toFixed(6)}&dec=${dec.toFixed(6)}`)
+      .then((s) => { S.spectrum = s; plots(); }).catch((e) => status(`Spectrum failed: ${e.message}`, true));
   };
 
   document.addEventListener("keydown", (e) => {
@@ -923,17 +951,23 @@ function wire() {
 }
 
 if (params.get("embed") === "1") document.body.classList.add("embed");
-$("source").textContent = API ? `source: API ${API}` : `source: static ${DATA}/`;
 if (params.get("ra")) { const f = $("coordForm"); f.ra.value = params.get("ra"); f.dec.value = params.get("dec"); f.fov.value = params.get("fov") || "0.1"; }
-if (API) { // the server's field-of-view limit (larger requests get 400)
-  fetchLogged(`${API}/api/health`).then((h) => {
-    S.health = h; renderFov();
-    if (!h.max_fov_deg) return;
-    const fov = $("coordForm").fov;
-    fov.max = h.max_fov_deg; fov.title = `max ${(+h.max_fov_deg).toFixed(4)}° on this server`;
-    $("source").textContent += ` · server ${h.version ?? ""} ${h.commit ?? ""} · max FOV ${(+h.max_fov_deg).toFixed(4)}°`;
-  }).catch(() => status(`Server ${API} is not reachable; the static gallery still works without ?api=.`, true));
+// header: which source the page uses (gallery files, live server or both)
+function renderSource(probing) {
+  const h = S.health, srv = API ? `live server ${API}` + (h ? ` (${h.version ?? ""} ${h.commit ?? ""}, max field ${(+h.max_fov_deg * 60).toFixed(1)}′)` : "") : "";
+  $("source").textContent = "source: " + (FORCED ? `${srv} (all targets)`
+    : [`static gallery ${DATA}/`, probing ? "looking for the live server…" : srv || "live server not reachable"].join(" · "));
 }
+const serverReady = probeServer(); // one quick check; nothing below waits for it except free positions and names
+renderSource(true);
+serverReady.then((ok) => {
+  renderSource(false); renderFov();
+  if (ok && S.health?.max_fov_deg) {
+    const fov = $("coordForm").fov;
+    fov.max = S.health.max_fov_deg; fov.title = `max ${(+S.health.max_fov_deg).toFixed(4)}° on this server`;
+  }
+  if (FORCED && !ok) status(`Server ${API} is not reachable; without ?api= the page shows the five gallery targets.`, true);
+});
 wire();
 loadIndex();
 loadTarget();
