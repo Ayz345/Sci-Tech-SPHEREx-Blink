@@ -1,0 +1,16 @@
+# downloaded data and caches (never commit)
+cache/
+*.pkl
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
