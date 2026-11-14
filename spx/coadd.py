@@ -48,6 +48,9 @@ FLAG_BITS = {
     "HOT": 10, "COLD": 11, "FULLSAMPLE": 12, "PHANMISS": 14, "NONLINEAR": 15, "PERSIST": 17,
     "OUTLIER": 19, "CROSSTALK": 20, "SOURCE": 21, "GHOST": 22, "GHOST_FPA": 23, "GHOST_EXT": 24,
     "STREAK": 25, "BLOOM": 26, "SNOWBALL": 27, "HALO": 28,
+    # Explanatory Supplement v2.1 Table 16: "not recommended for use in science analysis"; defined (MSKN0029) in
+    # 21 of ~15,000 cached FLAGS headers (14 Nov 2026), absent from the others.
+    "SATELLITE_HALO": 29,
 }
 INFO_ONLY = ("SOURCE", "FULLSAMPLE")
 BAD_MASK = sum(1 << b for n, b in FLAG_BITS.items() if n not in INFO_ONLY)
