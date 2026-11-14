@@ -854,13 +854,15 @@ function scatter(svg, pts, xk, yk, xlabel, ylabel) {
     // faint: flagged, or (psf_deblended) consistent with zero given the neighbour residual (|flux| < 0.15 × neighbor_flux)
     const faint = (p.flagged && !p.overflow) || (p.neighbor_flux > 0 && Math.abs(p[yk]) < 0.15 * p.neighbor_flux);
     const cx = sx(p[xk]).toFixed(1), cy = Math.max(T, Math.min(H - B, sy(p[yk])));
+    // hover text: the point's values and the names of the FLAGS bits set in its aperture (F3)
+    const tip = `<title>${escapeHtml(pointTip(p, yk))}</title>`;
     if (p.saturated && yk === "flux") { // lower limit: open marker with an upward tick
       h += `<g stroke="${c}" fill="none" opacity="0.7"><circle cx="${cx}" cy="${cy.toFixed(1)}" r="2.6"/>` +
-        `<path d="M${cx} ${(cy - 2.6).toFixed(1)}v-7m-2.5 2.5l2.5-2.5 2.5 2.5"/></g>`;
+        `<path d="M${cx} ${(cy - 2.6).toFixed(1)}v-7m-2.5 2.5l2.5-2.5 2.5 2.5"/>${tip}</g>`;
     } else if (p.overflow && yk === "flux") { // recovered from overflow: a valid measurement, filled diamond
-      h += `<path d="M${cx} ${(cy - 3.2).toFixed(1)}l3.2 3.2-3.2 3.2-3.2-3.2z" fill="${c}" opacity="${faint ? 0.2 : 1}"/>`;
+      h += `<path d="M${cx} ${(cy - 3.2).toFixed(1)}l3.2 3.2-3.2 3.2-3.2-3.2z" fill="${c}" opacity="${faint ? 0.2 : 1}">${tip}</path>`;
     } else {
-      h += `<circle cx="${cx}" cy="${cy.toFixed(1)}" r="2.2" fill="${c}" opacity="${faint ? 0.2 : 1}"/>`;
+      h += `<circle cx="${cx}" cy="${cy.toFixed(1)}" r="2.2" fill="${c}" opacity="${faint ? 0.2 : 1}">${tip}</circle>`;
     }
   }
   // epoch legend in its own row above the plot, so it never covers data points
@@ -868,12 +870,43 @@ function scatter(svg, pts, xk, yk, xlabel, ylabel) {
   h += S.m.epochs.map((e, i) => `<text x="${(L + i * step).toFixed(0)}" y="12" fill="${EPOCH_COLORS[e.id % EPOCH_COLORS.length]}" font-size="10">${e.date}</text>`).join("");
   svg.innerHTML = h;
 }
+function pointTip(p, yk) {
+  const v = p[yk], unit = S.spectrum?.meta?.flux_unit || "";
+  const lines = [
+    `${(+p.wavelength_um).toFixed(3)} µm · ${Number.isFinite(+v) ? (+v).toPrecision(3) : "—"} ${yk === "wing_flux" ? "MJy/sr" : unit}` +
+      (p.err != null && yk === "flux" ? ` ± ${(+p.err).toPrecision(2)}` : ""),
+    `MJD ${(+p.mjd).toFixed(3)}${p.band ? ` · ${p.band}` : ""}`,
+  ];
+  if (p.saturated) lines.push("saturated (lower limit)"); else if (p.overflow) lines.push("recovered from overflow");
+  if (p.flagged) lines.push("flagged");
+  if (Array.isArray(p.flags)) lines.push(p.flags.length ? `flags: ${p.flags.join(", ")}` : "flags: none");
+  return lines.join("\n");
+}
+// meta.flag_legend {name: one-line meaning}, shown as it is in a closed "Flags" section; names seen in this
+// spectrum first
+function renderFlagLegend(pts, meta) {
+  const leg = meta?.flag_legend, box = $("flagBox");
+  box.hidden = !leg || !Object.keys(leg).length;
+  if (box.hidden) return;
+  const seen = new Map();
+  for (const p of pts) for (const f of p.flags || []) seen.set(f, (seen.get(f) || 0) + 1);
+  const names = [...Object.keys(leg)].sort((a, b) => (seen.get(b) || 0) - (seen.get(a) || 0) || a.localeCompare(b));
+  $("flagSummary").textContent = `Flags (${seen.size} kinds in this spectrum)`;
+  $("flagList").replaceChildren(...names.map((n) => {
+    const dt = Object.assign(document.createElement("dt"), { textContent: `${n}${seen.get(n) ? ` — ${seen.get(n)} points` : ""}` });
+    const dd = Object.assign(document.createElement("dd"), { textContent: leg[n] });
+    if (!seen.get(n)) dt.className = dd.className = "muted";
+    return [dt, dd];
+  }).flat());
+}
+
 function plots() {
   const raw = S.spectrum;
   const pts = (Array.isArray(raw) ? raw : raw?.points || []).filter((p) => Number.isFinite(p.flux));
   const meta = raw?.meta || {}, unit = meta.flux_unit || "flux";
   $("specWhere").textContent = S.specAt === "target" ? "(target position)" : S.specAt ? `(${S.specAt.map((v) => v.toFixed(5)).join(", ")})` : "";
   scatter($("spec"), pts, "wavelength_um", "flux", "µm", unit); // flagged points drawn faint
+  renderFlagLegend(pts, meta);
   // light curve: selected band's wavelength range only (mixing wavelengths turns the spectrum into fake scatter)
   const w = S.m?.bands?.find((b) => b.id === S.band)?.wave_um;
   const inBand = (p) => !w || (p.wavelength_um >= w[0] && p.wavelength_um <= w[1]);

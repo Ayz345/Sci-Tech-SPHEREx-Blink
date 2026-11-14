@@ -52,6 +52,9 @@ footer { margin-top: 16px; font-size: 12px; }
 #spec { cursor: col-resize; }
 body.embed #winBox, body.embed #winNote, body.embed #aladinBox { display: none; }
 #aladinBox { margin-top: 12px; }
+#flagBox { font-size: 12px; margin-top: 4px; }
+#flagList dt { margin-top: 3px; font-family: ui-monospace, Consolas, monospace; }
+#flagList dd { margin: 0 0 0 12px; }
 #aladinBox summary { cursor: pointer; }
 #aladinDiv { width: min(420px, 100%); height: 420px; margin-top: 6px; }
 #aladinDiv:empty { height: 0; }

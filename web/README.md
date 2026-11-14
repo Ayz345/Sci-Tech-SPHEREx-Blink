@@ -97,6 +97,13 @@ live server, also for a gallery target opened from static files. The window gets
 centre falls in the window) are shown. Without the live server the page says so. Developer: `?winmock=1` serves
 any window as the target's `W` band, to try the interface before the server builds windows.
 
+## Flag names on spectrum points (F3)
+
+Pointing at a spectrum point shows its wavelength, flux ± error, MJD, band, saturated/overflow/flagged state and,
+when the spectrum carries them, `flags` (names of the FLAGS bits set in its aperture, "none" for `[]`). A closed
+"Flags" section lists `meta.flag_legend` as given by the data (names seen in this spectrum first, with counts;
+the others faint). Without `flag_legend` the section is hidden. The fixtures' legend texts are placeholders.
+
 ## Sky context panel (F5, Aladin Lite)
 
 "Sky context (Aladin Lite)" is closed by default; Aladin Lite is loaded only when it is opened, and never in

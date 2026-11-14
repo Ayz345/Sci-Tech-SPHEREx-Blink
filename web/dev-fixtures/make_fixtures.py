@@ -158,6 +158,10 @@ def make_mover():
                          "flux": round(f + float(rng.normal(0, 0.03)), 5), "err": 0.03, "mjd": ep["mjd_mid"] + float(rng.uniform(-1, 1)),
                          "epoch": ep["id"], "band": f"D{min(6, 1 + int(w > 1.09) + int(w > 1.62) + int(w > 2.41) + int(w > 3.82) + int(w > 4.41))}",
                          "flagged": bool(rng.random() < 0.05)})
+    names = ["TRANSIENT", "SOURCE", "OUTLIER", "PERSIST"]  # F3: FLAGS bit names in the aperture (synthetic choice)
+    for p in spec:
+        k = int(rng.integers(0, 3))
+        p["flags"] = sorted(set(rng.choice(names, size=k, replace=False).tolist())) if k else []
     for p in spec:  # psf_deblended fields (contract addition proposed 14 Nov): neighbour flux removed per point
         p["neighbor_flux"] = round(0.8 if p["wavelength_um"] < 2.4 else 0.3, 3)
         p["overflow"] = 1.2 <= p["wavelength_um"] < 1.6  # recovered from overflow: valid, kept in the light curve
@@ -175,8 +179,32 @@ def make_mover():
                            "D2": {"ratio": 1.31, "threshold": 1.47, "significant": False}},
             "deblended_neighbors": [{"source_id": "0000000000000000001", "g_mag": 16.3, "ra": 133.76, "dec": -7.24},
                                     {"source_id": None, "g_mag": None, "ra": 133.77, "dec": -7.25}],
-            "n_points": len(spec), "n_flagged": sum(p["flagged"] for p in spec)}
+            "n_points": len(spec), "n_flagged": sum(p["flagged"] for p in spec),
+            # SYNTHETIC placeholders: the real one-line meanings come from the Explanatory Supplement (Table 16)
+            "flag_legend": {n: f"SYNTHETIC placeholder meaning for {n} (fixture)" for n in names + ["HOT", "COLD"]}}
     (d / "spectrum.json").write_text(json.dumps({"meta": meta, "points": spec}), encoding="utf-8")
+
+    # F2: automatic candidates in the PLAN.md section 17 layout (synthetic)
+    def pos(xy, ep):
+        ra, dec = pix2world(*xy)
+        return {"epoch": ep["id"], "ra": round(ra, 6), "dec": round(dec, 6), "snr": 9.0}
+    gx, gy = stars[3][0], stars[3][1]
+    cands = {
+        "schema": 1, "method": "SYNTHETIC fixture: matched filter on difference frames (no real search)",
+        "params": {"snr_min": 5.0, "match_radius_px": 2.0}, "bands_searched": ["D5", "D6", "W"],
+        "candidates": [
+            {"id": "c1", "kind": "mover", "snr": 9.0, "bands": ["W", "D6"], "positions": [pos(mover[e["id"]], e) for e in EPOCHS],
+             "rate_arcsec_per_year": [-23.9, 7.3], "near_gaia": None, "notes": "synthetic mover"},
+            {"id": "c2", "kind": "variable", "snr": 7.5, "bands": ["D1"], "positions": [pos(variable[:2], EPOCHS[1])],
+             "rate_arcsec_per_year": None, "near_gaia": None, "notes": "synthetic variable"},
+            {"id": "c3", "kind": "known", "snr": 6.1, "bands": ["W"], "positions": [pos((gx, gy), e) for e in EPOCHS],
+             "rate_arcsec_per_year": [0.0, 0.0], "near_gaia": {"source_id": "0000000000000000003", "sep_arcsec": 0.8, "g_mag": 15.2},
+             "notes": "synthetic: explained by a Gaia star"},
+        ],
+        "rejected": {"alignment residual (same direction on bright stars)": 4, "masked: near a saturated core": 2},
+        "validation": ["SYNTHETIC: no injection test was run on this fixture.", "False candidates per field: not measured (fixture)."],
+    }
+    (d / "candidates.json").write_text(json.dumps(cands, indent=1), encoding="utf-8")
 
 
 def make_nocover():

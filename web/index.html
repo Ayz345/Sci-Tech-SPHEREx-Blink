@@ -127,7 +127,10 @@
       <input id="winHi" type="number" step="0.01" min="0.75" max="5" size="5" placeholder="µm"> µm
       <button id="winGo" type="button" title="drag across the spectrum or type two wavelengths">Blink this window</button>
     </div>
-    <div id="winNote" class="muted"></div></div>
+    <div id="winNote" class="muted"></div>
+    <details id="flagBox" hidden><summary id="flagSummary" class="muted">Flags</summary>
+      <div class="muted">Point at a spectrum point to see the FLAGS bits set in its aperture. Meanings as given by the data:</div>
+      <dl id="flagList"></dl></details></div>
   <div><h3>Light curve <span id="lcWhere" class="muted"></span></h3><svg id="lc" viewBox="0 0 460 220"></svg></div>
   <div id="wingBox" hidden><h3>Relative brightness from PSF wings <span id="wingWhere" class="muted"></span></h3>
     <div class="muted">Indicative only, not a formal detection of variability.</div>
