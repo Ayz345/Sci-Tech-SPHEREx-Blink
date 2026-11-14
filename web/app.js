@@ -1180,6 +1180,7 @@ function normCatwise(j) {
     name: s.source_name ?? s.name ?? "", ra: +s.ra, dec: +s.dec,
     pmra: s.pmra == null ? null : +s.pmra, pmdec: s.pmdec == null ? null : +s.pmdec,
     w1: s.w1mag ?? null, w2: s.w2mag ?? null, reliable: s.pm_reliable !== false, pmCheck: s.pm_check ?? null,
+    sameAs: s.same_object_as ?? null, // another row of the same object: not drawn, named in that row's readout
     refMjd: s.ref_mjd != null ? +s.ref_mjd : mjdOfYear(s.ref_epoch ?? CAT_EPOCH) }));
 }
 async function loadCatwise() {
@@ -1214,6 +1215,7 @@ function drawCatwise(ctx, mjd) {
   const a = Math.max(6, 2.5 * S.zoom);
   ctx.save(); ctx.strokeStyle = CAT_COLOR; ctx.lineWidth = 1.5;
   for (const s of S.catwise) {
+    if (s.sameAs) continue; // duplicate entry of an object drawn by its main row
     const [x, y] = toScreen(...catPos(s, mjd));
     ctx.setLineDash(s.reliable ? [] : [3, 3]); // unreliable motion: dashed square at the catalogue position
     ctx.strokeRect(x - a / 2, y - a / 2, a, a);
@@ -1224,7 +1226,11 @@ function drawCatwise(ctx, mjd) {
 function catwiseAt(sx, sy, mjd) {
   if (!S.catwise || !$("ovCat").checked) return null;
   let best = null, bd = Math.max(8, 3 * S.zoom);
-  for (const s of S.catwise) { const [x, y] = toScreen(...catPos(s, mjd)), dd = Math.hypot(x - sx, y - sy); if (dd < bd) { bd = dd; best = s; } }
+  for (const s of S.catwise) {
+    if (s.sameAs) continue;
+    const [x, y] = toScreen(...catPos(s, mjd)), dd = Math.hypot(x - sx, y - sy); if (dd < bd) { bd = dd; best = s; }
+  }
+  if (best) { const dup = S.catwise.filter((s) => s.sameAs === best.name).map((s) => s.name); if (dup.length) best = { ...best, name: `${best.name} (also listed as ${dup.join(", ")})` }; }
   return best;
 }
 
