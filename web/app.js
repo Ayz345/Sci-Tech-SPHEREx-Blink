@@ -276,7 +276,12 @@ async function pollManifest() {
 function loadBand(band) {
   if (!S.bandInfo.has(band)) {
     // a failure (404, 504 timeout) is not cached, so the band can be asked for again later
-    const p = fetchLogged(src.band(S.key, band)).then(
+    // a user window needs the live server: when the page opens straight on band=w…, wait for the server check
+    const ask = isCustom(band) && !API && !WINMOCK
+      ? serverReady.then((ok) => (ok ? fetchLogged(src.band(S.key, band))
+        : Promise.reject(new Error("Your own wavelength window needs the live server, which is not reachable right now."))))
+      : fetchLogged(src.band(S.key, band));
+    const p = ask.then(
       (j) => { S.bandInfo.set(band, j); if (isCustom(band)) customBandLoaded(band, j); return j; },
       (e) => { S.bandInfo.delete(band); if (isCustom(band)) customBandFailed(band, e); return null; });
     S.bandInfo.set(band, p);
@@ -284,7 +289,15 @@ function loadBand(band) {
   // frames after the band file: an epoch with n_used 0 has no file, so it is not requested (no 404 noise)
   return Promise.resolve(S.bandInfo.get(band))
     .then(() => Promise.all(S.m.epochs.map((ep, i) => loadFrame(band, ep.id, S.layer, emptyEpoch(band, i)))))
-    .then(() => { renderBands(); if (band === S.band) { if (!$("status").textContent.includes("low-coverage")) status(""); fixEpoch(); draw(); syncUrl(); } });
+    .then(() => {
+      renderBands();
+      if (band !== S.band) return;
+      const failed = S.m.bands.find((b) => b.id === band)?.status === "failed";
+      if (!failed && !$("status").textContent.includes("low-coverage")) status(""); // keep a failure message
+      if (isCustom(band) && !failed && S.m.epochs.every((_, i) => emptyEpoch(band, i)))
+        $("winNote").textContent = "No exposure has its field-centre wavelength inside this window in any epoch; try a wider window.";
+      fixEpoch(); draw(); syncUrl();
+    });
 }
 
 // ---------- low-coverage frames ({band}.json epochs[].quality === "low", fewer than 5 exposures) ----------
@@ -1063,7 +1076,13 @@ async function openAladin() {
 }
 
 // ---------- user wavelength windows ----------
-function windowId(lo, hi) { return `w${Math.round(lo * 1000)}_${Math.round(hi * 1000)}`; }
+// nm: lo rounded down, hi up; narrower than 50 nm is widened around its centre (the server's minimum)
+function windowId(lo, hi) {
+  let a = Math.floor(lo * 1000), b = Math.ceil(hi * 1000);
+  if (b - a < 50) { const c = (a + b) / 2; a = Math.floor(c - 25); b = a + 50; }
+  a = Math.max(750, a); b = Math.min(5000, Math.max(b, a + 50)); if (b - a < 50) a = b - 50;
+  return `w${a}_${b}`;
+}
 function addCustomBand(id) {
   if (S.m.bands.some((b) => b.id === id)) return id;
   const [lo, hi] = id.slice(1).split("_").map((v) => +v / 1000);
@@ -1078,7 +1097,8 @@ function customBandLoaded(id, j) { // the band file says what was built: label, 
 }
 function customBandFailed(id, e) {
   const b = S.m.bands.find((x) => x.id === id); if (b) b.status = "failed";
-  if (id === S.band) status(`Window ${id} could not be built: ${e.message}`, true);
+  // the server's message as sent (e.g. "the window must be at least 50 nm wide")
+  if (id === S.band) { const m = String(e.message).replace(/^\d{3}\s*/, ""); status(`Window ${id}: ${m}`, true); $("winNote").textContent = m; }
   renderBands();
 }
 function removeCustomBand(id) {
