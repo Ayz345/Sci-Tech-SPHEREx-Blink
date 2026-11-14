@@ -231,6 +231,7 @@ async function loadTarget() {
 
   fetchLogged(src.gaia(S.key)).then((g) => { S.gaia = g; draw(); }).catch(() => { S.gaia = []; });
   loadCandidates().then(draw);
+  loadCatwise().then(draw);
   // static: spectrum.json is the target position; API: ask for the latest track point (or the query position)
   const at = S.m.target_track?.at(-1) || S.m.query || {};
   S.specTarget = at;
@@ -850,6 +851,7 @@ function overlays(ctx, ep) {
   ctx.lineWidth = 1.5; ctx.strokeStyle = "#eee"; ctx.beginPath(); ctx.moveTo(10, H - 12); ctx.lineTo(10 + len, H - 12); ctx.stroke();
   label(`30″  (grid ${pixArcsec().toFixed(2)}″/px)`, 10, H - 18);
   label("N ↑  E ←", ctx.canvas.width - 64, 16);
+  drawCatwise(ctx, ep.mjd_mid);
   drawCandidates(ctx, ep);
   drawMarks(ctx);
 }
@@ -1088,6 +1090,54 @@ async function openAladin() {
     } finally { aladinLoading = null; }
   })();
   return aladinLoading;
+}
+
+// ---------- CatWISE2020 layer: {key}/catwise.json (gallery) or /api/catwise?key= (live fields) ----------
+S.catwise = null;
+const CAT_COLOR = "#7ee787", CAT_EPOCH = 2015.4;
+// server answer -> page fields (one place to adapt): source_name, ra, dec, pmra/pmdec (mas/yr or null), w1mag, w2mag, ref_mjd
+function normCatwise(j) {
+  return (Array.isArray(j) ? j : j.sources || []).map((s) => ({
+    name: s.source_name ?? s.name ?? "", ra: +s.ra, dec: +s.dec,
+    pmra: s.pmra == null ? null : +s.pmra, pmdec: s.pmdec == null ? null : +s.pmdec,
+    w1: s.w1mag ?? null, w2: s.w2mag ?? null,
+    refMjd: s.ref_mjd != null ? +s.ref_mjd : mjdOfYear(s.ref_epoch ?? CAT_EPOCH) }));
+}
+async function loadCatwise() {
+  const url = USE_API ? `${API}/api/catwise?key=${enc(S.key)}` : `${DATA}/${S.key}/catwise.json`;
+  let r;
+  try { r = await fetch(url); } catch { return; }
+  const box = $("catBox"), note = $("catNote");
+  if (r.status === 202) { // the server is preparing it: ask again
+    box.hidden = false; $("ovCat").disabled = true; note.textContent = "The WISE catalogue is being prepared…";
+    setTimeout(() => loadCatwise().then(draw), 5000); return;
+  }
+  if (r.status === 503) { box.hidden = false; $("ovCat").disabled = true; note.textContent = "WISE catalogue is not available right now."; return; }
+  if (!r.ok) { box.hidden = true; return; } // no file for this field
+  try { S.catwise = normCatwise(await r.json()); } catch { box.hidden = true; return; }
+  box.hidden = false; $("ovCat").disabled = false;
+  const moved = S.catwise.some((s) => s.pmra != null && s.pmdec != null);
+  note.textContent = `${S.catwise.length} sources; ` + (moved ? "moved to each epoch with their proper motion"
+    : `positions at the catalogue epoch (${CAT_EPOCH}), not moved`);
+}
+function catPos(s, mjd) {
+  if (s.pmra == null || s.pmdec == null || mjd == null) return [s.ra, s.dec];
+  const dt = (mjd - s.refMjd) / 365.25;
+  return [s.ra + (s.pmra * dt) / 3.6e6 / Math.cos(s.dec * D2R), s.dec + (s.pmdec * dt) / 3.6e6];
+}
+function drawCatwise(ctx, mjd) {
+  if (!S.catwise || !$("ovCat").checked) return;
+  const a = Math.max(6, 2.5 * S.zoom);
+  ctx.save(); ctx.strokeStyle = CAT_COLOR; ctx.lineWidth = 1.5;
+  for (const s of S.catwise) { const [x, y] = toScreen(...catPos(s, mjd)); ctx.strokeRect(x - a / 2, y - a / 2, a, a); }
+  ctx.restore();
+}
+// the CatWISE source under the cursor (within a few screen pixels), for the readout
+function catwiseAt(sx, sy, mjd) {
+  if (!S.catwise || !$("ovCat").checked) return null;
+  let best = null, bd = Math.max(8, 3 * S.zoom);
+  for (const s of S.catwise) { const [x, y] = toScreen(...catPos(s, mjd)), dd = Math.hypot(x - sx, y - sy); if (dd < bd) { bd = dd; best = s; } }
+  return best;
 }
 
 // ---------- automatic candidates (F2): {key}/candidates.json or /api/candidates?key= ----------
@@ -1395,7 +1445,7 @@ function wire() {
     S.userScale = { vmin: +$("vmin").value, vmax: +$("vmax").value, soft: +$("soft").value }; draw();
   };
   $("autoScale").onclick = () => { S.userScale = null; draw(); };
-  for (const id of ["ovQuery", "ovTrack", "ovGaia", "ovCand"]) $(id).onchange = draw;
+  for (const id of ["ovQuery", "ovTrack", "ovGaia", "ovCand", "ovCat"]) $(id).onchange = draw;
 
   const cv = $("canvas");
   const gridAt = (ev) => {
@@ -1409,7 +1459,10 @@ function wire() {
     const xi = Math.round(x), yi = Math.round(y);
     const inside = xi >= 0 && yi >= 0 && xi < nx && yi < ny;
     const fmt = (v) => (v === Infinity ? "saturated" : Number.isFinite(v) ? v.toPrecision(4) : "no data");
-    const head = `x ${xi}  y ${yi}   RA ${ra.toFixed(5)}  Dec ${dec.toFixed(5)}\n`;
+    const cr = cv.getBoundingClientRect(), ck = cv.width / cr.width;
+    const cw = catwiseAt((ev.clientX - cr.left) * ck, (ev.clientY - cr.top) * ck, S.m.epochs[S.epoch]?.mjd_mid);
+    const catTxt = cw ? `   CatWISE ${cw.name}  W1 ${cw.w1 ?? "—"}  W2 ${cw.w2 ?? "—"}` : "";
+    const head = `x ${xi}  y ${yi}   RA ${ra.toFixed(5)}  Dec ${dec.toFixed(5)}${catTxt}\n`;
     if (S.mode === "rgb") {
       const c = rgbBands(), ep = S.m.epochs[S.epoch].id;
       $("readout").textContent = head + [["R", c.r], ["G", c.g], ["B", c.b]].map(([k, b]) => {

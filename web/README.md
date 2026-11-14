@@ -100,6 +100,15 @@ live server, also for a gallery target opened from static files. The window gets
 centre falls in the window) are shown. Without the live server the page says so. Developer: `?winmock=1` serves
 any window as the target's `W` band, to try the interface before the server builds windows.
 
+## CatWISE2020 layer
+
+When the field has it (`{key}/catwise.json` for gallery targets, `/api/catwise?key=` for live fields), the
+Overlays box shows "CatWISE2020": squares (Gaia uses circles). Sources with `pmra`/`pmdec` are moved to each
+epoch from `ref_mjd`; when the catalogue has no proper motions the note says "positions at the catalogue epoch
+(2015.4), not moved". The cursor readout names the source under it with W1/W2. Live server: 202 = "being
+prepared" (asked again every 5 s), 503 = "WISE catalogue is not available right now". No file: not shown.
+Field names (`source_name, ra, dec, pmra, pmdec, w1mag, w2mag, ref_mjd`) are mapped in `normCatwise()`.
+
 ## Automatic candidates (F2)
 
 When the field has candidates (`{key}/candidates.json` for gallery targets, `/api/candidates?key=` for fields

@@ -206,6 +206,31 @@ def make_mover():
     }
     (d / "candidates.json").write_text(json.dumps(cands, indent=1), encoding="utf-8")
 
+    # WISE layers (SYNTHETIC; field names proposed by the web page until the data session fixes them).
+    # The mover moves 8 px/yr west and 3 px/yr north on this 3″ grid: pmra -24000, pmdec +9000 mas/yr.
+    wise_mjd, t_now = 58300.0, EPOCHS[0]["mjd_mid"]
+    dt = (wise_mjd - t_now) / 365.25
+    mx, my = mover[0][0] + 8 * dt, mover[0][1] + 3 * dt  # where the mover was in 2018
+    for wb, sig in (("W1", 2.6), ("W2", 2.8)):
+        img = rng.normal(0, 0.02, (NY, NX))
+        for x, y, fs, fl in stars:
+            img += psf(x, y, fl * (1.4 if wb == "W1" else 1.0), sigma=sig)
+        img += psf(mx, my, 0.05 if wb == "W1" else 0.6, sigma=sig)
+        write_f32(d / f"wise_{wb}.f32", img)
+    (d / "wise.json").write_text(json.dumps({
+        "schema": 1, "survey": "SYNTHETIC (stands in for unWISE)", "epoch_mjd": wise_mjd, "date": "2018-07-04",
+        "bands": [{"id": "W1", "file": "wise_W1.f32", "wave_um": 3.4, "scale": {"vmin": -0.05, "vmax": 1.2, "soft": 0.05}},
+                  {"id": "W2", "file": "wise_W2.f32", "wave_um": 4.6, "scale": {"vmin": -0.05, "vmax": 0.9, "soft": 0.05}}],
+        "note": "SYNTHETIC fixture: resampled onto this field's grid."}, indent=1), encoding="utf-8")
+    cw = [{"source_name": f"SYN J{i:04d}", "ra": ra, "dec": dec, "pmra": 0.0, "pmdec": 0.0, "w1mag": 14.0, "w2mag": 13.8,
+           "ref_mjd": 57170.0} for i, (ra, dec) in enumerate(pix2world(x, y) for x, y, *_ in stars[:12])]
+    rx, ry = mover[0][0] + 8 * (57170.0 - t_now) / 365.25, mover[0][1] + 3 * (57170.0 - t_now) / 365.25
+    ra, dec = pix2world(rx, ry)
+    cw.append({"source_name": "SYN MOVER", "ra": ra, "dec": dec, "pmra": -24000.0, "pmdec": 9000.0, "w1mag": 16.9,
+               "w2mag": 14.1, "ref_mjd": 57170.0})
+    (d / "catwise.json").write_text(json.dumps({"schema": 1, "catalog": "SYNTHETIC (stands in for CatWISE2020)",
+                                                "sources": cw}, indent=1), encoding="utf-8")
+
 
 def make_nocover():
     d = OUT / "fake-nocover"
