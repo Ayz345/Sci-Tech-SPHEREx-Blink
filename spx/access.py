@@ -134,7 +134,23 @@ class Cutout:
     mjd_beg: float = float("nan")
     mjd_end: float = float("nan")
     psf_fwhm_arcsec: float = float("nan")
+    # Observation context from the IMAGE header, as written there (for astrometric reports):
+    date_avg: str | None = None         # DATE-AVG, ISO-8601 mid-exposure (TIMESYS, UTC in DR1)
+    timesys: str | None = None          # TIMESYS
+    exptime_s: float = float("nan")     # XPOSURE [s]
+    sc_pos_km: tuple | None = None      # (X_SC, Y_SC, Z_SC) [km] at mid-exposure
+    sc_vel_kms: tuple | None = None     # (VX_SC, VY_SC, VZ_SC) [km/s] at mid-exposure
+    sc_frame: str | None = None         # XYZ_SC_SYSTEM (e.g. GEOCENTER); axes not stated in the header
+    sc_vel_frame: str | None = None     # VXYZ_SC_SYSTEM
+    radesys: str | None = None          # RADESYS of the celestial WCS
+    astronet_solved: bool | None = None  # ASTRONETSOLVED
+    finast: int | None = None           # FINAST, raw value (header comment: "good fine-astrometric solution")
     meta: dict = field(default_factory=dict, repr=False)
+
+    @property
+    def mjd_mid(self) -> float:
+        """MJD-AVG, mid-exposure (same value as .mjd)."""
+        return self.mjd
 
     @property
     def shape(self):
@@ -503,7 +519,10 @@ class _Layout:
         if self._info is None:
             ih = fits.Header.fromstring(self.image_hdr)
             self._info = {k: ih.get(k) for k in ("NAXIS1", "NAXIS2", "MJD-AVG", "MJD-BEG", "MJD-END", "DETECTOR",
-                                                 "OBSID", "PSF_FWHM", "BUNIT", "DATE-AVG")}
+                                                 "OBSID", "PSF_FWHM", "BUNIT", "DATE-AVG", "XPOSURE",
+                                                 "X_SC", "Y_SC", "Z_SC", "VX_SC", "VY_SC", "VZ_SC",
+                                                 "XYZ_SC_SYSTEM", "VXYZ_SC_SYSTEM", "RADESYS", "ASTRONETSOLVED",
+                                                 "FINAST", "TIMESYS")}
         return self._info
 
     def celestial(self) -> WCS:
@@ -722,6 +741,11 @@ def _wave_wcs(L: _Layout) -> WCS:
     return w
 
 
+def _triple(info: dict, a: str, b: str, c: str) -> tuple | None:
+    v = [info.get(k) for k in (a, b, c)]
+    return None if any(x is None for x in v) else tuple(float(x) for x in v)
+
+
 def _bilinear(a: np.ndarray, x: float, y: float) -> float:
     ny, nx = a.shape
     i0, j0 = int(np.floor(y)), int(np.floor(x))
@@ -842,6 +866,12 @@ def _cut_one(ref: ImageRef, ra: float, dec: float, half_px: int, layers: tuple, 
         target_xy=(tx - x0, ty - y0), collection=ref.collection, s3_key=ref.s3_key,
         mjd_beg=float(info["MJD-BEG"] or ref.t_min), mjd_end=float(info["MJD-END"] or ref.t_max),
         psf_fwhm_arcsec=float(info["PSF_FWHM"] or np.nan),
+        date_avg=info.get("DATE-AVG"), timesys=info.get("TIMESYS"),
+        exptime_s=float(info["XPOSURE"]) if info.get("XPOSURE") is not None else float("nan"),
+        sc_pos_km=_triple(info, "X_SC", "Y_SC", "Z_SC"), sc_vel_kms=_triple(info, "VX_SC", "VY_SC", "VZ_SC"),
+        sc_frame=info.get("XYZ_SC_SYSTEM"), sc_vel_frame=info.get("VXYZ_SC_SYSTEM"), radesys=info.get("RADESYS"),
+        astronet_solved=None if info.get("ASTRONETSOLVED") is None else bool(info["ASTRONETSOLVED"]),
+        finast=None if info.get("FINAST") is None else int(info["FINAST"]),
         meta={"bunit": info["BUNIT"], "date_avg": info["DATE-AVG"], "target_on_detector": bool(0 <= xc < nx and 0 <= yc < ny)},
     )
     return cut, "", nb, from_cache
