@@ -59,6 +59,7 @@ body.embed #winBox, body.embed #winNote, body.embed #aladinBox { display: none; 
 #flagBox { font-size: 12px; margin-top: 4px; }
 #candList { padding-left: 0; list-style: none; margin: 4px 0; }
 #candBox.pending label { opacity: .5; }
+#candList button.gradeB { opacity: .55; }
 #candList button { font-size: 11px; padding: 1px 5px; margin: 1px 0; text-align: left; }
 #candHow { white-space: pre-wrap; font-size: 11px; }
 #flagList dt { margin-top: 3px; font-family: ui-monospace, Consolas, monospace; }

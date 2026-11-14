@@ -1295,23 +1295,26 @@ async function loadCandidates() {
   $("candList").replaceChildren(...cs.map((c) => {
     const li = document.createElement("li"), b = document.createElement("button");
     const rate = c.rate_arcsec_per_year ? ` · ${Math.hypot(...c.rate_arcsec_per_year).toFixed(1)}″/yr` : "";
-    b.textContent = `${c.id} ${candLabel(c)} · ${(c.bands || []).join(", ")} · S/N ${(+c.snr).toFixed(1)}${rate}`;
+    // grade A/B from the detector (B drawn faint); n_bands = in how many bands it was found
+    b.textContent = `${c.id}${c.grade ? ` [${c.grade}]` : ""} ${candLabel(c)} · ${(c.bands || []).join(", ")}` +
+      `${c.n_bands != null ? ` (${c.n_bands} band${c.n_bands === 1 ? "" : "s"})` : ""} · S/N ${(+c.snr).toFixed(1)}${rate}`;
+    if (c.grade === "B") b.classList.add("gradeB");
     const ng = c.near_gaia ? `\nnear Gaia DR3 ${c.near_gaia.source_id} (${(+c.near_gaia.sep_arcsec).toFixed(1)}″, G ${(+c.near_gaia.g_mag).toFixed(1)})` : "";
     b.title = `${c.notes || ""}${ng}\nclick: load its ${c.positions?.length || 0} positions as marks in the measure tool`;
     b.onclick = () => candidateToMarks(c);
     li.append(b); return li;
   }));
   const rej = Object.entries(S.cands.rejected || {}).map(([k, v]) => `  ${v} × ${k}`).join("\n");
-  // the first two validation lines are the user-facing limits: always shown under the toggle;
-  // the rest stays in the closed "How candidates are found" section
-  const val = [].concat(S.cands.validation || []);
-  $("candLimits").textContent = val.slice(0, 2).join(" ");
+  // the first three validation lines are user-facing (limit, injection result, what the grades mean): always
+  // shown under the toggle; the rest stays in the closed "How candidates are found" section
+  const val = [].concat(S.cands.validation || []), NV = 3;
+  $("candLimits").textContent = val.slice(0, NV).join(" ");
   $("candHow").textContent = [
     S.cands.method && `method: ${S.cands.method}`,
     S.cands.params && `parameters: ${Object.entries(S.cands.params).map(([k, v]) => `${k} ${v}`).join(", ")}`,
     S.cands.bands_searched && `bands searched: ${S.cands.bands_searched.join(", ")}`,
     `${cs.length} candidates shown`, rej && `rejected:\n${rej}`,
-    ...val.slice(2),
+    ...val.slice(NV),
   ].filter(Boolean).join("\n");
 }
 // a candidate's positions become marks in the measure tool (then refine/report as usual)
@@ -1340,7 +1343,7 @@ function drawCandidates(ctx, ep) {
     }
     if (!p) continue;
     const [x, y] = toScreen(+p.ra, +p.dec), r = Math.max(7, 3.5 * z);
-    ctx.globalAlpha = faint ? 0.4 : 1; ctx.strokeStyle = CAND_COLOR; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+    ctx.globalAlpha = (faint ? 0.4 : 1) * (c.grade === "B" ? 0.5 : 1); // grade B drawn faint ctx.strokeStyle = CAND_COLOR; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
     ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.stroke(); ctx.setLineDash([]);
     const t = `${c.id} ${candLabel(c)}`;
     ctx.lineWidth = 3; ctx.strokeStyle = "#000"; ctx.strokeText(t, x + r + 3, y + r);

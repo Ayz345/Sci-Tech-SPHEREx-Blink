@@ -194,15 +194,15 @@ def make_mover():
         "params": {"snr_min": 5.0, "match_radius_px": 2.0}, "bands_searched": ["D5", "D6", "W"],
         "candidates": [
             {"id": "c1", "kind": "mover", "snr": 9.0, "bands": ["W", "D6"], "positions": [pos(mover[e["id"]], e) for e in EPOCHS],
-             "rate_arcsec_per_year": [-23.9, 7.3], "near_gaia": None, "notes": "synthetic mover"},
+             "rate_arcsec_per_year": [-23.9, 7.3], "near_gaia": None, "notes": "synthetic mover", "grade": "A", "n_bands": 2},
             {"id": "c2", "kind": "variable", "snr": 7.5, "bands": ["D1"], "positions": [pos(variable[:2], EPOCHS[1])],
-             "rate_arcsec_per_year": None, "near_gaia": None, "notes": "synthetic variable"},
+             "rate_arcsec_per_year": None, "near_gaia": None, "notes": "synthetic variable", "grade": "B", "n_bands": 1},
             {"id": "c3", "kind": "known", "snr": 6.1, "bands": ["W"], "positions": [pos((gx, gy), e) for e in EPOCHS],
              "rate_arcsec_per_year": [0.0, 0.0], "near_gaia": {"source_id": "0000000000000000003", "sep_arcsec": 0.8, "g_mag": 15.2},
              "notes": "synthetic: explained by a Gaia star"},
         ],
         "rejected": {"alignment residual (same direction on bright stars)": 4, "masked: near a saturated core": 2},
-        "validation": ["SYNTHETIC: no injection test was run on this fixture.", "False candidates per field: not measured (fixture)."],
+        "validation": ["SYNTHETIC limit: objects moving less than about 10″ are mostly not found (fixture).", "SYNTHETIC injection result: not run on this fixture.", "SYNTHETIC grades: A = found in two or more bands, B = one band (fixture).", "technical: per-band statistics would follow here (fixture)."],
     }
     (d / "candidates.json").write_text(json.dumps(cands, indent=1), encoding="utf-8")
 

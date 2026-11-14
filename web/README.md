@@ -133,7 +133,7 @@ note "Automatic candidates are places to look at, not detection claims." Each ca
 position in the current epoch (faint at the nearest epoch when it has none there) with a short label (`mover`,
 `variable`, or `known: Gaia DR3 <id>` when `known` is true; a nearby Gaia star alone is only in the tooltip). The list shows id, label, bands, S/N and rate; clicking
 one loads its positions as marks in the measure tool (and switches to its first band), from where refine and
-report work as usual. The first two `validation` lines (the user-facing limits) are shown under the toggle; a closed "How candidates
+report work as usual. The list shows `grade` ([A]/[B]; B rings and entries faint) and `n_bands`. The first three `validation` lines (limit, injection result, what the grades mean) are shown under the toggle; a closed "How candidates
 are found" section shows `method`, `params`, `bands_searched`, the `rejected` counts and the other
 `validation` lines as given. When the live server answers 202 (candidates not computed yet) the toggle is shown faint with "Automatic candidates are being computed…" and the `bands_pending` list, and the page asks again every 5 s; 503 says they are not available right now, with the server's message; 404 or no static file: the control is not shown.
 
