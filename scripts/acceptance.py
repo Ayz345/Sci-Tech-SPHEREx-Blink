@@ -808,6 +808,8 @@ def main():
         check_no_coverage(rep, tmp)
 
     counts = {s: sum(i["status"] == s for i in rep.items) for s in (PASS, FAIL, PENDING, INFO)}
+    from server import pipeline as _P
+    P_SMALL_MARGIN, P_CLEARLY_ABOVE = _P.SMALL_MARGIN, _P.CLEARLY_ABOVE
     print(f"\nSUMMARY  {counts}")
     out = Path(a.out) if a.out else ROOT / "cache" / "acceptance" / f"acceptance_{started.strftime('%Y%m%dT%H%M%SZ')}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -816,6 +818,10 @@ def main():
                                "thresholds": {"MIN_EPOCHS": MIN_EPOCHS, "DETECT_SNR": DETECT_SNR, "POS_TOL_PX": POS_TOL_PX,
                                               "MOTION_REL_TOL": MOTION_REL_TOL, "MOTION_ABS_TOL": MOTION_ABS_TOL,
                                               "STATIC_MAX": STATIC_MAX, "profile": PROFILES[a.profile]},
+                               "wording_thresholds": {
+                                   "note": "used only to word the page notes (server.pipeline.measured_notes); "
+                                           "they never decide PASS/FAIL",
+                                   "SMALL_MARGIN": P_SMALL_MARGIN, "CLEARLY_ABOVE": P_CLEARLY_ABOVE},
                                "items": rep.items}, indent=1, default=str), encoding="utf-8", newline="\n")
     print(f"report: {out}")
     if a.docs:
