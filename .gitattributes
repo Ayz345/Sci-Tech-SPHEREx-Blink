@@ -1,0 +1,10 @@
+# one line-ending convention for every session and platform
+* text=auto eol=lf
+
+# binary data and figures
+*.f32 binary
+*.png binary
+*.gif binary
+*.pdf binary
+*.fits binary
+*.npz binary
