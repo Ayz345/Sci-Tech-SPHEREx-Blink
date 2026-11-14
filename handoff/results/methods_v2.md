@@ -30,8 +30,22 @@ The numbers below are the published ones: `server/pipeline.variability_report` o
 - **Difference images:** bright constant stars leave small black-and-white pairs. Their source is sub-pixel misalignment and PSF differences between epochs. Per-epoch alignment to Gaia is not done yet.
 - **PSF-wing brightness** (shown for R Draconis only, whose core is saturated in 412 of 413 exposures; indicative, not a formal detection):
   - On bright unsaturated control stars in the RW Aur and Eps Indi B fields (3 stars, 48 bins), the wing/aperture ratio changes between epochs by ×1.20 (median) and ×1.47 (90th percentile).
-  - Against that threshold, R Dra's D2 ×2.42 and D6 ×1.77 are above it, D3 ×1.49 is just above it, and D1 ×1.31 is not significant.
-  - The 3–4 fainter control stars in the R Dra field itself show wing ratios of ×2.2–3.2, larger than R Dra's. With fewer than 5 controls the formal test is therefore undetermined.
+  - Against that threshold, R Dra's D2 ×2.42 and D6 ×1.77 are above it, D3 ×1.49 is just above it, and D1 ×1.31 is below it.
+  - The control stars in the R Dra field itself cannot calibrate the method: they sit in R Dra's own scattered light. Their wing measurements are not noise-limited (S/N 53–55 per point for the G 13.8 and 14.2 stars), yet they change between epochs by ×2.0–2.8. In the RW Aur field, controls with similar or higher S/N change by only ×1.03–1.44 (×1.05–1.11 at S/N 150–250). One R Dra-field control even lies inside R Dra's saturated zone, so its wing annulus is pushed out to 26–30 px.
+  - Their epoch curves follow R Dra's. The table below gives D2 values per epoch, each wavelength bin normalised by its own mean over epochs before the median, so the different LVF wavelength sampling of each epoch does not enter:
+
+    | Source | Epoch 0 | 1 | 2 | 3 | 5 |
+    |---|---|---|---|---|---|
+    | R Dra | 1.14 | 1.37 | 1.01 | 1.03 | 0.59 |
+    | Field star G 14.2, 2.1′ away | 1.29 | 1.53 | 0.85 | 0.86 | 0.59 |
+    | Field star G 13.8, 2.1′ away | 1.24 | 1.51 | 0.86 | 0.88 | 0.60 |
+    | Field star G 12.5, 3.2′ away | 1.24 | 1.45 | 0.87 | 0.95 | 0.65 |
+
+    D6 shows the same pattern (R Dra 1.38 / 1.34 / 0.96 / 0.73 in epochs 0, 3, 4, 5; field stars 1.24–1.33 / 1.03–1.59 / 0.39–0.81 / 0.34–0.56).
+  - Field stars 2–3′ away brighten and fade with R Dra in the same epochs: its scattered light dominates there, so no independent control exists. This agreement is evidence that the common change is R Dra's own light, since an instrumental change in the PSF wings would also appear in the RW Aur field, and it does not. It is not an independent calibration, however. The amount of scattered light may also depend on where R Dra falls on the detector in each exposure, and we have not separated that effect.
+  - The wing series is therefore shown as indicative only. The formal variability test is undetermined: fewer than 5 independent controls, and the field's controls are contaminated by the target.
+  - Measured with `spectrum_points(..., wings=True)` → `binned_series(kind="wing")` → `variability` on the cached R Dra cutouts, with controls from `select_controls` on `web/data/r-dra/gaia.json`.
+- **Control selection:** `select_controls` does not exclude stars embedded in the target's own halo or scattered light. This had no visible effect for RW Aur, Barnard or Eps Indi B, but it makes the R Dra controls unusable (above). A future improvement is to reject controls whose wing or background tracks the target.
 - **WISE 0855 blending:** the object passes 11.4″ → 8.2″ → 3.7″ (measured) from a constant star (Gaia DR3 5756956644387831296, G = 16.3). That star is what shows at short wavelengths. Its light is removed by the two-source PSF fit, with the 5–15% residual noted above.
 
 Reproduce: `python tests/test_coadd_metrics.py`, `tests/test_coadd_wise0855.py`, `tests/test_coadd_saturation.py`, `tests/test_coadd_wings.py`, `tests/test_coadd_variability.py`; figures with `python -m spx.display`.
