@@ -132,6 +132,8 @@ def run():
                 lab, nreg = label(grouped, structure=eight)
                 lab = np.where(allinf, lab, 0)
                 unattached = [k for k in range(1, nreg + 1) if (lab == k).any() and not attach[lab == k].any()]
+                slab, sn = label(allinf, structure=eight)  # strict: no gap tolerance (information only)
+                strict = [k for k in range(1, sn + 1) if not attach[slab == k].any()]
                 nosamp = allinf & (f.weight == 0)
                 dist = distance_transform_edt(~ovf) * f.grid.pix_arcsec if ovf.any() else np.full(ovf.shape, np.inf)
                 rows.append({"target": key, "band": f.band, "epoch": f.epoch, "date": f.epoch_label,
@@ -141,6 +143,7 @@ def run():
                              "inf_far_from_target_and_bright_stars": int((allinf & farmask).sum()),
                              "inf_regions_unattached": len(unattached),
                              "inf_px_unattached": int(np.isin(lab, unattached).sum()) if unattached else 0,
+                             "inf_px_unattached_strict": int(np.isin(slab, strict).sum()) if strict else 0,
                              "no_sample_inf_max_dist_arcsec": round(float(dist[nosamp].max()), 1) if nosamp.any() else None,
                              "inf_min_grid_sat_frac": round(float(gfrac[inf_m].min()), 3) if inf_m.any() else None,
                              "finite_max_grid_sat_frac": round(float(gfrac[fin_m].max()), 3) if fin_m.any() else None,
@@ -163,6 +166,8 @@ def test_saturated_cores():
           [(r["target"], r["band"], r["epoch"], r["rule_violations"]) for r in rows if r["rule_violations"]])
     bad = [r for r in rows if r["nan_covered"] > 0]
     assert not bad, f"NaN inside covered area: {[(r['target'], r['band'], r['epoch'], r['nan_covered']) for r in bad]}"
+    print("strict (no gap tolerance, information only):",
+          [(r["target"], r["band"], r["epoch"], r["inf_px_unattached_strict"]) for r in rows if r["inf_px_unattached_strict"]])
     print("+inf regions not attached to the target or a G<12 star:",
           [(r["target"], r["band"], r["epoch"], r["inf_px_unattached"]) for r in rows if r["inf_regions_unattached"]])
     print("+inf pixels beyond 30 arcsec (attached to the target / bright star):",
