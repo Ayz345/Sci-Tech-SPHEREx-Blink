@@ -54,6 +54,46 @@ ACKNOWLEDGEMENT = ("This publication makes use of data products from the Spectro
 DETECTOR_BANDS = [{"id": f"D{d}", "label": f"{lo:.2f}–{hi:.2f} µm", "wave_um": [lo, hi]}
                   for d, (lo, hi) in sorted(access.DETECTOR_BANDS_UM.items())]
 
+# --------------------------------------------------------------------------- user wavelength windows (PLAN 17 F1)
+#: Band id w<lo>_<hi> in whole nanometres, e.g. w4300_5000. Built on request by the live server only.
+WINDOW_PREFIX = "w"
+WINDOW_NM_RANGE = (750, 5000)
+#: Narrowest window. Measured on the five gallery fields (spectrum.json, one point per exposure): the bandwidth of
+#: one exposure at the target is 17-30 nm (D1), 25-40 (D2), 39-60 (D3), 47-104 (D4), 35-38 (D5, D6), so a window
+#: narrower than ~50 nm adds no spectral detail, it only drops exposures. Exposures per epoch per nm of window:
+#: 0.013 (D4) to 0.065 (D1) on typical fields, so 50 nm holds ~1-3 exposures per epoch (frames marked low) and
+#: a frame of quality ok (>= 5) needs ~80-400 nm.
+MIN_WINDOW_NM = 50
+WINDOW_NOTE = ("Custom window: an exposure is used when its wavelength at the field centre (the target, for a named "
+               "target) lies inside the window; one value per exposure, as for the other bands. n_exposures counts "
+               "those exposures per epoch before masking.")
+
+
+def parse_window(band_id: str) -> dict | None:
+    """Band definition of a user window id, None when band_id is not one (D1..D6, W, ...).
+    ValueError with a readable message for an id that starts with 'w' but is malformed or out of range."""
+    if not isinstance(band_id, str) or not band_id.startswith(WINDOW_PREFIX):
+        return None
+    parts = band_id[len(WINDOW_PREFIX):].split("_")
+    if len(parts) != 2 or not all(x.isdigit() and 3 <= len(x) <= 4 for x in parts):
+        raise ValueError(f"band {band_id!r}: a wavelength window is w<lo>_<hi> in whole nanometres, e.g. w4300_5000")
+    lo, hi = int(parts[0]), int(parts[1])
+    nlo, nhi = WINDOW_NM_RANGE
+    if not (nlo <= lo < hi <= nhi):
+        raise ValueError(f"band {band_id!r}: need {nlo} <= lo < hi <= {nhi} nm")
+    if hi - lo < MIN_WINDOW_NM:
+        raise ValueError(f"band {band_id!r}: the window must be at least {MIN_WINDOW_NM} nm wide (one exposure "
+                         f"covers 17-104 nm)")
+    return {"id": band_id, "label": f"{lo / 1000:.3f}–{hi / 1000:.3f} µm", "wave_um": [lo / 1000, hi / 1000],
+            "window": True}
+
+
+def is_window(band_id: str) -> bool:
+    try:
+        return parse_window(band_id) is not None
+    except ValueError:
+        return False
+
 
 def processing_text() -> str:
     return (f"spx {spx.__version__}: FLAGS mask, local background, clipped inverse-variance mean per epoch and band, "
@@ -192,10 +232,14 @@ class Field:
         return half_px_for(self.fov_arcmin)
 
     def band_def(self, band_id: str) -> dict | None:
+        """Listed bands (D1..D6 and the field's own windows) or a user window w<lo>_<hi> (not listed)."""
         for b in self.band_defs():
             if b["id"] == band_id:
                 return b
-        return None
+        try:
+            return parse_window(band_id)
+        except ValueError:
+            return None
 
     def band_defs(self) -> list[dict]:
         out = [dict(b) for b in DETECTOR_BANDS]
@@ -471,6 +515,10 @@ def build_band(f: Field, band_id: str, out_dir: Path, layers=("IMAGE", "FLAGS", 
                                  "date": fr.epoch_label, "band_um": list(fr.band_um),
                                  "target_xy": list(fr.target_xy),
                                  "quality": "low" if fr.n_used < MIN_GOOD_EXPOSURES else "ok"})
+    b = f.band_def(band_id)
+    if b is not None and b.get("window"):
+        bj.update({"label": b["label"], "wave_um": b["wave_um"], "n_exposures": band_n_exposures(f, band_id, cuts),
+                   "note": WINDOW_NOTE})
     write_json(out_dir / f"{band_id}.json", bj)
     if stats is not None:
         stats.update({"t_fetch": t1 - t0, "t_coadd": t2 - t1, "n_frames": len(frames)})

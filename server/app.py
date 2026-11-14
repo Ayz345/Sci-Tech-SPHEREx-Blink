@@ -57,6 +57,8 @@ CODE_HASH = _code_hash()
 STARTED_COMMIT = P.spx_commit()  # git HEAD (and uncommitted code) when this process started
 FIELDS_DIR = access.CACHE_DIR / "fields" / f"v{spx.__version__}-{CODE_HASH}"
 MAX_FIELDS_IN_MEMORY = 32
+#: User wavelength windows kept per field (PLAN 17 F1); the oldest finished one is dropped (job and files).
+MAX_WINDOWS_PER_FIELD = int(os.environ.get("SPX_MAX_WINDOWS_PER_FIELD") or 12)
 MAX_CUTOUT_SETS = 2
 
 
@@ -96,10 +98,12 @@ class FieldState:
     jobs: dict
     created: float = dc_field(default_factory=time.time)
     write_lock: threading.Lock = dc_field(default_factory=threading.Lock)  # one manifest writer at a time
+    windows: list = dc_field(default_factory=list)    # user windows w<lo>_<hi>, least recently asked first
 
     def status(self) -> dict:
+        """Listed bands only (user windows are not in the manifest)."""
         return {b: ("ready" if j.state == "ready" else "empty" if j.state == "empty" else "pending")
-                for b, j in self.jobs.items()}
+                for b, j in self.jobs.items() if b not in self.windows}
 
 
 class Registry:
@@ -219,8 +223,8 @@ class Registry:
                 fs = self.fields.get(key)
                 if fs is None:
                     continue
-                job = fs.jobs[band]
-                if job.state != "pending":
+                job = fs.jobs.get(band)        # a user window may have been dropped while queued
+                if job is None or job.state != "pending":
                     continue
                 job.state, job.t_start, job.background = "running", time.time(), is_bg
             try:
@@ -281,7 +285,7 @@ class Registry:
 
     @staticmethod
     def n_exposures(fs: FieldState) -> dict:
-        return {b: j.n_exposures for b, j in fs.jobs.items() if j.n_exposures is not None}
+        return {b: j.n_exposures for b, j in fs.jobs.items() if j.n_exposures is not None and b not in fs.windows}
 
     def manifest(self, fs: FieldState) -> dict:
         m = P.manifest(fs.field, status=fs.status(), n_exposures=self.n_exposures(fs))
@@ -300,10 +304,52 @@ class Registry:
             if mine:
                 self.background = mine + [it for it in self.background if it[0] != key]
 
+    def window_job(self, fs: FieldState, band: str) -> BandJob:
+        """Job of a user window w<lo>_<hi>, made on first request (files from before a restart are reused).
+        Keeps at most MAX_WINDOWS_PER_FIELD windows per field: the oldest finished one is dropped."""
+        drop = []
+        with self.lock:
+            job = fs.jobs.get(band)
+            if job is not None:
+                if band in fs.windows:
+                    fs.windows.remove(band)
+                fs.windows.append(band)
+                return job
+            job = BandJob(band)
+            if (fs.out / f"{band}.json").exists():
+                job.state = "ready" if any(fs.out.glob(f"*_{band}.f32")) else "empty"
+                job.event.set()
+            elif not fs.field.refs:
+                job.state = "empty"
+                job.event.set()
+            fs.jobs[band] = job
+            fs.windows.append(band)
+            while len(fs.windows) > MAX_WINDOWS_PER_FIELD:
+                old = next((b for b in fs.windows if b != band and fs.jobs[b].event.is_set()), None)
+                if old is None:
+                    break
+                fs.windows.remove(old)
+                fs.jobs.pop(old, None)
+                drop.append(old)
+        for old in drop:
+            files = list(fs.out.glob(f"*_{old}.f32")) + list(fs.out.glob(f"*_{old}_*.f32")) + [fs.out / f"{old}.json"]
+            for pth in files:
+                try:
+                    pth.unlink()
+                except OSError:
+                    pass
+        return job
+
     def wait_band(self, fs: FieldState, band: str, timeout: float) -> BandJob:
         if band not in fs.jobs:
-            raise ApiError(404, f"no band {band!r} for {fs.field.key}; bands: {list(fs.jobs)}")
-        job = fs.jobs[band]
+            try:
+                is_win = P.parse_window(band) is not None
+            except ValueError as e:
+                raise ApiError(400, str(e))
+            if not is_win:
+                raise ApiError(404, f"no band {band!r} for {fs.field.key}; bands: {list(fs.jobs)} or a window "
+                                    f"w<lo>_<hi> (nm)")
+        job = self.window_job(fs, band) if P.is_window(band) else fs.jobs[band]
         if not job.event.is_set():
             self.enqueue(fs.field.key, band, urgent=True)
             job.event.wait(timeout)

@@ -439,3 +439,65 @@ def test_schema_failure_is_a_500(track_client, monkeypatch):
     monkeypatch.setattr(mpc, "LOCATION_SYS", "ICRF_XX")
     r = c.get("/api/report", params={"id": rid, "format": "ades", "submitter": "I. M. Tester"})
     assert r.status_code == 500 and "bug on our side" in _strict(r)["message"]
+
+
+# --------------------------------------------------------------------------- user wavelength windows (F1)
+
+def test_user_window_band_and_frame(client):
+    from server import pipeline as P
+    m = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}))
+    key = m["key"]
+    for b in ("D5", "D6"):
+        assert client.get("/api/band", params={"key": key, "band": b}).status_code == 200
+    _wait_idle()
+    n_fetch = client.calls["fetch"]
+    r = client.get("/api/band", params={"key": key, "band": "w4600_4800"})      # synthetic D6 exposures: 4.71 um
+    assert r.status_code == 200, r.text
+    bj = _strict(r)
+    assert bj["band"] == "w4600_4800" and bj["wave_um"] == [4.6, 4.8] and bj["label"] == "4.600–4.800 µm"
+    assert bj["n_exposures"] == [4, 4, 4] and bj["note"] == P.WINDOW_NOTE and "scale" in bj
+    assert [e["n_used"] for e in bj["epochs"]] == [4, 4, 4]
+    assert all(4.6 <= e["band_um"][0] <= e["band_um"][1] <= 4.8 for e in bj["epochs"])
+    assert client.calls["fetch"] == n_fetch                       # D6 cutouts reused, nothing downloaded
+    shape = m["grid"]["shape"]
+    f = client.get("/api/frame", params={"key": key, "band": "w4600_4800", "epoch": 0})
+    assert f.status_code == 200 and len(f.content) == 4 * shape[0] * shape[1]
+    m2 = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}))
+    assert all(not b["id"].startswith("w") for b in m2["bands"])  # windows are not listed
+    # a window with no exposure inside (between the synthetic D5 4.11 and D6 4.71 um): 200, no frames
+    e = _strict(client.get("/api/band", params={"key": key, "band": "w4200_4400"}))
+    assert e["n_exposures"] == [0, 0, 0] and all(x["n_used"] == 0 for x in e["epochs"])
+
+
+def test_user_window_errors(client):
+    key = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}))["key"]
+    for bad, why in (("w4600_4620", "at least 50 nm"), ("w0100_0900", "750 <= lo"), ("w4800_4600", "lo < hi"),
+                     ("w4600-4800", "whole nanometres"), ("w46000_48000", "whole nanometres"),
+                     ("w4600_5100", "hi <= 5000")):
+        r = client.get("/api/band", params={"key": key, "band": bad})
+        assert r.status_code == 400 and why in r.json()["message"], (bad, r.text)
+        assert client.get("/api/frame", params={"key": key, "band": bad, "epoch": 0}).status_code == 400
+    assert client.get("/api/band", params={"key": key, "band": "D9"}).status_code == 404
+
+
+def test_user_windows_per_field_are_capped(client, monkeypatch):
+    from server import app as A
+    monkeypatch.setattr(A, "MAX_WINDOWS_PER_FIELD", 2)
+    key = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}))["key"]
+    out = A.FIELDS_DIR / key
+    for w in ("w4600_4800", "w4500_4900", "w4400_5000"):
+        assert client.get("/api/band", params={"key": key, "band": w}).status_code == 200
+    fs = A.REG.fields[key]
+    assert fs.windows == ["w4500_4900", "w4400_5000"] and "w4600_4800" not in fs.jobs
+    assert not (out / "w4600_4800.json").exists() and not list(out.glob("*_w4600_4800*.f32"))
+    assert (out / "w4400_5000.json").exists()
+    # asked again: built again
+    assert client.get("/api/band", params={"key": key, "band": "w4600_4800"}).status_code == 200
+    assert (out / "w4600_4800.json").exists() and "w4500_4900" not in fs.jobs
+
+
+def test_parse_window():
+    from server import pipeline as P
+    assert P.parse_window("D6") is None and P.parse_window("W") is None
+    assert P.parse_window("w750_800")["wave_um"] == [0.75, 0.8]
+    assert P.is_window("w4300_5000") and not P.is_window("w4300_4310") and not P.is_window("D1")
