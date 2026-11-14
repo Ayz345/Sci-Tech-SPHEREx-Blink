@@ -38,12 +38,19 @@ SUBMITTER = "I. M. Tester"
 
 
 def timed(sess, method, url, **kw):
+    """One request, timed. A connection the server closed while idle (uvicorn keep-alive 5 s; the first run of
+    this script polled every 5 s and hit it) is retried once on a new connection."""
     t = time.time()
-    try:
-        r = sess.request(method, url, timeout=kw.pop("timeout", 400), **kw)
-        return r, round(time.time() - t, 2)
-    except requests.RequestException as e:
-        return e, round(time.time() - t, 2)
+    timeout = kw.pop("timeout", 400)
+    for attempt in range(2):
+        try:
+            r = sess.request(method, url, timeout=timeout, **kw)
+            return r, round(time.time() - t, 2)
+        except requests.ConnectionError as e:
+            err = e
+        except requests.RequestException as e:
+            return e, round(time.time() - t, 2)
+    return err, round(time.time() - t, 2)
 
 
 def status(r):
@@ -72,7 +79,7 @@ def warm_field(sess, api, f, log):
         r, t = timed(sess, "GET", f"{api}/api/candidates", params={"key": key}, timeout=60)
         if status(r) != 202:
             break
-        time.sleep(5)
+        time.sleep(4)
     log.append({"field": f["name"], "step": "candidates", "status": status(r), "seconds": round(time.time() - t0, 2)})
     print(log[-1], flush=True)
     r, t = timed(sess, "GET", f"{api}/api/spectrum", params={"key": key})
