@@ -5,6 +5,7 @@ astropy==7.1.0
 requests==2.34.2
 fastapi==0.162.7
 uvicorn[standard]==0.54.0
+lxml==6.0.2              # ADES drafts: checked against the submit schema before they are handed out
 
 # Tests: pip install -r requirements-test.txt
 

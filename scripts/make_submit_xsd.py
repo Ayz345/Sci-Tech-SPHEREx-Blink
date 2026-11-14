@@ -17,12 +17,16 @@ from lxml import etree
 ROOT = Path(__file__).resolve().parent.parent
 ADES = ROOT / "cache" / "ades"
 XSLT_URL = "https://raw.githubusercontent.com/IAU-ADES/ADES-Master/master/xslt/xsd/submitxsd.xslt"
+MASTER_URL = "https://raw.githubusercontent.com/IAU-ADES/ADES-Master/master/xml/adesmaster.xml"
 
 
 def main():
     master = ADES / "adesmaster.xml"
-    if not master.exists():
-        sys.exit(f"missing {master} (the ADES master file from the IAU ADES-Master repository)")
+    if not master.exists():  # e.g. a fresh checkout or the Docker build: fetch it from the IAU repository
+        ADES.mkdir(parents=True, exist_ok=True)
+        r = requests.get(MASTER_URL, timeout=60)
+        r.raise_for_status()
+        master.write_bytes(r.content)
     out_dir = ADES / "xslt"
     out_dir.mkdir(parents=True, exist_ok=True)
     xsl = out_dir / "submitxsd.xslt"

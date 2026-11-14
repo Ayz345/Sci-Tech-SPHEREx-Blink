@@ -36,7 +36,7 @@ def test_psv_passes_the_master_checks(telescope):
     assert lines[0] == "# version=2022"
     assert "! mpcCode 288" in lines
     assert any(ln.startswith("! line DRAFT") for ln in lines)
-    assert any("unverified: mode, astCat" in ln for ln in lines)
+    assert not any("unverified" in ln for ln in lines) and "Gaia3" in txt
     kw = [t.strip() for t in next(ln for ln in lines if ln.startswith("trkSub")).split("|")]
     assert kw[:3] == ["trkSub", "mode", "stn"] and "pos1" in kw and "obsTime" in kw
     row = dict(zip(kw, [t.strip() for t in lines[lines.index(next(ln for ln in lines if ln.startswith("trkSub"))) + 1].split("|")]))
@@ -53,19 +53,19 @@ def test_trksub_and_required_inputs(telescope):
     with pytest.raises(ValueError, match="submitter"):
         mpc.write_ades_psv(d, {"submitter": ""})
     with pytest.raises(ValueError, match="trkSub"):
-        mpc.write_ades_psv(d, {"submitter": "X", "trk_sub": "too-long-name"})
+        mpc.write_ades_psv(d, {"submitter": "I. M. Tester", "trk_sub": "too-long-name"})
     with pytest.raises(ValueError, match="at least"):
-        mpc.write_ades_psv(d[:2], {"submitter": "X"})
+        mpc.write_ades_psv(d[:2], {"submitter": "I. M. Tester"})
     t = mpc.make_trksub(d)
-    assert len(t) == 8 and mpc._TRK_RE.fullmatch(t) and t == mpc.make_trksub(d)
-    txt = mpc.write_ades_psv(d, {"submitter": "X", "trk_sub": "K25ab-1"})
+    assert len(t) == 7 and mpc._TRK_RE.fullmatch(t) and t == mpc.make_trksub(d)
+    txt = mpc.write_ades_psv(d, {"submitter": "I. M. Tester", "trk_sub": "K25ab-1"})
     assert "K25ab-1" in txt and mpc.validate_psv(txt) == []
 
 
 def test_no_ades_without_verified_telescope(monkeypatch):
     monkeypatch.setattr(mpc, "TELESCOPE", {**mpc.TELESCOPE, "aperture": None})
     with pytest.raises(ValueError, match="telescope context not verified"):
-        mpc.write_ades_psv(_dets(), {"submitter": "X"})
+        mpc.write_ades_psv(_dets(), {"submitter": "I. M. Tester"})
 
 
 def test_real_telescope_context_and_finast():
@@ -73,20 +73,20 @@ def test_real_telescope_context_and_finast():
     assert mpc.validate_psv(txt) == []
     for line in ("! design reflector", "! aperture 0.20", "! detector HgCdTe", "! fRatio 3",
                  "! line Telescope: SPHEREx Explanatory Supplement v2.1, Sec. 1.3 and Table 2",
-                 "! line Writer output passes the official ADES submit check (iau-ades) in tests; this file is not checked."):
+                 "! line " + mpc.SCHEMA_NOT_CHECKED):
         assert line in txt.splitlines()
-    assert "Gaia DR3" in txt and "unverified: mode, astCat" in txt and "astCat code not verified" in txt
+    assert "Gaia DR3" in txt and "Gaia3" in txt and "unverified" not in txt
     assert "unverified: spacecraft position axes" not in txt
     assert all(len(ln) - len("! line ") <= 100 for ln in txt.splitlines() if ln.startswith("! line "))
     d = _dets(4)
     d[1]["finast"] = 1                      # left out of ADES, kept in the CSV with the reason
-    rows = _psv_parse(mpc.write_ades_psv(d, {"submitter": "X"}))[1]
+    rows = _psv_parse(mpc.write_ades_psv(d, {"submitter": "I. M. Tester"}))[1]
     assert len(rows) == 3 and all("_1 " not in r.get("remarks", "") + " " for r in rows)
     csv_txt = mpc.write_csv(d, {})
     assert "FINAST=1" in csv_txt and csv_txt.count("False") == 1
     d[2]["finast"] = 2
     with pytest.raises(ValueError, match="at least"):
-        mpc.write_ades_psv(d, {"submitter": "X"})
+        mpc.write_ades_psv(d, {"submitter": "I. M. Tester"})
 
 
 def test_logsnr_only_from_calibrated_snr():
@@ -94,7 +94,7 @@ def test_logsnr_only_from_calibrated_snr():
     for x in d:
         x.pop("snr_calibrated", None)
         x["snr_fit"] = 20.0
-    txt = mpc.write_ades_psv(d, {"submitter": "X"})
+    txt = mpc.write_ades_psv(d, {"submitter": "I. M. Tester"})
     assert "logSNR" not in txt
 
 
@@ -141,7 +141,8 @@ def _psv_parse(txt):
 def test_psv_and_xml_carry_the_same_content(telescope):
     from lxml import etree
     d = _dets(4)
-    c = {"submitter": "A. Tester", "trk_sub": "SPXtest1", "tool_version": "0.1", "code_hash": "abc"}
+    c = {"submitter": "A. Tester", "trk_sub": "SPXtst1", "tool_version": "0.1", "code_hash": "abc",
+         "test_form": mpc.MPC_PSV_TEST}   # the two writers otherwise point to their own MPC test form
     pctx, prows = _psv_parse(mpc.write_ades_psv(d, c))
     root = etree.fromstring(mpc.write_ades_xml(d, c).encode())
     assert root.tag == "ades" and root.get("version") == "2022"
@@ -157,7 +158,7 @@ def test_each_exposure_keeps_its_own_spacecraft_position(telescope):
     for i, x in enumerate(d):  # spacecraft moves ~7 km/s: 60 s apart -> hundreds of km
         x["sc_pos_km"] = (3821.104 + 230.0 * i, -4262.410 + 140.0 * i, -4079.724 - 363.0 * i)
         x["sc_vel_kms"] = (-3.8326 + 0.01 * i, 2.3359, -6.0457)
-    _, rows = _psv_parse(mpc.write_ades_psv(d, {"submitter": "X"}))
+    _, rows = _psv_parse(mpc.write_ades_psv(d, {"submitter": "I. M. Tester"}))
     assert [r["pos1"] for r in rows] == ["+3821.104", "+4051.104", "+4281.104"]
     assert [r["pos3"] for r in rows] == ["-4079.724", "-4442.724", "-4805.724"]
     assert len({r["vel1"] for r in rows}) == 3
@@ -172,12 +173,12 @@ def test_ades_selection_rules_and_validation_lines(tmp_path, monkeypatch):
     d[2]["regime"] = "between_epochs"
     for x in d[3:]:
         x["regime"], x["accepted"], x["trailed"] = "within_visit", True, False
-    rows = _psv_parse(mpc.write_ades_psv(d, {"submitter": "X"}))[1]
+    rows = _psv_parse(mpc.write_ades_psv(d, {"submitter": "I. M. Tester"}))[1]
     assert len(rows) == 3
     csv_txt = mpc.write_csv(d, {})
     for why in ("trailed", "blended", "regime between_epochs"):
         assert why in csv_txt
-    txt = mpc.write_ades_psv(d, {"submitter": "X"})
+    txt = mpc.write_ades_psv(d, {"submitter": "I. M. Tester"})
     assert "rmsTime" not in txt and "Method validation summary not available" in txt
     assert "obsTime is the header mid-exposure time (DATE-AVG); not independently verified." in txt
     f = tmp_path / "v.json"
@@ -187,7 +188,7 @@ def test_ades_selection_rules_and_validation_lines(tmp_path, monkeypatch):
     monkeypatch.setattr(mpc, "VALIDATION_KEYS", {"object": "object", "median_ra": "r.mra", "median_dec": "r.mdec",
                                                  "scatter_ra": "r.sra", "scatter_dec": "r.sdec",
                                                  "along_track": "r.at", "n_accepted": "r.n", "floor": "r.floor"})
-    txt = mpc.write_ades_psv(d, {"submitter": "X"})
+    txt = mpc.write_ades_psv(d, {"submitter": "I. M. Tester"})
     assert "against JPL Horizons: median offset -0.12, -0.05 arcsec;" in txt
     assert "Along-track residual on (433) Eros: -0.15 arcsec (382 exposures)." in txt
     assert mpc.validate_psv(txt) == []
@@ -231,3 +232,62 @@ def test_psv_passes_the_official_ades_tools(tmp_path):
     bad_dir.mkdir()
     ok, msg = _official(good.replace("ICRF_KM", "ICRF_XX"), bad_dir)
     assert not ok
+
+
+def test_mpc_designation_rules():
+    for bad in ("K23A00B", "00001", "A0001", "~0023", "2023AB", "2023AB12", "1", "620127", "1P", "SPXtoolong"):
+        with pytest.raises(ValueError):
+            mpc.check_trksub(bad)
+    for good in ("SPX1A2B", "ab12cd", "Blink-1"):
+        assert mpc.check_trksub(good) == good
+
+
+def test_submitter_name_rules():
+    for good in ("I. M. Submit", "J. R. R. Tolkien", "J.-F. Hulot", "A. Öztürk"):
+        assert mpc.check_name(good) == good
+    for bad in ("Ivan Submit", "J.R.R. Tolkien", "someone@example.org", "X", "I. M. Submit 2"):
+        with pytest.raises(ValueError):
+            mpc.check_name(bad)
+
+
+def test_night_minimum_and_one_position_per_time():
+    d = _dets(3) + _dets(2)
+    for x in d[3:]:                      # two more positions two days later: their night has fewer than 3
+        x["obs_time"] = x["obs_time"].replace("2025-11-09", "2025-11-11")
+    reasons = mpc.select_for_ades(d)
+    assert set(reasons) == {3, 4} and all("fewer than 3" in r for r in reasons.values())
+    rows = _psv_parse(mpc.write_ades_psv(d, {"submitter": "I. M. Tester"}))[1]
+    assert len(rows) == 3
+    dup = _dets(4)
+    dup[3]["obs_time"] = dup[0]["obs_time"]   # same time twice (e.g. two detector files of one exposure)
+    dup[3]["snr_calibrated"] = 99.0
+    reasons = mpc.select_for_ades(dup)
+    assert list(reasons) == [0] and "same obsTime" in reasons[0]
+    rows = _psv_parse(mpc.write_ades_psv(dup, {"submitter": "I. M. Tester"}))[1]
+    assert len({r["obsTime"] for r in rows}) == len(rows) == 3
+
+
+def test_comment_lines_have_no_free_text_and_fit():
+    txt = mpc.write_ades_psv(_dets(), {"submitter": "I. M. Tester", "note": "my e-mail is a@b.c"})
+    assert "a@b.c" not in txt
+    lines = [ln[7:] for ln in txt.splitlines() if ln.startswith("! line ")]
+    assert all(len(x) <= 100 for x in lines)
+    assert "Gaia3" in txt and "unverified" not in txt
+    assert mpc.MPC_PSV_TEST in lines and "No magnitudes: SPHEREx wavelengths have no MPC band code." in lines
+
+
+def test_checked_ades_with_and_without_schema(monkeypatch, tmp_path):
+    d = _dets()
+    if mpc.SUBMIT_XSD.exists():
+        txt, checked = mpc.checked_ades(d, {"submitter": "I. M. Tester"})
+        assert checked and mpc.SCHEMA_PASSED in txt and mpc.validate_psv(txt) == []
+        xml, checked = mpc.checked_ades(d, {"submitter": "I. M. Tester"}, fmt="xml")
+        assert checked and xml.startswith("<?xml") and mpc.MPC_XML_TEST in xml
+        # a draft the schema rejects is not handed out
+        monkeypatch.setattr(mpc, "LOCATION_SYS", "ICRF_XX")
+        with pytest.raises(mpc.SchemaError):
+            mpc.checked_ades(d, {"submitter": "I. M. Tester"})
+        monkeypatch.setattr(mpc, "LOCATION_SYS", "ICRF_KM")
+    monkeypatch.setattr(mpc, "SUBMIT_XSD", tmp_path / "missing.xsd")
+    txt, checked = mpc.checked_ades(d, {"submitter": "I. M. Tester"})
+    assert not checked and mpc.SCHEMA_NOT_CHECKED in txt

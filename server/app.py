@@ -310,6 +310,11 @@ class Registry:
         return job
 
 
+def _ades_schema_available() -> bool:
+    from spx import mpc
+    return mpc.SUBMIT_XSD.exists()
+
+
 def use_box(f: P.Field) -> bool:
     """Free fields read the grid's detector bounding box (fewer rows). Gallery targets keep the square
     cutouts their disk cache already holds, so nothing is downloaded again."""
@@ -571,4 +576,5 @@ async def api_health():
                   "live_layers": list(LIVE_LAYERS), "fields_in_memory": fields, "bands_queued": queued, "bands_running": running,
                   "s3_max_concurrency": access.S3_MAX_CONCURRENCY, "code_hash": CODE_HASH,
                   "spx_frame_code_hash": spx.frame_code_hash(), "spx_code_hash": spx.code_hash(),
+                  "ades_schema": _ades_schema_available(),
                   "network_totals": dict(access.TOTALS)})

@@ -1,4 +1,4 @@
-# SPHEREx blink API server.
+# SPHEREx blink API server. NOT TRIED YET (no Docker daemon here): build and run it before relying on it.
 #   docker build --build-arg SPX_COMMIT=$(git --git-dir=../SpaceApps.git rev-parse --short HEAD) -t spx-blink .
 #   docker run -p 8000:8000 -v spx-cache:/data/cache spx-blink
 # Run it near the data (S3 bucket nasa-irsa-spherex is in us-east-1). The static page (web/) is hosted
@@ -14,10 +14,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir numpy==2.3.3 scipy==1.16.2 astropy==7.1.0 requests==2.34.2 \
-        fastapi==0.162.7 "uvicorn[standard]==0.54.0"
+        fastapi==0.162.7 "uvicorn[standard]==0.54.0" lxml==6.0.2
 
 COPY spx/ spx/
 COPY server/ server/
+COPY scripts/make_submit_xsd.py scripts/make_submit_xsd.py
+# ADES submit schema for checking MPC drafts (downloads adesmaster.xml and the XSLT from the IAU repository)
+RUN python scripts/make_submit_xsd.py
 # threshold for meta.wing_bands (R Dra), read at run time
 COPY handoff/results/wing_validation_v2.json handoff/results/wing_validation_v2.json
 

@@ -31,6 +31,18 @@ DP = ceil(1 - log10(sigma)) for measured values; uncertainties with at most two 
 Values NOT verified yet (the MPC keeps the lists; its web pages refuse automated reads) live in ONE place below,
 and every file says so in a comment line until they are confirmed.
 
+MPC rules and value lists (MPC documentation hub, saved under cache/ades/mpcdocs/):
+  observations_valid-ades-values.txt      mode list (UNK = Unknown), astCat list (Gaia3 = Gaia DR 3), band list;
+                                          "Use of an unlisted value ... will cause a batch to be rejected"
+  astrometry_reporting-observations.txt   at least three observations per object per night, no single positions;
+                                          temporary designations: seven characters or less, unique, not shaped like
+                                          MPC packed/unpacked designations; no approximate or preliminary measures
+  observations_observational-details.txt  names: initials + surname ('J. R. R. Tolkien', 'J.-F. Hulot')
+  observations_ades-format.txt            keep PII out of ADES, comments and remarks included; MPC test forms
+                                          submit_psv_test / submit_xml_test
+  observatory-and-program-codes_program-codes.txt  program codes for archival observations still to be announced
+  astrometry_getting-started.txt          pixel scale guidance for ground observers (<= 2"/px, 3" at worst)
+
 Why pos1..3 are required, not decoration: for an object at 1 au the direction seen from the spacecraft differs from
 the geocentric one by up to ~10 arcsec (co-add session's parallax estimate), far above the measurement error.
 """
@@ -50,13 +62,11 @@ LOCATION_SYS = "ICRF_KM"         # space-based station, km (adesmaster SysType)
 LOCATION_CTR = "399"             # geocentre: the only CtrType value
 
 # ---------------------------------------------------------------- the single setting point for unverified values
-#: MPC-maintained lists (mode, astCat) and the telescope context. Placeholders until confirmed; files carry an
-#: "unverified" comment while any of these is not confirmed.
-UNVERIFIED = {
-    "mode": "UNK",           # instrument mode code from the MPC list: NOT VERIFIED
-    "astCat": "UNK",         # reference catalogue of SPHEREx astrometry, MPC catalogue code: NOT VERIFIED
-}
-VERIFIED = {"mode": False, "astCat": False}
+#: MPC list values (observations_valid-ades-values.txt). mode UNK: the detector is a Teledyne H2RG HgCdTe array,
+#: never called CMOS in the Explanatory Supplement, so no closer list value was confirmed. astCat Gaia3 = Gaia DR 3,
+#: the reference of SPHEREx astrometry (Explanatory Supplement v2.1, Sec. 3.2.8).
+UNVERIFIED = {"mode": "UNK", "astCat": "Gaia3"}   # name kept for the single setting point; both values verified
+VERIFIED = {"mode": True, "astCat": True}
 #: Telescope context (required: design, aperture [m], detector; ADES Table 18). Source: SPHEREx Explanatory
 #: Supplement v2.1, sec. 1.3 p. 5 ("20-cm effective aperture ... Three Mirror Anastigmat"), Table 2 p. 6 (f/3;
 #: Hawaii-2RG), p. 6 ("Teledyne H2RG HgCdTe 2k x 2k"); read by the co-add session, 14 Nov 2026.
@@ -80,16 +90,51 @@ ADES_REGIME = "within_visit"
 #: read at write time, never typed in here). Keys are mapped in VALIDATION_KEYS once the file is known.
 VALIDATION_FILE: Path | None = None
 VALIDATION_KEYS: dict = {}
-#: Minimum accepted single-exposure detections for an ADES draft. MPC rule not found in our sources.
+#: MPC: report at least three observations of each object from each night; batches with single positions are
+#: returned (astrometry_reporting-observations.txt). Applied per 24-hour window of the ADES detections.
 MIN_DETECTIONS = 3
-MIN_DETECTIONS_VERIFIED = False
+MIN_DETECTIONS_VERIFIED = True
+NIGHT_HOURS = 24.0
+MPC_PSV_TEST = "https://minorplanetcenter.net/submit_psv_test"
+MPC_XML_TEST = "https://minorplanetcenter.net/submit_xml_test"
+SCHEMA_PASSED = "This file passed the ADES submit schema (submit.xsd) when it was generated."
+SCHEMA_NOT_CHECKED = "Writer output passes the official ADES submit check in tests; this file was not checked."
+
+
+def snr_threshold() -> float | None:
+    """The acceptance S/N of the co-add session's measure_track (its default), read from the code."""
+    try:
+        import inspect
+        from spx import astrometry
+        v = inspect.signature(astrometry.measure_track).parameters["snr_min"].default
+        return float(v) if v is not inspect.Parameter.empty else None
+    except Exception:
+        return None
 
 POS_DECIMALS = 3                 # km -> 1 m; the header gives no position uncertainty
 VEL_DECIMALS = 6                 # km/s -> 1 mm/s
 
 MASTER = Path(__file__).resolve().parent.parent / "cache" / "ades" / "adesmaster.xml"
+#: The official submission schema, made from MASTER by scripts/make_submit_xsd.py (ADES submitxsd.xslt).
+SUBMIT_XSD = MASTER.parent / "xslt" / "submit.xsd"
 
-_TRK_RE = re.compile(r"[-A-Za-z0-9_]{1,8}")
+
+class SchemaError(RuntimeError):
+    """A draft made by this writer failed the ADES submit schema: a bug on our side, not the user's."""
+
+_TRK_RE = re.compile(r"[-A-Za-z0-9_]{1,7}")   # ADES allows 8; the MPC asks for seven characters or less
+#: Shapes of MPC designations a temporary designation must not take (astrometry_reporting-observations.txt):
+#: packed provisional (K23A00B), packed permanent (00001, A0001, ~0023), unpacked provisional (2023AB, 2023 AB12),
+#: unpacked numbers (1, 620127), comet-like (C/2023 A1, 1P).
+_DESIGNATION_LIKE = [
+    re.compile(r"[IJK]\d{2}[A-HJ-Y][0-9A-Za-z]\d[A-Z]"),
+    re.compile(r"[0-9A-Za-z]\d{4}"),
+    re.compile(r"~[0-9A-Za-z]{4}"),
+    re.compile(r"\d{4}\s?[A-HJ-Y][A-HJ-Z](\d{1,3})?"),
+    re.compile(r"\d+"),
+    re.compile(r"\d+[PDI]"),
+    re.compile(r"[PCDXAI]/.*"),
+]
 
 
 # ---------------------------------------------------------------- numbers
@@ -139,21 +184,44 @@ def _fmt_time(t: str) -> str:
 
 # ---------------------------------------------------------------- identifiers
 def make_trksub(detections, prefix: str = "SPX") -> str:
-    """Deterministic trkSub (<= 8 characters, [-A-Za-z0-9_]) from the detections' times and positions."""
+    """Deterministic temporary designation (7 characters, [-A-Za-z0-9_]) from the detections' times and positions."""
     h = hashlib.sha1("|".join(f"{d['obs_time']}:{d['ra']:.6f}:{d['dec']:.6f}" for d in detections).encode())
     n = int(h.hexdigest(), 16)
     chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     tail = ""
-    for _ in range(8 - len(prefix)):
+    for _ in range(7 - len(prefix)):
         n, r = divmod(n, 36)
         tail += chars[r]
     return prefix + tail
 
 
 def check_trksub(t: str) -> str:
+    """A temporary designation the MPC accepts: 1-7 characters [-A-Za-z0-9_], not shaped like an MPC designation."""
     if not _TRK_RE.fullmatch(t or ""):
-        raise ValueError("trkSub must be 1-8 characters from A-Z, a-z, 0-9, '-' and '_'")
+        raise ValueError("the temporary designation (trkSub) must be 1-7 characters from A-Z, a-z, 0-9, '-' and '_'")
+    if any(r.fullmatch(t) for r in _DESIGNATION_LIKE):
+        raise ValueError(f"the temporary designation {t!r} looks like an MPC designation (e.g. K23A00B, 2023AB, "
+                         "00001, 620127); choose another, e.g. starting with letters")
     return t
+
+
+_NAME_RE = re.compile(r"(?:[A-Z]\.(?:-[A-Z]\.)?\s)+[^\W\d_][\w'\-]*(?:\s[^\W\d_][\w'\-]*)*")
+
+
+def check_name(name: str) -> str:
+    """Submitter / measurer name as the MPC wants it: initials + surname, initials separated by spaces
+    ('I. M. Submit', 'J.-F. Hulot'). No e-mail or other personal data beyond the name."""
+    name = " ".join((name or "").split())
+    if not name:
+        raise ValueError("submitter name is required (no file is produced without it)")
+    if "@" in name or re.search(r"\d", name):
+        raise ValueError("give only a name (initials + surname); no e-mail address or numbers")
+    if not _NAME_RE.fullmatch(name):
+        raise ValueError(f"name {name!r}: write initials then surname, initials separated by spaces, "
+                         "e.g. 'I. M. Submit' or 'J.-F. Hulot' (MPC rule)")
+    if len(name) > 100:
+        raise ValueError("name longer than 100 characters")
+    return name
 
 
 def _clean_text(s: str, limit: int) -> str:
@@ -174,10 +242,22 @@ def _comment_lines(context: dict) -> list[str]:
         "Telescope: SPHEREx Explanatory Supplement v2.1, Sec. 1.3 and Table 2",
         "Spacecraft position: header X_SC, Y_SC, Z_SC (geocentric, ICRF equatorial;",
         "checked against the header ground-track longitude)",
-        f"Astrometric reference: {ASTROMETRY_REFERENCE};",
-        "astCat code not verified against the MPC list",
-        "Writer output passes the official ADES submit check (iau-ades) in tests; this file is not checked.",
+        f"Astrometric reference: {ASTROMETRY_REFERENCE}",
+        "mode UNK: detector is a Teledyne H2RG HgCdTe array;",
+        "no closer value in the MPC list was confirmed.",
+        "No magnitudes: SPHEREx wavelengths have no MPC band code.",
+        "Station 288 (SPHEREx). Third-party submissions of archival astrometry may need",
+        "a program code: contact the MPC before submitting.",
+        "Pixel scale 6.15 arcsec (MPC guidance for ground observers: 2-3 arcsec);",
+        "measured single-exposure accuracy on (433) Eros is in the validation line.",
     ]
+    thr = snr_threshold()
+    if thr is not None:
+        lines.append(f"Only detections with S/N >= {thr:g} are reported (the measurement's acceptance threshold).")
+    lines.append(f"At least {MIN_DETECTIONS} positions per {NIGHT_HOURS:g}-hour window (MPC: no single positions per night).")
+    lines.append(context.get("schema_line") or SCHEMA_NOT_CHECKED)
+    lines.append("Before submitting, check the file with the MPC test form:")
+    lines.append(context.get("test_form") or MPC_PSV_TEST)
     v = validation_summary()
     if v is None:
         lines.append("Method validation summary not available")
@@ -196,7 +276,10 @@ def _comment_lines(context: dict) -> list[str]:
         lines.append("unverified: " + f)
     if not MIN_DETECTIONS_VERIFIED:
         lines.append(f"unverified: minimum number of detections ({MIN_DETECTIONS}) is not taken from an MPC rule")
-    return [_clean_text(x, 100) for x in lines]
+    for x in lines:
+        if len(x) > 100:
+            raise AssertionError(f"comment line over 100 characters: {x!r}")
+    return lines
 
 
 #: Optical record fields, in the schema's sequence (adesmaster.xml optical type), as written by this tool.
@@ -273,21 +356,66 @@ def validation_summary() -> dict | None:
     return None if any(v is None for v in out.values()) else out
 
 
+def _mjd(t: str) -> float:
+    from astropy.time import Time
+    return float(Time(_fmt_time(t)[:-1], format="isot", scale="utc").mjd)
+
+
+def select_for_ades(detections) -> dict:
+    """{index: reason} for every detection that stays out of the ADES draft: per-detection reasons (ades_reason),
+    a second position at the same obsTime (one position per time; the higher S/N is kept), and 24-hour windows
+    with fewer than MIN_DETECTIONS positions (MPC: no single positions per night)."""
+    detections = list(detections)
+    out = {i: r for i, d in enumerate(detections) if (r := ades_reason(d)) is not None}
+    by_time = {}
+    for i, d in enumerate(detections):
+        if i in out:
+            continue
+        t = _fmt_time(d["obs_time"])
+        if t in by_time:
+            j = by_time[t]
+            key = lambda k: (detections[k].get("snr_calibrated") or 0, detections[k].get("snr_fit") or 0)  # noqa: E731
+            drop, keep = (i, j) if key(i) <= key(j) else (j, i)
+            out[drop] = "same obsTime as another position (one position per time)"
+            by_time[t] = keep
+        else:
+            by_time[t] = i
+    keep = sorted((i for i in range(len(detections)) if i not in out), key=lambda i: _mjd(detections[i]["obs_time"]))
+    window, start = [], None
+    groups = []
+    for i in keep:
+        m = _mjd(detections[i]["obs_time"])
+        if start is None or (m - start) * 24.0 >= NIGHT_HOURS:
+            if window:
+                groups.append(window)
+            window, start = [i], m
+        else:
+            window.append(i)
+    if window:
+        groups.append(window)
+    for g in groups:
+        if len(g) < MIN_DETECTIONS:
+            for i in g:
+                out[i] = f"fewer than {MIN_DETECTIONS} in one night ({NIGHT_HOURS:g}-hour window)"
+    return out
+
+
 def build_ades(detections, context: dict):
     """Validated content shared by the PSV and XML writers: (context records, fields, rows).
     context records: [(record, [(child, value), ...]), ...] in the PSV order.
-    Detections with a reason (ades_reason) are left out; they remain in the CSV."""
-    detections = [d for d in detections if ades_reason(d) is None]
-    sub = _clean_text(context.get("submitter") or "", 100)
-    if not sub:
-        raise ValueError("submitter name is required (no file is produced without it)")
+    Detections left out by select_for_ades stay in the CSV with their reason."""
+    detections = list(detections)
+    sub = check_name(context.get("submitter") or "")
+    left_out = select_for_ades(detections)
+    detections = [d for i, d in enumerate(detections) if i not in left_out]
     if len(detections) < MIN_DETECTIONS:
-        raise ValueError(f"at least {MIN_DETECTIONS} single-exposure detections are needed, got {len(detections)}")
+        raise ValueError(f"at least {MIN_DETECTIONS} single-exposure detections in one night are needed for an "
+                         f"ADES draft, got {len(detections)} usable")
     missing = [k for k in TELESCOPE_REQUIRED if TELESCOPE.get(k) in (None, "")]
     if missing:
         raise ValueError("telescope context not verified yet: " + ", ".join(missing))
     trk = check_trksub(context.get("trk_sub") or make_trksub(detections))
-    measurers = [_clean_text(m, 100) for m in (context.get("measurers") or [sub]) if _clean_text(m, 100)]
+    measurers = [check_name(m) for m in (context.get("measurers") or [sub])]
     ctx = [("observatory", [("mpcCode", STATION), ("name", STATION_NAME)]),
            ("submitter", [("name", sub)]),
            ("measurers", [("name", m) for m in measurers]),
@@ -320,7 +448,7 @@ def write_ades_psv(detections, context: dict) -> str:
 def write_ades_xml(detections, context: dict) -> str:
     """The same content as write_ades_psv in ADES XML (<ades version="2022"> with one obsBlock)."""
     from xml.sax.saxutils import escape
-    ctx, fields, rows = build_ades(detections, context)
+    ctx, fields, rows = build_ades(detections, {"test_form": MPC_XML_TEST, **context})
     x = ['<?xml version="1.0" encoding="UTF-8"?>', f'<ades version="{ADES_VERSION}">', "  <obsBlock>",
          "    <obsContext>"]
     for rec, children in ctx:
@@ -336,6 +464,41 @@ def write_ades_xml(detections, context: dict) -> str:
     return "\n".join(x) + "\n"
 
 
+_schema_cache = {}
+
+
+def submit_schema():
+    """The compiled submit.xsd, or None when it has not been generated on this installation."""
+    if not SUBMIT_XSD.exists():
+        return None
+    key = SUBMIT_XSD.stat().st_mtime
+    if _schema_cache.get("key") != key:
+        from lxml import etree
+        _schema_cache.update(key=key, schema=etree.XMLSchema(etree.parse(str(SUBMIT_XSD))))
+    return _schema_cache["schema"]
+
+
+def checked_ades(detections, context: dict, fmt: str = "psv") -> tuple[str, bool]:
+    """Write an ADES draft and check its content against submit.xsd before handing it out.
+
+    Returns (text, schema_checked). With the schema present, the XML rendering of the same content must validate,
+    else SchemaError (the file is not given out); the file then says it passed the schema. Without the schema the
+    file is given with the line that it was not checked. 'Passed the schema' does not mean the MPC accepts it."""
+    from lxml import etree
+    schema = submit_schema()
+    ctx = dict(context)
+    if schema is not None:
+        ctx["schema_line"] = SCHEMA_PASSED
+        xml = write_ades_xml(detections, ctx)
+        if not schema.validate(etree.fromstring(xml.encode())):
+            errs = "; ".join(f"line {e.line}: {e.message}" for e in list(schema.error_log)[:5])
+            raise SchemaError(f"the generated ADES draft failed the submit schema: {errs}")
+    else:
+        ctx["schema_line"] = SCHEMA_NOT_CHECKED
+    text = write_ades_xml(detections, ctx) if fmt == "xml" else write_ades_psv(detections, ctx)
+    return text, schema is not None
+
+
 CSV_FIELDS = ["trk_sub", "obs_time_utc_mid", "ra_deg", "dec_deg", "rms_ra_arcsec", "rms_dec_arcsec",
               "snr_calibrated", "snr_fit", "exp_s", "sc_x_km", "sc_y_km", "sc_z_km", "sc_vx_kms", "sc_vy_kms",
               "sc_vz_kms", "obs_id", "band", "wavelength_um", "finast", "in_ades", "reason"]
@@ -345,6 +508,7 @@ def write_csv(detections, context: dict) -> str:
     """Plain CSV of the same single-exposure measurements (always available; also for stars and brown dwarfs)."""
     detections = list(detections)
     trk = context.get("trk_sub") or (make_trksub(detections) if detections else "")
+    left_out = select_for_ades(detections) if detections else {}
     buf = io.StringIO()
     buf.write("# Measurements on single SPHEREx exposures (NASA/IPAC IRSA SPHEREx archive). obs_time is mid-exposure"
               " UTC.\n")
@@ -352,10 +516,10 @@ def write_csv(detections, context: dict) -> str:
         buf.write("# " + _clean_text(context["note"], 300) + "\n")
     w = csv.writer(buf, lineterminator="\n")
     w.writerow(CSV_FIELDS)
-    for d in detections:
+    for i, d in enumerate(detections):
         p = d.get("sc_pos_km") or (None, None, None)
         v = d.get("sc_vel_kms") or (None, None, None)
-        why = ades_reason(d)
+        why = left_out.get(i)
         w.writerow([trk, d.get("obs_time"), d.get("ra"), d.get("dec"), d.get("rms_ra"), d.get("rms_dec"),
                     d.get("snr_calibrated"), d.get("snr_fit"), d.get("exp_s"), *p, *v, d.get("obs_id"), d.get("band"),
                     d.get("wavelength_um"), d.get("finast"), why is None, why or ""])
