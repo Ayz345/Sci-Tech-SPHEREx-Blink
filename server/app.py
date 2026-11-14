@@ -41,7 +41,20 @@ LIVE_LAYERS = tuple(x.strip().upper() for x in (os.environ.get("SPX_LIVE_LAYERS"
 #: Band builders: one serves only requested bands (full S3 concurrency); the other fills the remaining
 #: bands in the background with few S3 connections, and takes requested bands first when there are any.
 BACKGROUND_S3_WORKERS = int(os.environ.get("SPX_BACKGROUND_S3_WORKERS") or 8)
-FIELDS_DIR = access.CACHE_DIR / "fields" / f"v{spx.__version__}"
+def _code_hash() -> str:
+    """Hash of the code that shapes the built files (spx/*.py, server/pipeline.py, spx/targets.py). Built bands
+    live under a folder named after it, so new code never serves files an older version wrote."""
+    import hashlib
+    root = Path(__file__).resolve().parent.parent
+    h = hashlib.sha1()
+    for f in sorted(list((root / "spx").glob("*.py")) + [root / "server" / "pipeline.py"]):
+        h.update(f.name.encode())
+        h.update(f.read_bytes().replace(b"\r\n", b"\n"))
+    return h.hexdigest()[:10]
+
+
+CODE_HASH = _code_hash()
+FIELDS_DIR = access.CACHE_DIR / "fields" / f"v{spx.__version__}-{CODE_HASH}"
 MAX_FIELDS_IN_MEMORY = 32
 MAX_CUTOUT_SETS = 2
 
@@ -554,5 +567,5 @@ async def api_health():
     return jresp({"schema": P.SCHEMA, "ok": True, "version": spx.__version__, "commit": P.spx_commit().get("commit"),
                   "collections": list(access.COLLECTIONS), "max_fov_deg": P.MAX_FOV_DEG,
                   "live_layers": list(LIVE_LAYERS), "fields_in_memory": fields, "bands_queued": queued, "bands_running": running,
-                  "s3_max_concurrency": access.S3_MAX_CONCURRENCY,
+                  "s3_max_concurrency": access.S3_MAX_CONCURRENCY, "code_hash": CODE_HASH,
                   "network_totals": dict(access.TOTALS)})
