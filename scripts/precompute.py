@@ -56,7 +56,7 @@ def build_target(key: str, out_root: Path, bands=None) -> dict:
         order.insert(0, f.tinfo["default_band"])
     if bands:
         order = [b for b in order if b in bands]
-    status, nexp, by_det = {}, {}, {}
+    status, nexp, by_det, nused = {}, {}, {}, {}
     for band in order:
         dets = f.detectors_for(band)
         st = {}
@@ -69,6 +69,7 @@ def build_target(key: str, out_root: Path, bands=None) -> dict:
         bstats = {}
         bj, _, frames = P.build_band(f, band, tmp, cuts=cuts, stats=bstats)
         status[band] = "ready" if frames else "empty"
+        nused[band] = [e["n_used"] for e in bj["epochs"]]
         n = P.band_n_exposures(f, band, cuts)
         if n is not None:
             nexp[band] = n
@@ -93,7 +94,7 @@ def build_target(key: str, out_root: Path, bands=None) -> dict:
     spec = P.spectrum(f, all_cuts, gaia=gaia)
     P.write_json(tmp / "spectrum.json", spec, indent=None)
     # manifest last
-    man = P.manifest(f, status=status, n_exposures=nexp)
+    man = P.manifest(f, status=status, n_exposures=nexp, n_used=nused)
     P.write_json(tmp / "manifest.json", man)
     prov = {
         "schema": 1, "key": key, "generated_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),

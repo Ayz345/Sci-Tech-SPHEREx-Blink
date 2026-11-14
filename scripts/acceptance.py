@@ -47,6 +47,7 @@ DEBLENDED_MAX_SIGMA = 2.0            # deblended motion vs literature, per compo
 CORE_RADIUS_ARCSEC = 36.0            # region around the track checked for holes
 CORE_PX = 2.0                        # "the core": within 2 grid px of the track
 SATURATED_CORE = {"barnard": "inf", "r-dra": "inf", "rw-aur": "finite"}   # expected core per target
+EMPTY_SKY_ARCSEC = 36.0              # +Inf farther than this from the track and from every Gaia source = empty sky
 SAT_FRACTION_MAX = 0.15              # a non-finite "finite" core is allowed only where > 15 % of exposures saturate
 SATURATION_CHECK = ROOT / "handoff" / "results" / "saturation_check_v2.json"
 PROFILES = {  # seconds
@@ -247,6 +248,7 @@ def check_core(rep: Report, s: Static, key: str):
     ny, nx = s.shape
     yy, xx = np.mgrid[0:ny, 0:nx]
     holes, n_inf, n_core_nonfinite, per = 0, 0, 0, {}
+    low_holes = low_inf = 0
     excused, unexcused = {}, {}
     satfrac = {}
     if SATURATION_CHECK.exists():
@@ -276,10 +278,16 @@ def check_core(rep: Report, s: Static, key: str):
                 fr = satfrac.get((key, b, int(e)))
                 (excused if fr is not None and fr > SAT_FRACTION_MAX else unexcused)[f"{e}_{b}"] = \
                     {"nonfinite_core_px": c, "sat_fraction_at_target": fr}
+            low = ej.get("quality") == "low"
+            if low:
+                low_holes += h
+                low_inf += i
             if h or i:
-                per[f"{e}_{b}"] = {"nan_holes": h, "inf": i}
+                per[f"{e}_{b}"] = {"nan_holes": h, "inf": i, **({"quality": "low"} if low else {})}
     rep.check(sec, f"no NaN holes within {CORE_RADIUS_ARCSEC:g} arcsec of the track (weight > 0 or filled neighbours)",
               holes == 0, measured=holes, threshold="0", detail=json.dumps(per)[:600])
+    rep.add(sec, "of which in frames marked quality=low (n_used < 5)", INFO,
+            measured={"nan_holes": low_holes, "inf_near_track": low_inf})
     want = SATURATED_CORE.get(key)
     if want == "inf":
         rep.check(sec, "saturated core is +Inf (pixels near the track, all frames)", n_inf > 0, measured=n_inf,
@@ -289,6 +297,63 @@ def check_core(rep: Report, s: Static, key: str):
                        f"{SATURATION_CHECK.name})", not unexcused,
                   measured={"nonfinite_core_px": n_core_nonfinite, "excused": excused, "not_excused": unexcused},
                   threshold=f"every non-finite core pixel has sat_fraction_at_target > {SAT_FRACTION_MAX}")
+
+
+def check_empty_sky_inf(rep: Report, s: Static, key: str):
+    """+Inf (saturated) must only appear on stars: no +Inf pixel farther than EMPTY_SKY_ARCSEC from the track and
+    from every Gaia source (propagated to the epoch), in any frame, low quality included."""
+    from astropy.time import Time
+    sec = f"target:{key}"
+    gaia = strict_json(s.d / "gaia.json")
+    gc = SkyCoord(ra=[g["ra"] for g in gaia] * u.deg, dec=[g["dec"] for g in gaia] * u.deg,
+                  pm_ra_cosdec=[g.get("pmra") or 0.0 for g in gaia] * u.mas / u.yr,
+                  pm_dec=[g.get("pmdec") or 0.0 for g in gaia] * u.mas / u.yr,
+                  obstime=Time(2016.0, format="jyear"))
+    ny, nx = s.shape
+    yy, xx = np.mgrid[0:ny, 0:nx]
+    rad = EMPTY_SKY_ARCSEC / (abs(s.m["grid"]["cdelt"][1]) * 3600)
+    total, low_total, per = 0, 0, {}
+    for e in s.m["epochs"]:
+        ge = gc.apply_space_motion(new_obstime=Time(e["mjd_mid"], format="mjd"))
+        gx, gy = s.w.world_to_pixel(SkyCoord(ge.ra, ge.dec))
+        near = np.zeros((ny, nx), bool)
+        if e["id"] in s.track:
+            tx, ty = s.track_px(e["id"])
+            near |= np.hypot(xx - tx, yy - ty) <= rad
+        for sx, sy in zip(gx, gy):
+            if -rad < sx < nx + rad and -rad < sy < ny + rad:
+                near |= np.hypot(xx - sx, yy - sy) <= rad
+        for b in sorted(s.bj):
+            fr = s.frames(b).get(e["id"])
+            if fr is None:
+                continue
+            img, ej = fr
+            n = int((np.isposinf(img) & ~near).sum())
+            if n:
+                low = ej.get("quality") == "low"
+                per[f"{e['id']}_{b}"] = n if not low else f"{n} (quality low)"
+                total += n
+                low_total += n if low else 0
+    rep.check(sec, f"no +Inf on empty sky (> {EMPTY_SKY_ARCSEC:g} arcsec from the track and every Gaia source)",
+              total == 0, measured=total, threshold="0", detail=json.dumps(per)[:600])
+    rep.add(sec, "of which in frames marked quality=low", INFO, measured=low_total)
+
+
+def check_quality_flags(rep: Report, s: Static, key: str):
+    """Every frame's epoch record says quality ok/low, low exactly when n_used < 5."""
+    sec = f"static:{key}"
+    bad, low = [], []
+    for b, bj in s.bj.items():
+        for e in bj["epochs"]:
+            if e["n_used"] <= 0:
+                continue
+            want = "low" if e["n_used"] < 5 else "ok"
+            if e.get("quality") != want:
+                bad.append(f"{e['id']}_{b}:{e.get('quality')}")
+            if want == "low":
+                low.append(f"{e['id']}_{b} (n={e['n_used']})")
+    rep.check(sec, "band.json quality = low exactly when n_used < 5", not bad, measured=len(bad), detail=", ".join(bad[:8]))
+    rep.add(sec, "frames marked quality=low", INFO, measured=low)
 
 
 def measure_motion(s: Static, band: str, r=4.0):
@@ -729,7 +794,9 @@ def main():
     print("\n== behaviour at the target")
     for k, sk in st.items():
         if sk is not None:
+            check_quality_flags(rep, sk, k)
             check_core(rep, sk, k)
+            check_empty_sky_inf(rep, sk, k)
     if st.get("barnard"):
         check_mover(rep, st["barnard"], "barnard")
     if st.get("eps-indi-b"):

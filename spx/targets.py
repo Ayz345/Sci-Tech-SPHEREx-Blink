@@ -59,6 +59,33 @@ TARGETS = {
 for _k, _t in TARGETS.items():
     _t["key"] = _k
     _t["ref_mjd"] = float(Time(_t["ref_epoch"], format="jyear", scale="tdb").mjd)
+    _t["pm_total_arcsec_yr"] = round((_t["pmra"] ** 2 + _t["pmdec"] ** 2) ** 0.5 / 1000.0, 2)
+
+# Page notes. Numbers come from measurements in this project: proper motions from the entries above, RW Aur and
+# R Dra from handoff/results/methods_v2.md (co-add session, freeze 4341aae), Eps Indi A from Gaia DR3 (ESA TAP,
+# 14 Nov 2026: 6412595290592307840, G = 4.32, 402" west of B at 2016.0) and the gallery frames (west-edge strip
+# 1.7-6.5 x the noise in every band and epoch, east edge ~0).
+TARGETS["barnard"]["notes"] = [
+    f"Barnard's Star is saturated at its core (drawn at the brightest colour). It moves "
+    f"{TARGETS['barnard']['pm_total_arcsec_yr']:.1f}″/yr, almost due north (Gaia DR3 proper motion).",
+]
+TARGETS["eps-indi-b"]["notes"] = [
+    f"Epsilon Indi B moves {TARGETS['eps-indi-b']['pm_total_arcsec_yr']:.1f}″/yr (Gaia DR3 proper motion).",
+    "The bright star Epsilon Indi A (Gaia DR3 6412595290592307840, G = 4.3) lies 402″ west of B, outside this "
+    "field; its halo raises the background along the west edge.",
+]
+TARGETS["rw-aur"]["notes"] = [
+    "RW Aurigae is variable in D1, D2 and D5 (×1.54, ×1.33, ×1.70 between epochs, against at most ×1.04–1.18 "
+    "for 12 control stars) and marginal in D6 (×1.46 against ×1.29).",
+    "Its brightest pixels overflow; their flux is recovered from the reads before the overflow (median ratio 1.04 "
+    "to clean pixels over 10 pairs, range 1.00–1.51).",
+]
+TARGETS["r-dra"]["notes"] = [
+    "R Draconis is saturated in 412 of 413 exposures, so its own flux cannot be measured; its change shows in the "
+    "brightness of the halo (common scale across epochs) and in the PSF-wing series.",
+    "PSF-wing brightness between epochs: D2 ×2.42 and D6 ×1.77 exceed the ×1.47 seen on control stars "
+    "(90th percentile); D1 ×1.31 does not. With 4 control stars the formal variability test is undetermined.",
+]
 
 
 def target_coord(key: str) -> SkyCoord:

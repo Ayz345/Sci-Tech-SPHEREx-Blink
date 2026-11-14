@@ -42,6 +42,8 @@ MAX_FOV_DEG = float(os.environ.get("SPX_MAX_FOV_DEG") or 7.0 / 60)
 QUERY_MJD = 61050.0
 MAX_PER_EPOCH_BAND = access.MAX_PER_EPOCH_BAND
 MIN_EXPOSURES = 3
+#: A frame built from fewer exposures is marked "quality": "low" in {band}.json (patchy coverage, ghosts survive).
+MIN_GOOD_EXPOSURES = 5
 
 # Verbatim from https://irsa.ipac.caltech.edu/Missions/spherex.html (read 14 Nov 2026).
 ACKNOWLEDGEMENT = ("This publication makes use of data products from the Spectro-Photometer for the History of the "
@@ -295,7 +297,22 @@ def _n_exposures(f: Field, dets: list[int]) -> list[int]:
     return out
 
 
-def manifest(f: Field, status: dict | None = None, n_exposures: dict | None = None) -> dict:
+def choose_default_band(counts: dict) -> str | None:
+    """counts: {band: [per-epoch exposures]}. The band whose weakest epoch with data is strongest; a tie goes
+    to the shorter wavelength (D1 < ... < D6)."""
+    best, best_key = None, None
+    for b, n in counts.items():
+        used = [x for x in n if x and x > 0]
+        if not used:
+            continue
+        k = (min(used), -int(b[1:]))
+        if best_key is None or k > best_key:
+            best, best_key = b, k
+    return best
+
+
+def manifest(f: Field, status: dict | None = None, n_exposures: dict | None = None,
+             n_used: dict | None = None) -> dict:
     """status: {band_id: 'pending'|'ready'|'empty'}; n_exposures overrides the SIA2 count for a band
     (custom windows: exposures whose wavelength at the target falls inside, known after download)."""
     status = status or {}
@@ -330,6 +347,12 @@ def manifest(f: Field, status: dict | None = None, n_exposures: dict | None = No
             m["target_source"] = f.source
     if f.tinfo and f.tinfo.get("default_band"):
         m["default_band"] = f.tinfo["default_band"]
+    else:  # built bands: exposures used per epoch; before that: the SIA2 counts
+        det = {b["id"]: (n_used or {}).get(b["id"]) or b["n_exposures"] for b in bands
+               if b["id"].startswith("D") and b["id"][1:].isdigit() and b["status"] != "empty"}
+        db = choose_default_band(det)
+        if db:
+            m["default_band"] = db
     if notes:
         m["notes"] = notes
     m["processing"] = processing_text()
@@ -440,7 +463,8 @@ def build_band(f: Field, band_id: str, out_dir: Path, layers=("IMAGE", "FLAGS", 
         else:
             bj["epochs"].append({"id": e["id"], "n_used": fr.n_used, "noise": fr.noise, "mjd_mid": fr.mjd,
                                  "date": fr.epoch_label, "band_um": list(fr.band_um),
-                                 "target_xy": list(fr.target_xy)})
+                                 "target_xy": list(fr.target_xy),
+                                 "quality": "low" if fr.n_used < MIN_GOOD_EXPOSURES else "ok"})
     write_json(out_dir / f"{band_id}.json", bj)
     if stats is not None:
         stats.update({"t_fetch": t1 - t0, "t_coadd": t2 - t1, "n_frames": len(frames)})
