@@ -78,7 +78,7 @@ TARGETS["eps-indi-b"]["notes"] = [
 # (server/pipeline.measured_notes): variability from the published spectrum, wing bands, two-PSF separations.
 TARGETS["rw-aur"]["notes"] = [
     "Its brightest pixels overflow; their flux is recovered from the reads before the overflow (median ratio 1.04 "
-    "to clean pixels over 10 pairs, range 1.00–1.51; co-add session, methods_v2.md).",
+    "to clean pixels over 10 pairs, range 1.00–1.51; see the tool's Methods page).",
 ]
 TARGETS["r-dra"]["notes"] = []
 
