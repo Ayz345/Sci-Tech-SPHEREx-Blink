@@ -42,6 +42,9 @@ def fit(rows):
 
 
 def test_pmra_is_mu_alpha_cos_delta():
+    """Threshold note: the 4-sigma separation below was chosen AFTER the result was seen (eps-indi-b: 4.9 sigma
+    with errors scaled by sqrt(chi2/dof), 8.7 sigma with the catalogue errors as given); the decision rests on those
+    two numbers. r-dra (cos dec = 0.39) is the independent second check once IRSA answers for it."""
     doc = _doc()
     used = [k for k in DISCRIMINATING if doc["fields"].get(k)]
     assert used, "no discriminating field (eps-indi-b, r-dra) in the saved rows"
@@ -75,3 +78,22 @@ def test_wise0855_catwise_row_and_epoch():
     d_east = (row["ra_pm"] - row["ra"]) * math.cos(math.radians(row["dec"])) * 3600
     assert 1.5 < d_east < 5.0, d_east
     assert abs(row["pmra"] * 1000 - t["pmra"]) < 300 and row["pmra"] < -7.5
+
+
+def test_fast_rows_are_trusted_only_when_an_independent_motion_agrees():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("make_catwise", Path(__file__).parent.parent / "scripts" / "make_catwise.py")
+    mc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mc)
+    tgt = {"what": "target", "ra": 10.0, "dec": 0.0, "pmra": -8118.0, "pmdec": 680.0, "kind": "target"}
+    near = {"source_name": "a", "ra": 10.0 + 0.5 / 3600, "dec": 0.0, "pmra": -7920.0, "pmdec": 494.0}
+    c = mc.pm_agrees(near, [tgt])
+    assert c["ok"] and "agrees with target" in c["text"]                                # 3.3%: WISE 0855's twin row
+    slow = {"source_name": "b", "ra": 10.0, "dec": 0.0, "pmra": -2000.0, "pmdec": 100.0}
+    assert mc.pm_agrees(slow, [tgt])["ok"] is False                                     # ~25%, like Epsilon Indi B
+    g1 = {"what": "Gaia 1", "ra": 20.0, "dec": 5.0, "pmra": -4.0, "pmdec": -5.0, "kind": "gaia"}
+    g2 = dict(g1, what="Gaia 2", ra=20.0 + 1.0 / 3600)
+    row = {"source_name": "c", "ra": 20.0, "dec": 5.0, "pmra": 2000.0, "pmdec": 3000.0}
+    assert mc.pm_agrees(row, [g1])["ok"] is False                                        # Gaia says it stands still
+    assert mc.pm_agrees(row, [g1, g2]) is None                                           # two Gaia sources: no verdict
+    assert mc.pm_agrees(dict(row, ra=21.0), [g1]) is None                                # nothing within 2 arcsec

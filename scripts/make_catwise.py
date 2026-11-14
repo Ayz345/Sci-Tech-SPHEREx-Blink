@@ -55,7 +55,8 @@ PM_CHECK: dict | None = {"text": (
 PM_RELIABLE_MAX_MAS = 1000.0
 FAST_NOTE = ("CatWISE motions are not reliable for objects moving faster than about 1 arcsec/yr (Epsilon Indi B: "
              "catalogue 0.90/-0.68, Gaia 3.98/-2.47 arcsec/yr); such rows have pm_reliable false and are drawn at "
-             "the catalogue position, not moved.")
+             "the catalogue position, not moved, unless their motion agrees within 10% with an independent value (the "
+             "named target's, or a single Gaia DR3 source within 2 arcsec); pm_check says which.")
 
 
 def cone(manifest: dict) -> tuple[float, float, float]:
@@ -192,6 +193,52 @@ def write_pm_check(keys, data: Path) -> None:
     print("written", PM_CHECK_FILE, {k: len(v) for k, v in doc["fields"].items()})
 
 
+#: A fast row (|pm| > 1 arcsec/yr) counts as reliable when its motion agrees with an independent value to 10%.
+PM_AGREE_FRAC = 0.10
+MATCH_ARCSEC = 2.0
+
+
+def independent_motions(key: str, data: Path) -> list[dict]:
+    """Independent proper motions in the field, at MJD 57170: the named target's (spx.targets) and every Gaia DR3
+    source of gaia.json (mu_alpha cos dec, mas/yr)."""
+    from spx.targets import TARGETS
+    from astropy.time import Time
+    out = []
+    t = TARGETS.get(key)
+    if t is not None:
+        dt = (REF_MJD - float(Time(t["ref_epoch"], format="jyear", scale="tdb").mjd)) / 365.25
+        out.append({"what": f"{t['name']} ({t['source']})", "ra": t["ra"] + t["pmra"] / 3.6e6 * dt /
+                    math.cos(math.radians(t["dec"])), "dec": t["dec"] + t["pmdec"] / 3.6e6 * dt,
+                    "pmra": t["pmra"], "pmdec": t["pmdec"], "kind": "target"})
+    gp = data / key / "gaia.json"
+    if gp.exists():
+        dt = (REF_MJD - GAIA_MJD) / 365.25
+        for g in json.loads(gp.read_text(encoding="utf-8")):
+            if g.get("pmra") is None or g.get("pmdec") is None:
+                continue
+            out.append({"what": f"Gaia DR3 {g.get('source_id', '')}".strip(), "ra": g["ra"] + g["pmra"] / 3.6e6 * dt /
+                        math.cos(math.radians(g["dec"])), "dec": g["dec"] + g["pmdec"] / 3.6e6 * dt,
+                        "pmra": g["pmra"], "pmdec": g["pmdec"], "kind": "gaia"})
+    return out
+
+
+def pm_agrees(row: dict, refs: list[dict]) -> dict | None:
+    """The named target within MATCH_ARCSEC, else the single Gaia source within MATCH_ARCSEC: does the catalogue
+    motion agree to PM_AGREE_FRAC (|difference| / |reference|)? None when there is nothing to compare with."""
+    def sep(x):
+        return math.hypot((x["ra"] - row["ra"]) * math.cos(math.radians(row["dec"])), x["dec"] - row["dec"]) * 3600
+    tgt = [x for x in refs if x["kind"] == "target" and sep(x) < MATCH_ARCSEC]
+    gai = [x for x in refs if x["kind"] == "gaia" and sep(x) < MATCH_ARCSEC]
+    ref = tgt[0] if tgt else (gai[0] if len(gai) == 1 else None)
+    if ref is None:
+        return None
+    frac = math.hypot(row["pmra"] - ref["pmra"], row["pmdec"] - ref["pmdec"]) / math.hypot(ref["pmra"], ref["pmdec"])
+    ok = frac <= PM_AGREE_FRAC
+    return {"ok": ok, "text": (f"{'agrees' if ok else 'disagrees'} with {ref['what']}: {ref['pmra']:.0f}, "
+                               f"{ref['pmdec']:.0f} mas/yr ({sep(ref):.1f} arcsec away), difference {100 * frac:.1f}% "
+                               f"({'within' if ok else 'beyond'} {100 * PM_AGREE_FRAC:.0f}%)")}
+
+
 def write(key: str, data: Path) -> int:
     rows, meta = read_rows(key)
     if PM_CHECK is None:
@@ -202,9 +249,15 @@ def write(key: str, data: Path) -> int:
             r["pmra"] = r["pmdec"] = None
     else:
         conv = PM_CHECK["text"]
+        refs = independent_motions(key, data)
         for r in rows:
             if r["pmra"] is not None and r["pmdec"] is not None:
                 r["pm_reliable"] = math.hypot(r["pmra"], r["pmdec"]) <= PM_RELIABLE_MAX_MAS
+                if not r["pm_reliable"]:
+                    chk = pm_agrees(r, refs)
+                    if chk is not None:
+                        r["pm_check"] = chk["text"]
+                        r["pm_reliable"] = chk["ok"]
     out = {"schema": 1, "key": key, "catalog": "CatWISE2020",
            "meta": {"source": SOURCE, "retrieved_utc": meta["retrieved_utc"], "radius_deg": meta["radius_deg"],
                     "centre": [meta["ra"], meta["dec"]], "ref_mjd": REF_MJD, "position_columns": "ra_pm, dec_pm",
