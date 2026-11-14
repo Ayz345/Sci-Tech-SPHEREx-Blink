@@ -17,7 +17,8 @@ Quality steps, in order (each one is measured in handoff/results/coadd_metrics_v
   5. Per-pixel clipped, weighted mean over all exposures of the epoch in the band. The clip
      threshold has a term proportional to |median|: exposures sample different wavelengths (LVF),
      so real spectral differences are kept; single-exposure hits are rejected.
-  6. Saturated cores (no usable sample; EARLY OVERFLOW = OVERFLOW+SUR_ERROR, or NONLINEAR) become +inf
+  6. Saturated cores (no usable sample; EARLY OVERFLOW = OVERFLOW+SUR_ERROR, or NONLINEAR) become +inf, together
+     with the no-data rim touching them (no usable sample, within 2 px of +inf)
      (contract: drawn at the brightest colour, labelled "saturated"); NaN only ever means "no data".
      saturated="fill" puts the soft-masked median there instead. Frame.filled marks those pixels.
   7. Display: one asinh scale shared by all epochs of a band (no blink flicker).
@@ -402,6 +403,18 @@ def build_frames(cutouts, target: SkyCoord, fov_arcmin: float = 7.0, pix_arcsec:
             mantle = (distance_transform_edt(~core) * grid.pix_arcsec <= MANTLE_ARCSEC) if core.any() else core
             filled = (overlap > 0) & (((nkeep == 0) & (nev >= np.minimum(2, overlap)) & mantle)
                                       | ((nsat >= 2) & (nsat > 0.15 * overlap)))
+            # (c) a pixel with coverage but no usable sample within 2 px of a +inf pixel joins it, repeated until
+            # stable: the no-data rim of a saturated core is part of it (R Dra D4/D5: bloom mantle reaches 21-27"
+            # from the nearest persistent overflow pixel, beyond MANTLE_ARCSEC). Growth runs only through
+            # no-sample pixels, so it never covers a pixel that has data and stays attached to a saturated core.
+            nosample = (overlap > 0) & (nkeep == 0)
+            for _ in range(100):
+                if not filled.any():
+                    break
+                add = nosample & ~filled & (distance_transform_edt(~filled) <= 2)
+                if not add.any():
+                    break
+                filled |= add
             if filled.any():
                 if saturated == "fill":
                     with warnings.catch_warnings():
