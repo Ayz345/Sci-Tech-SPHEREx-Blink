@@ -1,0 +1,84 @@
+{
+ "frame_code_hash": "afe71dca5ee1",
+ "code_hash": "85b82128144c",
+ "object": "(433) Eros",
+ "pass_mjd": [
+  60863.305243353505,
+  60865.95859693
+ ],
+ "marks": [
+  {
+   "ra": 12.216568045059345,
+   "dec": 13.600901441032352,
+   "mjd": 60863.305243353505
+  },
+  {
+   "ra": 13.236234162641185,
+   "dec": 14.408538600389392,
+   "mjd": 60865.9585969185
+  }
+ ],
+ "regime": "within_visit",
+ "n_exposures": 52,
+ "n_accepted": 47,
+ "n_records_in_draft": 26,
+ "validate_errors": [],
+ "left_out_of_draft": {
+  "0": "8.6\" from the motion model (> 8\")",
+  "1": "8.9\" from the motion model (> 8\")",
+  "7": "flagged pixels in the core: NONFUNC,OUTLIER,SUR_ERROR,TRANSIENT",
+  "48": "flagged pixels in the core: NONFUNC,OUTLIER,SUR_ERROR,TRANSIENT",
+  "49": "flagged pixels in the core: HALO,OUTLIER",
+  "2": "same obsTime as another position (one position per time)",
+  "4": "same obsTime as another position (one position per time)",
+  "9": "same obsTime as another position (one position per time)",
+  "10": "same obsTime as another position (one position per time)",
+  "13": "same obsTime as another position (one position per time)",
+  "14": "same obsTime as another position (one position per time)",
+  "16": "same obsTime as another position (one position per time)",
+  "19": "same obsTime as another position (one position per time)",
+  "21": "same obsTime as another position (one position per time)",
+  "24": "same obsTime as another position (one position per time)",
+  "26": "same obsTime as another position (one position per time)",
+  "29": "same obsTime as another position (one position per time)",
+  "30": "same obsTime as another position (one position per time)",
+  "32": "same obsTime as another position (one position per time)",
+  "35": "same obsTime as another position (one position per time)",
+  "38": "same obsTime as another position (one position per time)",
+  "40": "same obsTime as another position (one position per time)",
+  "44": "same obsTime as another position (one position per time)",
+  "46": "same obsTime as another position (one position per time)",
+  "27": "fewer than 3 in one night (24-hour window)",
+  "28": "fewer than 3 in one night (24-hour window)"
+ },
+ "residual_vs_horizons": {
+  "median_dra_arcsec": 0.15355159445646105,
+  "median_ddec_arcsec": 0.13923194624432256,
+  "rms_ra_arcsec": 0.20330582913195022,
+  "rms_dec_arcsec": 0.25704017783994965,
+  "max_arcsec": 0.6560619657619577,
+  "median_file_rms_arcsec": [
+   0.28,
+   0.27
+  ],
+  "frac_within_3_sigma": [
+   1.0,
+   1.0
+  ]
+ },
+ "same_time_detector_pairs": {
+  "n": 19,
+  "median_diff_arcsec": [
+   0.1215090119588521,
+   -0.09195247069371248
+  ],
+  "rms_diff_arcsec": [
+   0.20133364680089827,
+   0.2554140718213689
+  ],
+  "expected_arcsec": [
+   0.3868190791571688,
+   0.3808017857100988
+  ]
+ }
+}
