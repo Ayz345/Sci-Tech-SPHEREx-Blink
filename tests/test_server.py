@@ -534,6 +534,8 @@ def test_spectrum_passes_flag_names_through(client, monkeypatch):
     assert others and all(p["flags"] == [] for p in others)
     assert s["meta"]["flag_legend"][name] == ph.FLAG_LEGEND[name]
     assert set(s["meta"]["flag_legend"]) == {n for p in s["points"] for n in p["flags"]}
+    if any("masked_fraction" in p for p in s["points"]):        # quality 575c505: passed through as is
+        assert all(0.0 <= p["masked_fraction"] <= 1.0 for p in s["points"]) and s["meta"].get("err_note")
 
 
 # --------------------------------------------------------------------------- same field, different rounding
@@ -558,8 +560,9 @@ def test_rounding_boundary_reuses_the_open_field(client):
 
 class _FakeDetect:
     """Stands in for spx.detect (quality session): records what the server hands over."""
-    def __init__(self):
+    def __init__(self, with_cands=False):
         self.seen = []
+        self.with_cands = with_cands
 
     def load_field(self, path):
         from pathlib import Path
@@ -570,7 +573,9 @@ class _FakeDetect:
 
     def find_candidates(self, field, bands=None, params=None):
         self.seen.append(field)
-        return {"method": "fake", "params": {}, "bands_searched": field["bands"], "candidates": [],
+        cands = [{"id": 1, "kind": "mover", "snr": 9.0, "bands": ["D5", "W"], "n_bands": 2, "grade": "A",
+                  "grade_reason": "two bands", "known": False, "rate_arcsec_per_year": [-8.6, 0.7]}] if self.with_cands else []
+        return {"method": "fake", "params": {}, "bands_searched": field["bands"], "candidates": cands,
                 "rejected": {}, "validation": ["fake detector"]}
 
 
@@ -625,3 +630,18 @@ def test_make_candidates_script_on_a_gallery_folder(tmp_path, monkeypatch):
     assert fake.seen[0]["gaia"] == [{"ra": 1.0, "dec": 2.0}]
     monkeypatch.setattr(P, "detect_module", lambda: None)
     assert mc.main(["--data", str(tmp_path), "wise-0855"]) == 2
+
+
+def test_candidate_fields_pass_through_unchanged(client, monkeypatch):
+    from server import pipeline as P
+    monkeypatch.setattr(P, "detect_module", lambda: _FakeDetect(with_cands=True))
+    m = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}))
+    _wait_idle()
+    import time
+    for _ in range(100):
+        r = client.get("/api/candidates", params={"key": m["key"]})
+        if r.status_code == 200:
+            break
+        time.sleep(0.05)
+    c = _strict(r)["candidates"][0]
+    assert {k: c[k] for k in ("n_bands", "grade", "grade_reason", "known")} ==         {"n_bands": 2, "grade": "A", "grade_reason": "two bands", "known": False}
