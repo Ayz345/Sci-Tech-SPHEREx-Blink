@@ -80,6 +80,7 @@ dialog label { display: block; margin: 6px 0; }
 #wingMissing a { color: var(--accent); }
 #wingMethod { margin-top: 6px; font-size: 12px; }
 #fovButtons { gap: 4px; }
+#fovConfirm { gap: 6px; flex-wrap: wrap; max-width: 720px; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 6px; font-size: 13px; }
 #embedLine { display: none; font-size: 11px; max-width: 520px; }
 /* ?embed=1: player and essential controls only; the acknowledgement stays as one small line */
 body.embed { padding: 6px; }

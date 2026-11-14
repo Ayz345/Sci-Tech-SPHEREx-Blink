@@ -222,7 +222,12 @@ async function loadTarget() {
   setupRGB();
   renderBands(); renderFov(); updateLinks();
   if (S.mode === "rgb") loadRGB();
-  status(`${S.m.epochs.length} epochs, ${S.m.bands.length} bands. Loading ${S.band}…`);
+  if (!params.get("zoom") && S.m.grid.shape[1] > 200) { S.zoom = 2; $("zoom").value = "2"; } // big grid on screen
+  const bigField = USE_API && (+S.m.query?.fov_deg || 0) > 0.2;
+  status(bigField
+    ? `${S.m.epochs.length} epochs, ${S.m.bands.length} bands. ${(+S.m.query.fov_deg * 60).toFixed(0)}′ field: the server reads about 120 MB ` +
+      `per band from the archive, so the first band (${S.band}) usually takes 30–70 s; the other bands follow.`
+    : `${S.m.epochs.length} epochs, ${S.m.bands.length} bands. Loading ${S.band}…`);
 
   fetchLogged(src.gaia(S.key)).then((g) => { S.gaia = g; draw(); }).catch(() => { S.gaia = []; });
   loadCandidates().then(draw);
@@ -1245,13 +1250,25 @@ function renderFov() {
       else if (max && deg > max + 1e-9) why = `this server allows at most ${(max * 60).toFixed(1)}′ (max_fov_deg ${(+max).toFixed(4)}°)`;
       b.disabled = !!why;
       b.title = why || `${label} field: larger fields catch faster movers but take longer to load`;
-      b.onclick = () => changeFov(deg);
+      b.onclick = () => (am >= 15 ? askBigField(deg) : changeFov(deg));
       return b;
     }));
 }
+// 15′: say what it costs before the field changes (in-page confirmation). Numbers measured by the data
+// session on 14 Nov 2026: 99.5–137.4 MB and 30.5–69.8 s per band, 727–760 MB for all six.
+function askBigField(deg) {
+  const box = $("fovConfirm");
+  box.hidden = false;
+  box.replaceChildren(
+    Object.assign(document.createElement("span"), { textContent: "A 15′ field reads about 120 MB per band from the archive, about 730 MB for all six. " +
+      "On a home connection that took 30 to 70 s per band (measured 14 Nov 2026). Larger fields help with fast-moving objects. " }),
+    Object.assign(document.createElement("button"), { type: "button", textContent: "Open 15′", onclick: () => { box.hidden = true; changeFov(deg); } }),
+    Object.assign(document.createElement("button"), { type: "button", textContent: "Keep 7′", onclick: () => { box.hidden = true; } }));
+}
 async function changeFov(deg) {
   const fov = String(Math.floor(deg * 1e6) / 1e6); // never round up past the server limit (7′ = max_fov_deg)
-  const keep = { band: S.band, mode: S.mode, zoom: S.zoom };
+  // a 15′ grid is 300 px across: 2× keeps it on screen (the zoom is cosmetic)
+  const keep = { band: S.band, mode: S.mode, zoom: deg > 0.2 ? Math.min(S.zoom, 2) : S.zoom };
   const t = params.get("target");
   if (t) { // a gallery target becomes a free field: resolve it so the server still centres on the moving object
     try {

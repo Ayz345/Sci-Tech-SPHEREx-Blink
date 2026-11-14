@@ -61,7 +61,10 @@ position without coverage.
   "open full view" link. The "copy embed code" button in the header copies an iframe snippet for the current view.
 - Field buttons 3′ / 7′ / 15′: need the server; options above `max_fov_deg` (manifest or `/api/health`) are
   disabled with the reason in the tooltip. A gallery target becomes a free field via `/api/resolve`, so the grid
-  still follows the moving object.
+  still follows the moving object. 7′ is the default; 15′ is enabled when the server allows it (`max_fov_deg`
+  0.25) and first shows an in-page confirmation with its cost (about 120 MB and 30–70 s per band, about 730 MB
+  for all six; measured 14 Nov 2026) and "Open 15′" / "Keep 7′". A 15′ field opens at 2× zoom (300 px grid) and
+  the status line says what the wait is for until the first band arrives. Not offered in the embedded view.
 - Links: WiseView reads its state from the URL hash on load (`#ra=&dec=&size=&band=…`, checked in a browser);
   the link uses the object's latest track position and WiseView's own defaults. The IRSA SPHEREx Data Explorer
   has no documented URL that opens it at a position, so the link opens its start page.
