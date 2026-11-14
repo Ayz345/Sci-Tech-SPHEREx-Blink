@@ -365,7 +365,7 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
                                    "just outside the target's saturated core in 90% of exposures, minus a local "
                                    "background 4-10 px further out; validated against aperture flux on RW Aur D1 "
                                    "(tests/test_coadd_wings.py): the wing/aperture ratio changes between epochs by "
-                                   "x1.20 (median), x1.47 (90th percentile) on unsaturated control stars, so only "
+                                   "x1.23 (median), x1.51 (90th percentile) on unsaturated control stars, so only "
                                    "changes larger than x1.5 are significant. Not a total flux: compare epochs only at similar "
                                    "wavelength (binned_series)"} if wr else None),
                 "deblended_neighbors": [{"source_id": _info(neighbor_info, i, "source_id"),
@@ -393,7 +393,7 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
                                    "just outside the target's saturated core in 90% of exposures, minus a local "
                                    "background 4-10 px further out; validated against aperture flux on RW Aur D1 "
                                    "(tests/test_coadd_wings.py): the wing/aperture ratio changes between epochs by "
-                                   "x1.20 (median), x1.47 (90th percentile) on unsaturated control stars, so only "
+                                   "x1.23 (median), x1.51 (90th percentile) on unsaturated control stars, so only "
                                    "changes larger than x1.5 are significant. Not a total flux: compare epochs only at similar "
                                    "wavelength (binned_series)"} if wr else None),
             "aperture_radius_arcsec": round(r_ap * 6.15, 2), "err_note": ERR_NOTE,

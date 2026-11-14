@@ -29,10 +29,10 @@ The numbers below are the published ones: `server/pipeline.variability_report` o
 
 - **Difference images:** bright constant stars leave small black-and-white pairs. Their source is sub-pixel misalignment and PSF differences between epochs. Per-epoch alignment to Gaia is not done yet.
 - **PSF-wing brightness** (shown for R Draconis only, whose core is saturated in 412 of 413 exposures; indicative, not a formal detection):
-  - On bright unsaturated control stars in the RW Aur and Eps Indi B fields (3 stars, 48 bins), the wing/aperture ratio changes between epochs by ×1.20 (median) and ×1.47 (90th percentile).
-  - Against that threshold, R Dra's D2 ×2.42 and D6 ×1.77 are above it, D3 ×1.49 is just above it, and D1 ×1.31 is below it.
+  - On bright unsaturated control stars in the RW Aur and Eps Indi B fields (3 stars, 50 bins), the wing/aperture ratio changes between epochs by ×1.23 (median) and ×1.51 (90th percentile); re-measured on 14 Nov after masked pixels were left out of the aperture (before: 48 bins, ×1.20 and ×1.47).
+  - Against that threshold, R Dra's D2 ×2.42 and D6 ×1.77 are above it, D3 ×1.49 is now just below it (it was just above ×1.47), and D1 ×1.31 is below it.
   - The control stars in the R Dra field itself cannot calibrate the method: they sit in R Dra's own scattered light. Their wing measurements are not noise-limited (S/N 53–55 per point for the G 13.8 and 14.2 stars), yet they change between epochs by ×2.0–2.8. In the RW Aur field, controls with similar or higher S/N change by only ×1.03–1.44 (×1.05–1.11 at S/N 150–250). One R Dra-field control even lies inside R Dra's saturated zone, so its wing annulus is pushed out to 26–30 px.
-  - Their epoch curves follow R Dra's. The table below gives D2 values per epoch, each wavelength bin normalised by its own mean over epochs before the median, so the different LVF wavelength sampling of each epoch does not enter:
+  - Their epoch curves follow R Dra's. The table below (measured before the 14 Nov masked-pixel change) gives D2 values per epoch, each wavelength bin normalised by its own mean over epochs before the median, so the different LVF wavelength sampling of each epoch does not enter:
 
     | Source | Epoch 0 | 1 | 2 | 3 | 5 |
     |---|---|---|---|---|---|
