@@ -13,7 +13,7 @@ the spectrum. The tool does not claim any discovery. It makes looking easier.
 
 ![Five challenge targets, one frame per visit](handoff/results/five_targets_v2.png)
 
-## Status (14 November 2026)
+## Status (15 November 2026, v1.2)
 
 - Works end to end on a local machine: page, API server, processing code, tests.
 - The five challenge targets are prebuilt under `web/data/` and open without a server.
@@ -31,8 +31,8 @@ the spectrum. The tool does not claim any discovery. It makes looking easier.
 | Easy update with new data releases | The list of collections is one setting (`SPX_COLLECTIONS`); `scripts/precompute.py` rebuilds the gallery |
 | Co-add per detector | One frame per visit and detector band (D1 to D6) |
 | Use the 102 bands | Your own wavelength window: drag a range on the spectrum and blink only the exposures taken at those wavelengths (50 nm or wider, live server) |
-| Add or subtract images from different times | Blink, difference (one visit minus the mean of the others) and sum |
-| Field of view | 3′, 7′ and 15′ on the live server. The page states the cost of the large field before opening it: about 120 MB per band, 30 to 70 s per band from a home connection (`handoff/results/fov_timing_v2.json`) |
+| Add or subtract images from different times | Blink, difference (one visit minus the mean of the others) and sum; an automatic finder that compares the visits and rings what moved or changed |
+| Field of view | 3′, 7′ and 15′ on the live server. The page states the cost of the large field before opening it: about 120 to 190 MB per band, 30 to 70 s per band from a home connection (`handoff/results/fov_timing_v2.json`, and the acceptance report) |
 | Other telescopes | Gaia DR3 stars moved to each visit's date with their proper motion. For the five gallery targets, stored with the page: the WISE image (AllWISE W1 and W2, about 2010) on the same grid, which can be added to the blink as its first frame, and the CatWISE2020 catalogue as an overlay. A "More surveys" panel (Aladin Lite) shows AllWISE, 2MASS or DSS2 at the same place; link to WiseView |
 | Metadata, contamination flags | Exposure count and dates per frame, coverage map, map of the masked fraction; for a clicked point, the names of the FLAGS bits set in each exposure, with their meaning from the SPHEREx Explanatory Supplement |
 | Spectrum | Click a point: flux against wavelength from the single exposures, and against time |
@@ -44,6 +44,13 @@ Also in the tool:
 - **Moving-object report.** The server measures the marked object again on the single exposures and offers the
   positions as CSV, and for Solar System objects as a draft in the Minor Planet Center's ADES format. It is a
   draft only: nothing is sent anywhere, the file is only downloaded.
+- **Automatic candidates.** A classical detector (difference from the mean of the visits, matched filter,
+  shift-and-stack along trial motions; no machine learning) rings places that moved or changed. Given only the
+  field, with no position, it finds WISE 0855, Epsilon Indi B and Barnard's Star as movers and RW Aurigae as
+  variable; it does not find R Draconis, which is saturated. Each candidate has a grade: A when it is seen in two
+  independent wavelength ranges, or in three visits on a straight line, or is a known moving star; B when it is
+  seen in one wavelength range only. The rings are places to look, not detection claims: in the five gallery
+  fields the finder also rings 14 other spots, all grade B, that have not been confirmed.
 
 ## Run it
 
@@ -101,7 +108,7 @@ Methods and measured numbers: [`handoff/results/methods_v2.md`](handoff/results/
 
 | Path | Content |
 |---|---|
-| `spx/` | Processing: archive access, co-add, display scale, photometry, single-exposure astrometry, ADES writer, targets |
+| `spx/` | Processing: archive access, co-add, display scale, photometry, single-exposure astrometry, candidate finder, ADES writer, targets |
 | `server/` | FastAPI server and the build pipeline |
 | `web/` | Static page; `web/data/` is the prebuilt gallery |
 | `scripts/` | Gallery build, acceptance checks, small tools |
@@ -118,9 +125,11 @@ python -m pytest -q tests
 python scripts/acceptance.py --static-only
 ```
 
-The acceptance report for the released gallery is `docs/acceptance/acceptance_20261114T104157Z.json`: 105 items
-passed and 3 failed. The three are cold-cache timings for a field near the ecliptic pole, measured from a home
-connection far from the data (image list 5.0 s and 5.4 s against a limit of 5 s; first band 52.8 s against 30 s).
+The acceptance report for the released gallery is `docs/acceptance/acceptance_20261114T225615Z.json`: 102 items
+passed and 6 failed. All six are cold-cache timings measured from a home connection far from the data (image
+list 5.2 to 6.2 s against a limit of 5 s; first band 31.5 s and 46.1 s against 30 s). No gallery, target or
+correctness item failed. On the evening of 14 November the IRSA image-list service answered HTTP 502 to about two
+of three queries; the server retries within a 25 s budget and says so when the archive does not answer.
 
 ## Limits
 
@@ -135,6 +144,12 @@ connection far from the data (image list 5.0 s and 5.4 s against a limit of 5 s;
 - **WISE 0855** is faint: it is seen in a custom 4.3–5.0 µm window, not in the short bands. The source seen there
   at short wavelengths is a fixed background star (Gaia DR3 5756956644387831296), and the page says so.
 - Frames built from fewer than 5 exposures are marked low coverage and skipped by default.
+- The automatic finder needs an object to move at least about 10″ (the width of a star image) over the time
+  covered; slower motion is mostly missed. In an injection test an object at S/N 12 per visit moving 15″ was
+  recovered 18 times out of 18 in a sparse field and 8 out of 18 in a crowded one. Most single-band candidates
+  are probably false alarms; their cause is not established.
+- The errors listed for spectrum points are too small by a factor of about 1.4 (empty-sky test); the page says
+  so next to the spectrum.
 - The difference view leaves alignment residuals around bright stars.
 - Moving-object report: positions were checked against JPL Horizons on asteroids (433) Eros and
   (31) Euphrosyne (numbers in `handoff/results/astrometry_validation_v2.json`). The observation **time is not
