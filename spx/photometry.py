@@ -1,7 +1,7 @@
 """Per-exposure photometry (spectrum / light curve) and point-source measurements on co-added frames.
 
 spectrum_points(cutouts, coord)  -> {"meta": {...}, "points": [{wavelength_um, bandwidth_um, flux, err,
-                                     mjd, epoch, band, flagged}, ...]}   (data contract section 5)
+                                     mjd, epoch, band, flagged, flags}, ...]}   (data contract section 5; flags: v1.2 F3)
 Measurement helpers used by tests/test_coadd_wise0855.py:
   matched_filter, snr_map, centroid, fit_psf_pair, fit_motion, null_test
 """
@@ -24,6 +24,82 @@ from spx.coadd import FLAG_BITS
 _OVF = 1 << FLAG_BITS["OVERFLOW"]
 
 FLUX_UNIT = "mJy"
+
+# --------------------------------------------------------------------------- FLAGS names at a point (F3)
+
+FLAG_LEGEND_SOURCE = ("SPHEREx Explanatory Supplement v2.1 (2026-11-10, SSDC-DP-017), Table 16 'Image pixel flags used "
+                      "in spectral images at Level 2': one or two sentences of each Description, verbatim")
+#: {FLAGS name: meaning}. Every value is checked against the Table 16 text by tests/test_photometry_flags.py.
+FLAG_LEGEND = {
+    "TRANSIENT": "Transient (such as cosmic ray hit) detected during SUR.",
+    "OVERFLOW": "Overflow threshold reached during SUR. This threshold is set at approximately half the level of "
+                "full-well saturation.",
+    "SUR_ERROR": "In the absence of other flags, it indicates a data handling error in the SUR algorithm onboard. "
+                 "When combined with the TRANSIENT or OVERFLOW flags, signals early transient (first half of exposure) "
+                 "or early overflow (first 5 seconds) conditions.",
+    "NONFUNC": "Static, initially pre-flight assessment that a pixel is permanently unusable/dead.",
+    "DICHROIC": "This flag indicates pixels with low expected throughput that are not usefully calibratable or of "
+                "value for photometry.",
+    "MISSING_DATA": "Pixels for which the onboard data was lost before ingest by the SSDC, e.g., as corrupted packages "
+                    "on the downlink that were not retransmitted successfully, resulting that there is no data "
+                    "available for this pixel in this image.",
+    "HOT": "Hot pixel - noisy or otherwise affected by spurious signal.",
+    "COLD": "Pixel that appear unresponsive to light or otherwise has an anomalously low signal in a particular "
+            "exposure; permanently dead pixels are flagged as NONFUNC.",
+    "FULLSAMPLE": "Pixel for which the full sample history is available, because of the rotating 8×32 pixel region "
+                  "for full readout. Not usable for science, purely informational.",
+    "PHANMISS": "Applied for pixels that can not be corrected due to missing phantom pixels.",
+    "NONLINEAR": "Pixel for which a reliable nonlinearity correction could not be determined.",
+    "PERSIST": "Pixel found to have been affected by persistent charge above the Level 2 threshold for this.",
+    "OUTLIER": "Pixel flagged by \"Detect Outlier Pixels\" module (Sect. 3.2.10).",
+    "CROSSTALK": "Pixel found to have been affected by \"ordinary\" crosstalk (Sect. 3.2.9).",
+    "SOURCE": "Pixel mapped to a known source.",
+    "GHOST": "Pixel found to have been affected by an optical ghost from a bright source inside the exposure frame "
+             "(Sect. 3.2.9).",
+    "GHOST_FPA": "Pixel found to have been affected by an optical ghost from a bright source seen on another detector "
+                 "in the FPA. This flag is currently unused (subsumed into GHOST EXT) and will be removed in Year 2 "
+                 "processing.",
+    "GHOST_EXT": "Pixel found to have been affected by an optical ghost from a bright source outside the field of "
+                 "view.",
+    "STREAK": "Pixel found to have been affected by a streak detected in the image, presumably from an object in "
+              "Earth orbit (Sect.3.2.10).",
+    "BLOOM": "Pixel found to have been affected by source blooming (Sect. 3.2.1).",
+    "SNOWBALL": "Pixel found to have been affected by snowball events in which very large quantities of electrons are "
+                "released (Sect. 3.2.1).",
+    "HALO": "Pixel found to have been affected by the halo of a transient. Caution is recommended when using this "
+            "pixel in science analysis (Sect. 3.2.1).",
+    "SATELLITE_HALO": "Pixel found to have been affected by the halo of a satellite streak. This pixel is not "
+                      "recommended for use in science analysis (Sect. 3.2.1).",
+}
+UNKNOWN_FLAG_MEANING = "bit not listed in Table 16 of the Explanatory Supplement v2.1"
+_BIT_NAMES = {b: n for n, b in FLAG_BITS.items()}
+
+
+def flag_names(flags, region) -> list[str]:
+    """Names of every FLAGS bit set in any pixel of `region` (bool mask), informational bits included, in bit
+    order; a bit without a Table 16 name is reported as "BIT<n>". [] when no bit is set."""
+    if flags is None:
+        return []
+    v = int(np.bitwise_or.reduce(np.asarray(flags, np.int64)[np.asarray(region, bool)].ravel(), initial=0))
+    return [_BIT_NAMES.get(b, f"BIT{b}") for b in range(63) if (v >> b) & 1]
+
+
+def _flag_order(name):
+    if name in FLAG_BITS:
+        return FLAG_BITS[name]
+    return int(name[3:]) if name.startswith("BIT") and name[3:].isdigit() else 99
+
+
+def flag_legend(points) -> dict:
+    """{name: meaning} for the names that occur in `points` (Table 16; unknown bits get UNKNOWN_FLAG_MEANING)."""
+    names = sorted({n for p in points for n in p.get("flags", [])}, key=_flag_order)
+    return {n: FLAG_LEGEND.get(n, UNKNOWN_FLAG_MEANING) for n in names}
+
+
+FLAG_REGION_TEXT = ("flags = names of all FLAGS bits set in any pixel of the measurement region, informational bits "
+                    "(SOURCE, FULLSAMPLE) included: aperture photometry = every pixel the aperture touches; PSF "
+                    "photometry = pixels within 1.5 px of the target (the region that decides 'flagged'). Cutout pixels "
+                    "beyond the detector edge carry MISSING_DATA (set by spx.access)")
 
 
 # --------------------------------------------------------------------------- per-exposure photometry
@@ -231,6 +307,8 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
             r = psf_flux(c, xys, fw)
             if r is not None:
                 flux, err, flagged, sat, ovf = float(r[0][0]), float(r[1][0]), r[2], r[3], r[4]
+                yy, xx = np.mgrid[0:c.image.shape[0], 0:c.image.shape[1]]
+                region = np.hypot(xx - float(x), yy - float(y)) <= 1.5
                 nbf = float(np.sum(r[0][1:]))
         else:
             r = None
@@ -240,10 +318,11 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
             if r is None:
                 continue
             flux, err, flagged, _, sat, ovf = r
+            region = _aperture_weights(c.image.shape, float(x), float(y), r_ap) > 0
         pts.append({"wavelength_um": round(float(c.wavelength_um), 5), "bandwidth_um": round(float(c.bandwidth_um), 5),
                     "flux": round(flux, 6), "err": round(err, 6), "mjd": round(float(c.mjd), 5),
                     "epoch": int(e), "band": f"D{c.detector}", "flagged": bool(flagged), "saturated": bool(sat),
-                    "overflow": bool(ovf), "obs_id": c.obs_id})
+                    "overflow": bool(ovf), "flags": flag_names(c.flags, region), "obs_id": c.obs_id})
         if wings and f"D{c.detector}" in wr:
             wf = wing_flux(c, float(x), float(y), *wr[f"D{c.detector}"])
             if wf is not None:
@@ -278,7 +357,8 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
                           "residual on the target (measured on WISE 0855 / G=16.3 star at 3-11 arcsec), so treat "
                           "|flux| < 0.15 x neighbor_flux as consistent with zero",
                 "n_points": len(pts), "n_flagged": int(sum(p["flagged"] for p in pts)),
-                "n_saturated": int(sum(p["saturated"] for p in pts)), "n_overflow": int(sum(p["overflow"] for p in pts))}
+                "n_saturated": int(sum(p["saturated"] for p in pts)), "n_overflow": int(sum(p["overflow"] for p in pts)),
+                "flag_legend": flag_legend(pts), "flag_legend_source": FLAG_LEGEND_SOURCE, "flags_region": FLAG_REGION_TEXT}
         return {"meta": meta, "points": pts}
     meta = {"flux_unit": FLUX_UNIT, "photometry": "aperture", "aperture_radius_px": r_ap, "wing": ({"label": "relative brightness from PSF wings", "unit": "MJy/sr",
                          "annulus_px": {k: [round(v[0], 2), round(v[1], 2)] for k, v in sorted(wr.items())},
@@ -299,7 +379,8 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
                       "reads before the threshold; recovered/clean flux on RW Aur D1, same epoch and wavelength: median 1.04 over 10 pairs, eight within 1.00-1.20, two at 1.30 and 1.51 near 0.85 um), usable; "
                       "keep flagged points out of light curves",
             "n_points": len(pts), "n_flagged": int(sum(p["flagged"] for p in pts)),
-            "n_saturated": int(sum(p["saturated"] for p in pts)), "n_overflow": int(sum(p["overflow"] for p in pts))}
+            "n_saturated": int(sum(p["saturated"] for p in pts)), "n_overflow": int(sum(p["overflow"] for p in pts)),
+                "flag_legend": flag_legend(pts), "flag_legend_source": FLAG_LEGEND_SOURCE, "flags_region": FLAG_REGION_TEXT}
     return {"meta": meta, "points": pts}
 
 
