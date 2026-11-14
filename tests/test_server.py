@@ -208,6 +208,9 @@ def test_resolve_named_target_offline(client):
 def test_health(client):
     h = _strict(client.get("/api/health"))
     assert h["ok"] and h["collections"] and h["live_layers"] == ["IMAGE", "FLAGS"]
+    assert h["max_fov_deg"] >= 0.25 or __import__("os").environ.get("SPX_MAX_FOV_DEG")
+    ml = h["memory_limits"]
+    assert ml["cutout_sets"] >= 1 and ml["fields_in_memory"] >= ml["cutout_sets"] and ml["windows_per_field"] == 12
     av = h["astrometry_validation"]
     assert av["status"] in ("complete", "partial", "incomplete", "missing", "unreadable")
     assert set(av) >= {"file", "status", "missing_keys", "frame_code_hash", "same_frame_code"}

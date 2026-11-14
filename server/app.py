@@ -60,7 +60,9 @@ FIELDS_DIR = access.CACHE_DIR / "fields" / f"v{spx.__version__}-{CODE_HASH}"
 MAX_FIELDS_IN_MEMORY = 32
 #: User wavelength windows kept per field (PLAN 17 F1); the oldest finished one is dropped (job and files).
 MAX_WINDOWS_PER_FIELD = int(os.environ.get("SPX_MAX_WINDOWS_PER_FIELD") or 12)
-MAX_CUTOUT_SETS = 2
+#: Cutouts kept in memory for this many fields (least recently used dropped). They dominate the server's memory:
+#: two 15' fields peaked at 689 MB working set (14 Nov, fov_timing_v2.json). Field objects (image lists) are small.
+MAX_CUTOUT_SETS = int(os.environ.get("SPX_MAX_CUTOUT_SETS") or 2)
 
 
 # --------------------------------------------------------------------------- errors / json
@@ -715,6 +717,9 @@ async def api_health():
                   "s3_max_concurrency": access.S3_MAX_CONCURRENCY, "code_hash": CODE_HASH,
                   "spx_frame_code_hash": spx.frame_code_hash(), "spx_code_hash": spx.code_hash(),
                   "ades_schema": _ades_schema_available(), "astrometry_validation": _validation_status(),
+                  "memory_limits": {"fields_in_memory": MAX_FIELDS_IN_MEMORY, "cutout_sets": MAX_CUTOUT_SETS,
+                                    "cutout_sets_in_memory": len(reg.cutouts),
+                                    "windows_per_field": MAX_WINDOWS_PER_FIELD},
                   "network_totals": dict(access.TOTALS)})
 
 

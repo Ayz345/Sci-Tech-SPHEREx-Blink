@@ -36,8 +36,10 @@ log = logging.getLogger("spx.pipeline")
 SCHEMA = 1
 PIX_ARCSEC = 3.0
 DEFAULT_FOV_DEG = 7.0 / 60
-#: Largest field the server accepts (deg). Local default 7'; set SPX_MAX_FOV_DEG=0.25 on the deployed server.
-MAX_FOV_DEG = float(os.environ.get("SPX_MAX_FOV_DEG") or 7.0 / 60)
+#: Largest field the server accepts (deg): 15' on request (default stays 7'). Measured 14 Nov, cold, home link:
+#: a 15' field took 30-70 s per band, 230-330 s for six bands and 730-760 MB from S3 (handoff/results/
+#: fov_timing_v2.json); the page says so before loading one. SPX_MAX_FOV_DEG overrides.
+MAX_FOV_DEG = float(os.environ.get("SPX_MAX_FOV_DEG") or 0.25)
 #: Mid-mission epoch used to point the SIA2 query at a moving named target (DR1 spans MJD 60790-61318).
 QUERY_MJD = 61050.0
 MAX_PER_EPOCH_BAND = access.MAX_PER_EPOCH_BAND
