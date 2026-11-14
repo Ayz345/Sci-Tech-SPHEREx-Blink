@@ -212,7 +212,7 @@ def _quiet_wcs(*args, **kw) -> WCS:
 _s3_slots = threading.BoundedSemaphore(S3_MAX_CONCURRENCY)
 
 #: Process-wide network counters (read by /api/health and scripts/acceptance.py).
-TOTALS = {"s3_requests": 0, "s3_bytes": 0, "sia_queries": 0}
+TOTALS = {"s3_requests": 0, "s3_bytes": 0, "sia_queries": 0, "sia_retries": 0}
 _totals_lock = threading.Lock()
 
 
@@ -332,15 +332,36 @@ def _sia_cache_path(ra: float, dec: float, collection: str, radius_deg: float) -
     return CACHE_DIR / "sia" / collection / f"{ra:.5f}_{dec:+.5f}_{radius_deg:g}.json"
 
 
-def _sia_query(ra: float, dec: float, collection: str, radius_deg: float, retries: int = 3) -> list[dict]:
+#: SIA2 retries. Measured 14 Nov 2026 evening: IRSA SIA2 answered 502 to 8 of 12 sequential queries and 9 of 12
+#: parallel ones, each 502 within 1.0-2.7 s and in no time pattern (a bad node behind the balancer), while a
+#: successful answer took 2.2-7.3 s. One retry would succeed only ~55% of the time at that rate, so 502/503/504
+#: are retried quickly (0.5, 1, 2, 2 ... s) until SIA_RETRY_BUDGET_S has passed or SIA_MAX_ATTEMPTS were made.
+SIA_RETRY_BUDGET_S = float(os.environ.get("SPX_SIA_RETRY_BUDGET_S") or 25.0)
+SIA_MAX_ATTEMPTS = 10
+SIA_TIMEOUT_S = 90.0
+
+
+def _sia_delay(attempt: int) -> float:
+    """Wait before attempt number `attempt` (1 = first retry)."""
+    return min(2.0, 0.5 * 2 ** (attempt - 1))
+
+
+def _sia_query(ra: float, dec: float, collection: str, radius_deg: float,
+               budget_s: float | None = None) -> list[dict]:
     params = {"COLLECTION": collection, "POS": f"circle {ra:.7f} {dec:.7f} {radius_deg:g}"}
+    budget = SIA_RETRY_BUDGET_S if budget_s is None else float(budget_s)
+    t0 = time.monotonic()
     last = None
-    for attempt in range(retries):
+    for attempt in range(SIA_MAX_ATTEMPTS):
         if attempt:
-            time.sleep(2.0 * attempt)
+            wait = _sia_delay(attempt)
+            if time.monotonic() - t0 + wait > budget:
+                break
+            _count("sia_retries")
+            time.sleep(wait)
         try:
             _count("sia_queries")
-            r = requests.get(SIA_URL, params=params, timeout=90)
+            r = requests.get(SIA_URL, params=params, timeout=SIA_TIMEOUT_S)
         except (requests.ConnectionError, requests.Timeout) as e:
             last = e
             continue
@@ -407,7 +428,8 @@ def _sia_query(ra: float, dec: float, collection: str, radius_deg: float, retrie
                 "bandpass": bp, "exptime_s": float(g("t_exptime", np.nan)), "s_region": str(g("s_region", "")),
             })
         return rows
-    raise SiaError(f"SIA2 unreachable for {collection}: {last!r}")
+    raise SiaError(f"SIA2 unreachable for {collection} after {attempt + 1} attempts in "
+                   f"{time.monotonic() - t0:.0f} s: {last!r}")
 
 
 def find_images(ra: float, dec: float, collections=COLLECTIONS, radius_deg: float = SIA_RADIUS_DEG,

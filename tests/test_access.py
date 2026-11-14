@@ -278,3 +278,57 @@ def test_real_file_against_full_download(tmp_path, monkeypatch):
         inb = (xx >= 0) & (yy >= 0) & (xx < nx) & (yy < ny)
         for name, arr in (("IMAGE", c.image), ("FLAGS", c.flags), ("VARIANCE", c.variance), ("ZODI", c.zodi)):
             assert np.array_equal(arr[inb], full[name][yy[inb], xx[inb]], equal_nan=name != "FLAGS"), name
+
+
+# ---------------------------------------------------------------- SIA2 retries (F0)
+class _Resp:
+    def __init__(self, code, content=b""):
+        self.status_code, self.content, self.text = code, content, content.decode(errors="replace")
+
+
+_EMPTY_VOTABLE = (b'<?xml version="1.0"?><VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">'
+                  b'<RESOURCE type="results"><INFO name="QUERY_STATUS" value="OK"/></RESOURCE></VOTABLE>')
+
+
+def _fake_sia(monkeypatch, codes):
+    """requests.get answers the given status codes in order; returns (calls, sleeps)."""
+    calls, sleeps, clock = [], [], [0.0]
+    seq = list(codes)
+
+    def get(url, params=None, timeout=None):
+        calls.append(params["COLLECTION"])
+        clock[0] += 1.5                                   # a 502 took 1.0-2.7 s on 14 Nov
+        code = seq.pop(0) if seq else 200
+        return _Resp(code, _EMPTY_VOTABLE if code == 200 else b"<html>502 Bad Gateway</html>")
+
+    def sleep(t):
+        sleeps.append(t)
+        clock[0] += t
+    monkeypatch.setattr(access.requests, "get", get)
+    monkeypatch.setattr(access.time, "sleep", sleep)
+    monkeypatch.setattr(access.time, "monotonic", lambda: clock[0])
+    return calls, sleeps
+
+
+def test_sia_retries_502_quickly_until_an_answer(monkeypatch):
+    calls, sleeps = _fake_sia(monkeypatch, [502, 502, 503, 502])
+    before = access.TOTALS.get("sia_retries", 0)
+    assert access._sia_query(10.0, 20.0, "spherex_dr1", 0.001) == []
+    assert len(calls) == 5 and sleeps == [0.5, 1.0, 2.0, 2.0]
+    assert access.TOTALS["sia_retries"] - before == 4
+
+
+def test_sia_retry_budget_ends_with_sia_error(monkeypatch):
+    calls, sleeps = _fake_sia(monkeypatch, [502] * 50)
+    with pytest.raises(access.SiaError, match="after .* attempts"):
+        access._sia_query(10.0, 20.0, "spherex_dr1", 0.001, budget_s=25.0)
+    # 1.5 s per answer + waits: never past the budget, never more than SIA_MAX_ATTEMPTS
+    assert sum(sleeps) + 1.5 * (len(calls) - 1) <= 25.0 and len(calls) <= access.SIA_MAX_ATTEMPTS
+    assert len(calls) >= 5
+
+
+def test_sia_client_error_is_not_retried(monkeypatch):
+    calls, sleeps = _fake_sia(monkeypatch, [400])
+    with pytest.raises(access.SiaError, match="HTTP 400"):
+        access._sia_query(10.0, 20.0, "spherex_dr1", 0.001)
+    assert len(calls) == 1 and sleeps == []
