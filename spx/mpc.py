@@ -86,10 +86,22 @@ GOOD_FINAST = (0,)
 #: Only measurements made within one visit go into an ADES draft (between-epoch tracks are proper-motion stars).
 ADES_REGIME = "within_visit"
 
-#: The co-add session's validation of the per-exposure astrometry against JPL Horizons (set to its test JSON;
-#: read at write time, never typed in here). Keys are mapped in VALIDATION_KEYS once the file is known.
-VALIDATION_FILE: Path | None = None
-VALIDATION_KEYS: dict = {}
+#: The co-add session's validation of the per-exposure astrometry against JPL Horizons
+#: (python tests/test_astrometry.py [--object]); read at write time, never typed in here.
+VALIDATION_FILE: Path | None = Path(__file__).resolve().parent.parent / "handoff" / "results" / \
+    "astrometry_validation_v2.json"
+VALIDATION_KEYS: dict = {
+    "object": "object", "median_ra": "eros.median_dra_arcsec", "median_dec": "eros.median_ddec_arcsec",
+    "scatter_ra": "eros.scatter_ra_arcsec", "scatter_dec": "eros.scatter_dec_arcsec",
+    "along_track": "eros.median_along_track_arcsec", "n_accepted": "eros.n_accepted", "n_total": "eros.n_total",
+    "floor": "wcs_floor_arcsec", "frame_code_hash": "frame_code_hash",
+    "timing_verified": "timing.verified",
+    "object2": "second_object.object", "n2_accepted": "second_object.n_accepted",
+    "n2_total": "second_object.n_total", "timing_note": "timing.note",
+    "along_track2": "second_object.median_along_track_arcsec",
+    "cross_track2": "second_object.median_cross_track_arcsec",
+    "dt2": "timing.second_object_time_offset_s",
+}
 #: MPC: report at least three observations of each object from each night; batches with single positions are
 #: returned (astrometry_reporting-observations.txt). Applied per 24-hour window of the ADES detections.
 MIN_DETECTIONS = 3
@@ -238,7 +250,6 @@ def _comment_lines(context: dict) -> list[str]:
         f"Made with {tool}" + (f", code {code}" if code else "") + ".",
         "Data: NASA/IPAC IRSA SPHEREx archive (DR1/QR3 Level 2 images).",
         "Positions measured on single exposures; obsTime is mid-exposure (UTC).",
-        "obsTime is the header mid-exposure time (DATE-AVG); not independently verified.",
         "Telescope: SPHEREx Explanatory Supplement v2.1, Sec. 1.3 and Table 2",
         "Spacecraft position: header X_SC, Y_SC, Z_SC (geocentric, ICRF equatorial;",
         "checked against the header ground-track longitude)",
@@ -258,17 +269,7 @@ def _comment_lines(context: dict) -> list[str]:
     lines.append(context.get("schema_line") or SCHEMA_NOT_CHECKED)
     lines.append("Before submitting, check the file with the MPC test form:")
     lines.append(context.get("test_form") or MPC_PSV_TEST)
-    v = validation_summary()
-    if v is None:
-        lines.append("Method validation summary not available")
-    else:
-        lines += [
-            f"Method validated on {v['object']} against JPL Horizons: median offset {v['median_ra']:+.2f}, "
-            f"{v['median_dec']:+.2f} arcsec;",
-            f"scatter {v['scatter_ra']:.2f}, {v['scatter_dec']:.2f} arcsec.",
-            f"Along-track residual on {v['object']}: {v['along_track']:+.2f} arcsec ({v['n_accepted']} exposures).",
-            f"Position uncertainties include a {v['floor']:.2f} arcsec floor per axis measured on Gaia DR3 stars.",
-        ]
+    lines += validation_lines(validation_summary())
     unver = [k for k, ok in VERIFIED.items() if not ok]
     if unver:
         lines.append("unverified: " + ", ".join(unver))
@@ -353,12 +354,58 @@ def validation_summary() -> dict | None:
             cur = cur[k]
         return cur
     out = {name: get(path) for name, path in VALIDATION_KEYS.items()}
-    return None if any(v is None for v in out.values()) else out
+    if any(v is None for v in out.values()):
+        return None
+    from spx import frame_code_hash
+    out["same_frame_code"] = out["frame_code_hash"] == frame_code_hash()
+    return out
+
+
+def validation_lines(v: dict | None) -> list[str]:
+    """Human-readable validation and timing lines (each <= 100 characters), from validation_summary()."""
+    if v is None:
+        return ["Method validation summary not available",
+                "obsTime is the header mid-exposure time (DATE-AVG); not independently verified."]
+    sysmax = max(abs(v["along_track"]), abs(v["cross_track2"]))
+    dt, dte = v["dt2"]
+    m = re.search(r"time offset larger than ~?([0-9.]+) s is not supported", v["timing_note"])
+    lines = [
+        f"Method validated on {v['object']} against JPL Horizons: median offset {v['median_ra']:+.2f}, "
+        f"{v['median_dec']:+.2f} arcsec;",
+        f"scatter {v['scatter_ra']:.2f}, {v['scatter_dec']:.2f} arcsec ({v['n_accepted']} of {v['n_total']} exposures).",
+        f"Position uncertainties include a {v['floor']:.2f} arcsec floor per axis measured on Gaia DR3 stars.",
+        "obsTime = header DATE-AVG (mid-exposure), uncorrected; timing not independently verified.",
+        f"Along-track residual: {v['object']} {v['along_track']:+.2f} arcsec "
+        f"({v['n_accepted']}/{v['n_total']} exposures);",
+        f"{v['object2']} {v['along_track2']:+.2f} arcsec ({v['n2_accepted']}/{v['n2_total']} exposures) "
+        f"= {dt:+.1f} +- {dte:.1f} s.",
+        f"Object-dependent systematics up to {sysmax:.2f} arcsec remain unexplained.",
+    ]
+    if m:
+        lines.append(f"A time offset larger than ~{m.group(1)} s is not supported (co-add session's validation).")
+    if not v["same_frame_code"]:
+        lines.append(f"Validation made with frame code {v['frame_code_hash']}, not the current one.")
+    return lines
 
 
 def _mjd(t: str) -> float:
     from astropy.time import Time
     return float(Time(_fmt_time(t)[:-1], format="isot", scale="utc").mjd)
+
+
+def night_windows(detections, indices=None) -> list[list[int]]:
+    """Group detection indices into NIGHT_HOURS windows (each window starts at its first detection), time order."""
+    idx = sorted(indices if indices is not None else range(len(detections)),
+                 key=lambda i: _mjd(detections[i]["obs_time"]))
+    groups, start = [], None
+    for i in idx:
+        m = _mjd(detections[i]["obs_time"])
+        if start is None or (m - start) * 24.0 >= NIGHT_HOURS:
+            groups.append([i])
+            start = m
+        else:
+            groups[-1].append(i)
+    return groups
 
 
 def select_for_ades(detections) -> dict:
@@ -380,20 +427,7 @@ def select_for_ades(detections) -> dict:
             by_time[t] = keep
         else:
             by_time[t] = i
-    keep = sorted((i for i in range(len(detections)) if i not in out), key=lambda i: _mjd(detections[i]["obs_time"]))
-    window, start = [], None
-    groups = []
-    for i in keep:
-        m = _mjd(detections[i]["obs_time"])
-        if start is None or (m - start) * 24.0 >= NIGHT_HOURS:
-            if window:
-                groups.append(window)
-            window, start = [i], m
-        else:
-            window.append(i)
-    if window:
-        groups.append(window)
-    for g in groups:
+    for g in night_windows(detections, [i for i in range(len(detections)) if i not in out]):
         if len(g) < MIN_DETECTIONS:
             for i in g:
                 out[i] = f"fewer than {MIN_DETECTIONS} in one night ({NIGHT_HOURS:g}-hour window)"

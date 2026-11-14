@@ -578,3 +578,146 @@ async def api_health():
                   "spx_frame_code_hash": spx.frame_code_hash(), "spx_code_hash": spx.code_hash(),
                   "ades_schema": _ades_schema_available(),
                   "network_totals": dict(access.TOTALS)})
+
+
+# --------------------------------------------------------------------------- moving object: track and MPC draft
+
+_reports: OrderedDict = OrderedDict()     # report_id -> {rows, info, band, created}
+MAX_REPORTS = 200
+
+
+def _night_label(rows, group) -> str:
+    from astropy.time import Time
+    t0 = min(rows[i]["mjd_mid"] for i in group)
+    return Time(t0, format="mjd").iso[:10]
+
+
+def _track_response(rid: str, rows: list, info: dict, band: str, n_refs: int) -> dict:
+    from spx import mpc
+    regime = info.get("regime")
+    timed = [i for i, r in enumerate(rows) if r.get("obs_time")]
+    left_out = mpc.select_for_ades([rows[i] for i in timed]) if timed else {}
+    left_out = {timed[k]: v for k, v in left_out.items()}
+    in_ades = {i for i in timed if i not in left_out} if regime == mpc.ADES_REGIME else set()
+    groups = mpc.night_windows(rows, timed) if timed else []
+    night_of = {i: _night_label(rows, g) for g in groups for i in g}
+    nights = []
+    for g in groups:
+        n_in = sum(1 for i in g if i in in_ades)
+        nights.append({"night": _night_label(rows, g), "n_total": len(g),
+                       "n_accepted": sum(1 for i in g if rows[i].get("accepted")),
+                       "n_in_draft": n_in, "included": regime == mpc.ADES_REGIME and n_in >= mpc.MIN_DETECTIONS})
+    meas = []
+    for i, r in enumerate(rows):
+        m = dict(r)
+        m["mjd"] = r.get("mjd_mid")
+        m["night"] = night_of.get(i)
+        m["in_ades"] = i in in_ades
+        if r.get("accepted") and i in left_out:
+            m["reason"] = left_out[i]
+        meas.append(m)
+    span = float(info.get("span_days") or 0.0)
+    if regime == mpc.ADES_REGIME:
+        why = (f"The marks span {span * 24:.1f} h, within one survey visit: motion like a Solar System object. "
+               "An MPC draft can be made from the accepted single exposures.")
+    else:
+        why = (f"The marks span {span:.0f} days, across survey epochs: this is the proper motion of a star or a brown "
+               "dwarf. The Minor Planet Center takes Solar System objects only; use the CSV.")
+    sp = float(info.get("speed_arcsec_per_s") or 0.0)
+    v = mpc.validation_summary()
+    validation = {"text": "\n".join(mpc.validation_lines(v)),
+                  "timing": "verified" if (v and v.get("timing_verified")) else "not verified",
+                  "pixel_scale": "Pixel scale 6.15 arcsec (MPC guidance for ground observers: 2-3 arcsec); measured "
+                                 "single-exposure accuracy is in the validation text.",
+                  "same_frame_code": None if v is None else v["same_frame_code"]}
+    return {"schema": P.SCHEMA, "report_id": rid, "band": band, "regime": regime, "regime_reason": why,
+            "rate": {"arcsec_per_hour": sp * 3600.0, "arcsec_per_year": sp * 86400.0 * 365.25,
+                     "arcsec_per_day": list(info.get("rate_arcsec_per_day") or [])},
+            "window_mjd": list(info.get("window_mjd") or []), "n_exposures_found": n_refs,
+            "n_measured": len(rows), "n_accepted": sum(1 for r in rows if r.get("accepted")),
+            "n_in_draft": len(in_ades), "nights": nights, "measurements": meas, "validation": validation,
+            "mpc_test_forms": {"psv": mpc.MPC_PSV_TEST, "xml": mpc.MPC_XML_TEST}}
+
+
+@app.post("/api/track")
+async def api_track(request: Request):
+    """Measure a marked moving object on single exposures. Body: {"band": "D1".."D6", "marks": [{ra, dec, mjd}, ...]}
+    (>= 2 marks, same object, different times). Downloads the cutouts it needs (S3), never contacts the MPC."""
+    import uuid
+    try:
+        body = await request.json()
+    except Exception:
+        raise ApiError(400, "body must be JSON: {band, marks: [{ra, dec, mjd}]}")
+    band = str(body.get("band") or "")
+    marks = body.get("marks") or []
+    try:
+        marks = [{"ra": float(m["ra"]) % 360.0, "dec": float(m["dec"]), "mjd": float(m["mjd"])} for m in marks]
+    except (KeyError, TypeError, ValueError):
+        raise ApiError(400, "each mark needs numeric ra, dec (deg) and mjd")
+    if len(marks) < 2 or len({round(m["mjd"], 6) for m in marks}) < 2:
+        raise ApiError(400, "give at least two marks of the same object at different times")
+    if any(not -90 <= m["dec"] <= 90 for m in marks):
+        raise ApiError(400, "dec must be within [-90, 90]")
+    try:
+        P.track_detectors(band)
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    try:
+        rows, info, n_refs = await asyncio.to_thread(P.measure_marks, marks, band)
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    rid = uuid.uuid4().hex[:16]
+    _reports[rid] = {"rows": rows, "info": info, "band": band, "created": time.time()}
+    while len(_reports) > MAX_REPORTS:
+        _reports.popitem(last=False)
+    return jresp(_track_response(rid, rows, info, band, n_refs))
+
+
+@app.get("/api/report")
+async def api_report(id: str, format: str = "csv", submitter: str | None = None, trksub: str | None = None):
+    """The draft for a measured track: format=csv (always), ades (PSV) or ades_xml. ADES needs a submitter
+    ('I. M. Submit'), a within-visit track and >= 3 accepted positions in one night; every ADES file passes the
+    ADES submit schema before it is handed out (when the schema is installed)."""
+    from spx import mpc
+    rep = _reports.get(id)
+    if rep is None:
+        raise ApiError(404, "unknown or expired report id; measure the track again")
+    rows, info = rep["rows"], rep["info"]
+    fmt = {"ades_psv": "ades"}.get(format, format)
+    if fmt not in ("csv", "ades", "ades_xml"):
+        raise ApiError(400, "format must be csv, ades or ades_xml")
+    trk = None
+    if trksub:
+        try:
+            trk = mpc.check_trksub(trksub.strip())
+        except ValueError as e:
+            raise ApiError(400, str(e))
+    timed = [r for r in rows if r.get("obs_time")]
+    trk = trk or (mpc.make_trksub(timed) if timed else "SPX0000")
+    stamp = (timed[0]["obs_time"][:10].replace("-", "") if timed else "nodata")
+    if fmt == "csv":
+        note = None if info.get("regime") == mpc.ADES_REGIME else \
+            "Proper motion between survey epochs: not for the Minor Planet Center (Solar System objects only)."
+        text = mpc.write_csv(rows, {"trk_sub": trk, "note": note})
+        return Response(text, media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="spherex_{trk}_{stamp}.csv"'})
+    if info.get("regime") != mpc.ADES_REGIME:
+        raise ApiError(422, "An MPC draft is only for motion within one survey visit (Solar System objects). This "
+                            "track spans survey epochs: a star or brown dwarf; the MPC does not take those. Use the CSV.")
+    try:
+        name = mpc.check_name(submitter or "")
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    ctx = {"submitter": name, "trk_sub": trk, "tool_version": spx.__version__, "code_hash": spx.frame_code_hash()}
+    try:
+        text, checked = await asyncio.to_thread(mpc.checked_ades, rows, ctx, "xml" if fmt == "ades_xml" else "psv")
+    except mpc.SchemaError as e:
+        log.error("ADES draft for report %s failed the submit schema: %s", id, e)
+        raise ApiError(500, "The generated MPC draft failed the ADES submit schema. This is a bug on our side, not "
+                            "yours; the file was withheld.")
+    except ValueError as e:
+        raise ApiError(422, str(e))
+    ext, mt = ("xml", "application/xml; charset=utf-8") if fmt == "ades_xml" else ("psv", "text/plain; charset=utf-8")
+    return Response(text, media_type=mt, headers={
+        "Content-Disposition": f'attachment; filename="spherex_{trk}_{stamp}_ades.{ext}"',
+        "X-ADES-Schema-Checked": "true" if checked else "false"})

@@ -489,18 +489,55 @@ def gaia_sources(f: Field, gmax: float = GAIA_GMAX, max_age_days: float = 30.0) 
 
     ESA Gaia archive TAP (sync, CSV), cached on disk per field centre and radius.
     """
-    import csv
-    import io
-    import requests
     # half-diagonal + room for ~10 years of 10"/yr motion
     radius = f.fov_deg / 2 * math.sqrt(2) + 0.03
     ra, dec = float(f.center.ra.deg), float(f.center.dec.deg)
-    path = access.CACHE_DIR / "gaia" / f"{ra:.5f}_{dec:+.5f}_{radius:.4f}_{gmax:g}.json"
-    if path.exists() and (time.time() - path.stat().st_mtime) / 86400 <= max_age_days:
-        return json.loads(path.read_text(encoding="utf-8"))
     q = (f"SELECT source_id, ra, dec, pmra, pmdec, phot_g_mean_mag FROM {GAIA_TABLE} WHERE "
          f"1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra:.7f}, {dec:.7f}, {radius:.5f})) "
          f"AND phot_g_mean_mag < {gmax:g}")
+    return _gaia_query(q, f"{ra:.5f}_{dec:+.5f}_{radius:.4f}_{gmax:g}", max_age_days)
+
+
+def gaia_path(points, margin_arcsec: float = 60.0, gmax: float = GAIA_GMAX, max_age_days: float = 30.0):
+    """Gaia DR3 sources within margin of a sky path given as [(ra, dec)] (one box query, then a distance cut)."""
+    ra = np.array([p[0] for p in points], float) % 360.0
+    dec = np.array([p[1] for p in points], float)
+    m = margin_arcsec / 3600.0
+    d0, d1 = max(-90.0, dec.min() - m), min(90.0, dec.max() + m)
+    cosd = max(0.01, math.cos(math.radians(min(89.0, max(abs(d0), abs(d1))))))
+    span = (ra.max() - ra.min()) % 360.0
+    if span > 180:  # the path crosses RA 0
+        r = (ra + 180.0) % 360.0 - 180.0
+        r0, r1 = r.min() - m / cosd, r.max() + m / cosd
+        cond = f"(ra >= {r0 % 360.0:.6f} OR ra <= {r1:.6f})"
+    else:
+        r0, r1 = ra.min() - m / cosd, ra.max() + m / cosd
+        cond = f"ra BETWEEN {r0:.6f} AND {r1:.6f}"
+    q = (f"SELECT source_id, ra, dec, pmra, pmdec, phot_g_mean_mag FROM {GAIA_TABLE} WHERE "
+         f"{cond} AND dec BETWEEN {d0:.6f} AND {d1:.6f} AND phot_g_mean_mag < {gmax:g}")
+    key = hashlib_short(q)
+    rows = _gaia_query(q, f"path_{key}", max_age_days)
+    if not rows:
+        return []
+    pc = SkyCoord(ra * u.deg, dec * u.deg)
+    gc = SkyCoord([g["ra"] for g in rows] * u.deg, [g["dec"] for g in rows] * u.deg)
+    _, sep, _ = gc.match_to_catalog_sky(pc)
+    return [g for g, s in zip(rows, sep.arcsec) if s <= margin_arcsec]
+
+
+def hashlib_short(s: str) -> str:
+    import hashlib
+    return hashlib.sha1(s.encode()).hexdigest()[:12]
+
+
+def _gaia_query(q: str, cache_name: str, max_age_days: float = 30.0) -> list[dict]:
+    """ESA Gaia archive TAP (sync, CSV) with a disk cache."""
+    import csv
+    import io
+    import requests
+    path = access.CACHE_DIR / "gaia" / f"{cache_name}.json"
+    if path.exists() and (time.time() - path.stat().st_mtime) / 86400 <= max_age_days:
+        return json.loads(path.read_text(encoding="utf-8"))
     last = None
     for attempt in range(3):
         if attempt:
@@ -703,3 +740,84 @@ def spectrum(f: Field, cuts, ra: float | None = None, dec: float | None = None, 
         if wb is not None:
             out["meta"]["wing_bands"] = wb
     return out
+
+
+# --------------------------------------------------------------------------- single-exposure track (MPC drafts)
+
+TRACK_HALF_PX = 20          # co-add session: >= 15 px; 20 leaves room for its calibration positions
+TRACK_SIA_STEP_DEG = 0.5    # SIA2 sample spacing along the predicted path (a detector is ~3.5 deg wide)
+
+
+def track_detectors(band: str) -> list[int]:
+    if band.startswith("D") and band[1:].isdigit() and int(band[1:]) in access.DETECTOR_BANDS_UM:
+        return [int(band[1:])]
+    raise ValueError(f"band must be one of D1..D6 for a track, got {band!r}")
+
+
+def track_refs(marks, band: str):
+    """Exposures of `band` inside the model's time window along the predicted path: SIA2 at points along the path
+    (a fast object leaves any fixed field), union of the lists, cut to the window. Returns (refs, position, info)."""
+    from spx.astrometry import track_model
+    position, info = track_model(marks)
+    lo, hi = info["window_mjd"]
+    if not (np.isfinite(lo) and np.isfinite(hi)):  # between_epochs: the marks' own span
+        ms = [m["mjd"] for m in marks]
+        lo, hi = min(ms) - 1.0, max(ms) + 1.0
+        query_window = (-np.inf, np.inf)
+    else:
+        query_window = (lo, hi)
+    start, end = position(lo), position(hi)
+    n = max(2, int(math.ceil(start.separation(end).deg / TRACK_SIA_STEP_DEG)) + 1)
+    dets = set(track_detectors(band))
+    refs, seen = [], set()
+    for t in np.linspace(lo, hi, n):
+        c = position(float(t))
+        for r in access.find_images(float(c.ra.deg), float(c.dec.deg)):
+            k = (r.obs_id, r.detector)
+            if k in seen or r.detector not in dets:
+                continue
+            if not (query_window[0] <= r.mjd <= query_window[1]):
+                continue
+            seen.add(k)
+            refs.append(r)
+    refs.sort(key=lambda r: r.mjd)
+    return refs, position, info
+
+
+def track_cutouts(refs, position, layers=("IMAGE", "FLAGS", "VARIANCE"), workers: int = 16):
+    """One cutout per exposure, centred on the object's predicted position at that exposure's time."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(ref):
+        c = position(ref.mjd)
+        cuts, _ = access.fetch_cutouts([ref], float(c.ra.deg), float(c.dec.deg), half_px=TRACK_HALF_PX,
+                                       layers=layers, workers=1)
+        return cuts[0] if cuts else None
+    with ThreadPoolExecutor(max_workers=max(1, min(workers, access.S3_MAX_CONCURRENCY))) as ex:
+        cuts = [c for c in ex.map(one, refs) if c is not None]
+    cuts.sort(key=lambda c: c.mjd)
+    return cuts
+
+
+def measure_marks(marks, band: str):
+    """Marks -> per-exposure measurements (spx.astrometry.measure_track) with Gaia neighbours along the path.
+    Returns (rows, info, n_refs)."""
+    from astropy.time import Time
+    from spx.astrometry import measure_track
+    refs, position, info = track_refs(marks, band)
+    cuts = track_cutouts(refs, position)
+    path = [(float(position(c.mjd).ra.deg), float(position(c.mjd).dec.deg)) for c in cuts] or \
+        [(m["ra"], m["dec"]) for m in marks]
+    try:
+        gaia = gaia_path(path)
+    except Exception as e:  # positions still come out, only without fixed neighbours
+        log.warning("gaia along track failed: %r", e)
+        gaia = []
+    nb = None
+    if gaia:
+        nb = SkyCoord(ra=[g["ra"] for g in gaia] * u.deg, dec=[g["dec"] for g in gaia] * u.deg,
+                      pm_ra_cosdec=[g.get("pmra") or 0.0 for g in gaia] * u.mas / u.yr,
+                      pm_dec=[g.get("pmdec") or 0.0 for g in gaia] * u.mas / u.yr,
+                      obstime=Time(2016.0, format="jyear", scale="tdb"), frame="icrs")
+    rows, info2 = measure_track(cuts, marks, neighbors=nb)
+    return rows, {**info, **info2}, len(refs)

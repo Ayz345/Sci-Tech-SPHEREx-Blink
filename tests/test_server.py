@@ -336,3 +336,99 @@ def test_wing_bands_threshold_from_quality_file(monkeypatch, tmp_path):
                                 "D2": {"ratio": 2.0, "threshold": 1.5, "significant": True}}
     monkeypatch.setattr(P, "WING_VALIDATION", tmp_path / "missing.json")
     assert P.wing_bands([]) is None  # no threshold -> the field is left out, never guessed
+
+
+
+# --------------------------------------------------------------------------- track and MPC draft (offline)
+
+def _track_rows(regime="within_visit"):
+    import sys
+    sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent))
+    import test_mpc as T
+    rows = T._dets(5)
+    for i, r in enumerate(rows):
+        r.update({"mjd_mid": 60988.99 + i * 0.0007, "detector": 6, "accepted": True, "reason": "ok", "trailed": False,
+                  "regime": regime, "snr_fit": 30.0})
+    rows[4].update({"accepted": False, "reason": "blended"})
+    return rows
+
+
+@pytest.fixture()
+def track_client(client, monkeypatch):
+    from server import pipeline as P
+    state = {"regime": "within_visit"}
+
+    def fake_measure(marks, band):
+        rows = _track_rows(state["regime"])
+        span = 0.1 if state["regime"] == "within_visit" else 180.0
+        info = {"regime": state["regime"], "span_days": span, "rate_arcsec_per_day": (86.4, 0.0),
+                "speed_arcsec_per_s": 0.001, "window_mjd": (60988.0, 60990.0), "n_marks": len(marks)}
+        return rows, info, 7
+    monkeypatch.setattr(P, "measure_marks", fake_measure)
+    client.track_state = state
+    return client
+
+
+MARKS = [{"ra": 133.76, "dec": -7.24, "mjd": 60988.99}, {"ra": 133.762, "dec": -7.2402, "mjd": 60989.0}]
+
+
+def test_track_and_reports(track_client):
+    c = track_client
+    r = c.post("/api/track", json={"band": "D6", "marks": MARKS})
+    assert r.status_code == 200
+    t = _strict(r)
+    assert t["regime"] == "within_visit" and t["report_id"] and t["n_accepted"] == 4 and t["n_in_draft"] == 4
+    assert t["nights"][0]["included"] and t["nights"][0]["n_accepted"] == 4
+    assert [m["in_ades"] for m in t["measurements"]] == [True, True, True, True, False]
+    assert t["measurements"][4]["reason"] == "blended" and t["rate"]["arcsec_per_hour"] == pytest.approx(3.6)
+    assert t["validation"]["timing"] == "not verified" and t["validation"]["text"]
+    rid = t["report_id"]
+    r = c.get("/api/report", params={"id": rid, "format": "csv"})
+    assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
+    assert "blended" in r.text and r.headers["content-type"].startswith("text/csv")
+    r = c.get("/api/report", params={"id": rid, "format": "ades", "submitter": "I. M. Tester"})
+    assert r.status_code == 200 and r.text.startswith("# version=2022")
+    assert r.headers["content-disposition"].endswith('_ades.psv"')
+    from spx import mpc
+    assert mpc.validate_psv(r.text) == []
+    if mpc.SUBMIT_XSD.exists():
+        assert r.headers["x-ades-schema-checked"] == "true" and mpc.SCHEMA_PASSED in r.text
+    r = c.get("/api/report", params={"id": rid, "format": "ades_xml", "submitter": "I. M. Tester", "trksub": "SPXab12"})
+    assert r.status_code == 200 and "<trkSub>SPXab12</trkSub>" in r.text
+
+
+def test_report_errors(track_client):
+    c = track_client
+    rid = _strict(c.post("/api/track", json={"band": "D6", "marks": MARKS}))["report_id"]
+    assert c.get("/api/report", params={"id": "nope"}).status_code == 404
+    assert c.get("/api/report", params={"id": rid, "format": "ades"}).status_code == 400            # no submitter
+    r = c.get("/api/report", params={"id": rid, "format": "ades", "submitter": "Ivan Tester"})
+    assert r.status_code == 400 and "initials" in _strict(r)["message"]
+    r = c.get("/api/report", params={"id": rid, "format": "ades", "submitter": "I. M. Tester", "trksub": "K23A00B"})
+    assert r.status_code == 400 and "designation" in _strict(r)["message"]
+    assert c.get("/api/report", params={"id": rid, "format": "pdf"}).status_code == 400
+    c.track_state["regime"] = "between_epochs"
+    rid2 = _strict(c.post("/api/track", json={"band": "D6", "marks": MARKS}))["report_id"]
+    r = c.get("/api/report", params={"id": rid2, "format": "ades", "submitter": "I. M. Tester"})
+    assert r.status_code == 422 and "Solar System" in _strict(r)["message"]
+    r = c.get("/api/report", params={"id": rid2, "format": "csv"})
+    assert r.status_code == 200 and "not for the Minor Planet Center" in r.text
+
+
+def test_track_input_errors(track_client):
+    c = track_client
+    assert c.post("/api/track", json={"band": "D6", "marks": MARKS[:1]}).status_code == 400
+    assert c.post("/api/track", json={"band": "D9", "marks": MARKS}).status_code == 400
+    assert c.post("/api/track", json={"band": "D6", "marks": [{"ra": "x"}] * 2}).status_code == 400
+    assert c.post("/api/track", content=b"not json", headers={"content-type": "application/json"}).status_code == 400
+
+
+def test_schema_failure_is_a_500(track_client, monkeypatch):
+    from spx import mpc
+    if not mpc.SUBMIT_XSD.exists():
+        pytest.skip("submit.xsd not generated")
+    c = track_client
+    rid = _strict(c.post("/api/track", json={"band": "D6", "marks": MARKS}))["report_id"]
+    monkeypatch.setattr(mpc, "LOCATION_SYS", "ICRF_XX")
+    r = c.get("/api/report", params={"id": rid, "format": "ades", "submitter": "I. M. Tester"})
+    assert r.status_code == 500 and "bug on our side" in _strict(r)["message"]
