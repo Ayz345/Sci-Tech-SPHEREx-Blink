@@ -93,6 +93,7 @@ def build_target(key: str, out_root: Path, bands=None) -> dict:
     all_cuts = [c for d in sorted(by_det) for c in by_det[d]]
     spec = P.spectrum(f, all_cuts, gaia=gaia)
     P.write_json(tmp / "spectrum.json", spec, indent=None)
+    f.notes = list((f.tinfo or {}).get("notes", [])) + P.measured_notes(f, all_cuts, spec, gaia)
     # manifest last
     man = P.manifest(f, status=status, n_exposures=nexp, n_used=nused)
     P.write_json(tmp / "manifest.json", man)

@@ -40,7 +40,7 @@ TARGETS = {
         "notes": [
             "At short wavelengths (1.0–2.5 µm) the source next to the marker is NOT WISE 0855: it is a "
             "fixed background star, Gaia DR3 5756956644387831296 (G = 16.3, RA 133.75818, Dec −7.24116). "
-            "WISE 0855 moves towards it (10.5″ → 7.0″ → 3.1″ over the three epochs).",
+            "WISE 0855 moves towards it.",
             "WISE 0855 itself is seen only at long wavelengths (band W, 4.3–5.0 µm).",
         ],
     },
@@ -74,18 +74,13 @@ TARGETS["eps-indi-b"]["notes"] = [
     "The bright star Epsilon Indi A (Gaia DR3 6412595290592307840, G = 4.3) lies 402″ west of B, outside this "
     "field; its halo raises the background along the west edge.",
 ]
+# RW Aur, R Dra and WISE 0855's measured numbers are written at build time from the data
+# (server/pipeline.measured_notes): variability from the published spectrum, wing bands, two-PSF separations.
 TARGETS["rw-aur"]["notes"] = [
-    "RW Aurigae is variable in D1, D2 and D5 (×1.54, ×1.33, ×1.70 between epochs, against at most ×1.04–1.18 "
-    "for 12 control stars) and marginal in D6 (×1.46 against ×1.29).",
     "Its brightest pixels overflow; their flux is recovered from the reads before the overflow (median ratio 1.04 "
-    "to clean pixels over 10 pairs, range 1.00–1.51).",
+    "to clean pixels over 10 pairs, range 1.00–1.51; co-add session, methods_v2.md).",
 ]
-TARGETS["r-dra"]["notes"] = [
-    "R Draconis is saturated in 412 of 413 exposures, so its own flux cannot be measured; its change shows in the "
-    "brightness of the halo (common scale across epochs) and in the PSF-wing series.",
-    "PSF-wing brightness between epochs: D2 ×2.42 and D6 ×1.77 exceed the ×1.47 seen on control stars "
-    "(90th percentile); D1 ×1.31 does not. With 4 control stars the formal variability test is undetermined.",
-]
+TARGETS["r-dra"]["notes"] = []
 
 
 def target_coord(key: str) -> SkyCoord:

@@ -47,7 +47,8 @@ DEBLENDED_MAX_SIGMA = 2.0            # deblended motion vs literature, per compo
 CORE_RADIUS_ARCSEC = 36.0            # region around the track checked for holes
 CORE_PX = 2.0                        # "the core": within 2 grid px of the track
 SATURATED_CORE = {"barnard": "inf", "r-dra": "inf", "rw-aur": "finite"}   # expected core per target
-EMPTY_SKY_ARCSEC = 36.0              # +Inf farther than this from the track and from every Gaia source = empty sky
+CORE_LINK_ARCSEC = 12.0              # a +Inf group is a star core if it comes this close to the track ...
+CORE_LINK_GMAX = 12.0                # ... or to a Gaia source brighter than this G (propagated to the epoch)
 SAT_FRACTION_MAX = 0.15              # a non-finite "finite" core is allowed only where > 15 % of exposures saturate
 SATURATION_CHECK = ROOT / "handoff" / "results" / "saturation_check_v2.json"
 PROFILES = {  # seconds
@@ -300,41 +301,53 @@ def check_core(rep: Report, s: Static, key: str):
 
 
 def check_empty_sky_inf(rep: Report, s: Static, key: str):
-    """+Inf (saturated) must only appear on stars: no +Inf pixel farther than EMPTY_SKY_ARCSEC from the track and
-    from every Gaia source (propagated to the epoch), in any frame, low quality included."""
+    """+Inf (saturated) only on stars. +Inf pixels are grouped into 8-connected components; a component is a
+    star core when one of its pixels lies within CORE_LINK_ARCSEC of the track or of a Gaia source brighter than
+    G = CORE_LINK_GMAX (propagated to the epoch); otherwise it is empty sky. Item: empty-sky pixels = 0, all
+    frames (low quality counted apart as INFO). Same definition as the co-add session's test."""
     from astropy.time import Time
+    from scipy.ndimage import label
     sec = f"target:{key}"
-    gaia = strict_json(s.d / "gaia.json")
-    gc = SkyCoord(ra=[g["ra"] for g in gaia] * u.deg, dec=[g["dec"] for g in gaia] * u.deg,
-                  pm_ra_cosdec=[g.get("pmra") or 0.0 for g in gaia] * u.mas / u.yr,
-                  pm_dec=[g.get("pmdec") or 0.0 for g in gaia] * u.mas / u.yr,
-                  obstime=Time(2016.0, format="jyear"))
+    gaia = [g for g in strict_json(s.d / "gaia.json") if g.get("g_mag") is not None and g["g_mag"] < CORE_LINK_GMAX]
+    gc = None
+    if gaia:
+        gc = SkyCoord(ra=[g["ra"] for g in gaia] * u.deg, dec=[g["dec"] for g in gaia] * u.deg,
+                      pm_ra_cosdec=[g.get("pmra") or 0.0 for g in gaia] * u.mas / u.yr,
+                      pm_dec=[g.get("pmdec") or 0.0 for g in gaia] * u.mas / u.yr,
+                      obstime=Time(2016.0, format="jyear"))
     ny, nx = s.shape
     yy, xx = np.mgrid[0:ny, 0:nx]
-    rad = EMPTY_SKY_ARCSEC / (abs(s.m["grid"]["cdelt"][1]) * 3600)
+    rad = CORE_LINK_ARCSEC / (abs(s.m["grid"]["cdelt"][1]) * 3600)
     total, low_total, per = 0, 0, {}
     for e in s.m["epochs"]:
-        ge = gc.apply_space_motion(new_obstime=Time(e["mjd_mid"], format="mjd"))
-        gx, gy = s.w.world_to_pixel(SkyCoord(ge.ra, ge.dec))
-        near = np.zeros((ny, nx), bool)
+        anchor = np.zeros((ny, nx), bool)
         if e["id"] in s.track:
             tx, ty = s.track_px(e["id"])
-            near |= np.hypot(xx - tx, yy - ty) <= rad
-        for sx, sy in zip(gx, gy):
-            if -rad < sx < nx + rad and -rad < sy < ny + rad:
-                near |= np.hypot(xx - sx, yy - sy) <= rad
+            anchor |= np.hypot(xx - tx, yy - ty) <= rad
+        if gc is not None:
+            ge = gc.apply_space_motion(new_obstime=Time(e["mjd_mid"], format="mjd"))
+            gx, gy = s.w.world_to_pixel(SkyCoord(ge.ra, ge.dec))
+            for sx, sy in zip(gx, gy):
+                if -rad < sx < nx + rad and -rad < sy < ny + rad:
+                    anchor |= np.hypot(xx - sx, yy - sy) <= rad
         for b in sorted(s.bj):
             fr = s.frames(b).get(e["id"])
             if fr is None:
                 continue
             img, ej = fr
-            n = int((np.isposinf(img) & ~near).sum())
-            if n:
+            lab, n = label(np.isposinf(img), structure=np.ones((3, 3), int))
+            if not n:
+                continue
+            core_ids = set(np.unique(lab[anchor & (lab > 0)]))
+            empty = (lab > 0) & ~np.isin(lab, list(core_ids))
+            k = int(empty.sum())
+            if k:
                 low = ej.get("quality") == "low"
-                per[f"{e['id']}_{b}"] = n if not low else f"{n} (quality low)"
-                total += n
-                low_total += n if low else 0
-    rep.check(sec, f"no +Inf on empty sky (> {EMPTY_SKY_ARCSEC:g} arcsec from the track and every Gaia source)",
+                per[f"{e['id']}_{b}"] = k if not low else f"{k} (quality low)"
+                total += k
+                low_total += k if low else 0
+    rep.check(sec, f"no +Inf on empty sky (8-connected +Inf groups not touching the track or a Gaia G < "
+                   f"{CORE_LINK_GMAX:g} star within {CORE_LINK_ARCSEC:g} arcsec)",
               total == 0, measured=total, threshold="0", detail=json.dumps(per)[:600])
     rep.add(sec, "of which in frames marked quality=low", INFO, measured=low_total)
 
@@ -483,61 +496,36 @@ MIN_VARIABLE_BANDS = {"rw-aur": 3, "r-dra": 1}
 
 
 def check_variable(rep: Report, s: Static, key: str):
-    """The co-add session's metric (spx.photometry VARIABILITY_METHOD and is_variable): per band, the target's
-    binned per-epoch ratio vs control stars measured the same way in the same cutouts. A band is variable with
-    >= 5 controls and a ratio > 1.15 and > every control; fewer controls -> undetermined. The target PASSES
-    when a band is variable, FAILS when every band is decided and none is, and is INFO when undetermined."""
+    """Variability with server.pipeline.variability_report on the published spectrum (the numbers the page
+    shows): a band is variable per spx.photometry.is_variable (>= 5 controls, ratio > 1.15 and > every control),
+    undetermined with fewer controls. PASS with >= MIN_VARIABLE_BANDS variable bands, INFO when undetermined,
+    FAIL otherwise. R Dra uses the PSF-wing series."""
     sec = f"target:{key}"
     kind = VARIABILITY_KIND[key]
-    from spx import photometry as ph
-    if not all(hasattr(ph, n) for n in ("binned_series", "variability", "select_controls", "is_variable")):
-        rep.add(sec, f"brightness change at the target ({kind})", FAIL, detail="spx.photometry lacks the metric")
-        return
-    sp = strict_json(s.d / "spectrum.json")
-    tvar = ph.variability(ph.binned_series(sp["points"], kind=kind))
-    if not tvar:
-        rep.add(sec, f"brightness change at the target ({kind})", FAIL,
-                detail=f"no {kind} series in spectrum.json (wings published for this target?)")
-        return
     from server import pipeline as P
+    sp = strict_json(s.d / "spectrum.json")
     f = P.open_field(target=key)
     cuts = []
     for d in range(1, 7):
         c, _ = P.fetch_band_cutouts(f, f"D{d}", ("IMAGE", "FLAGS", "VARIANCE"))
         cuts += c
-    gaia = strict_json(s.d / "gaia.json")
-    t = TARGETS[key]
-    tc = SkyCoord(t["ra"] * u.deg, t["dec"] * u.deg)
-    # the target's own G: the brightest Gaia source within 3" (RW Aur is a 1.5" binary: A, not B)
-    close = [r_ for r_ in gaia if r_.get("g_mag") is not None
-             and SkyCoord(r_["ra"] * u.deg, r_["dec"] * u.deg).separation(tc).arcsec < 3]
-    tg = min((r_["g_mag"] for r_ in close), default=None)
-    n_pts = len(sp["points"]) or 1
-    saturated = sum(bool(q.get("saturated")) for q in sp["points"]) / n_pts > 0.5
-    ctrl = ph.select_controls(gaia, (t["ra"], t["dec"]), tg, saturated=saturated)
-    from astropy.time import Time
-    cvar = {}
-    for r_ in ctrl:
-        cc = SkyCoord(ra=r_["ra"] * u.deg, dec=r_["dec"] * u.deg, pm_ra_cosdec=(r_.get("pmra") or 0) * u.mas / u.yr,
-                      pm_dec=(r_.get("pmdec") or 0) * u.mas / u.yr, obstime=Time(2016.0, format="jyear"))
-        pts = ph.spectrum_points(cuts, cc, epochs=f.epochs, wings=(kind == "wing"))["points"]
-        for b, d in ph.variability(ph.binned_series(pts, kind=kind)).items():
-            cvar.setdefault(b, []).append(d["ratio"])
-    per, variable, undetermined, decided_no = {}, [], [], []
-    for b, d in tvar.items():
-        cs = cvar.get(b, [])
-        v = ph.is_variable(d["ratio"], cs)
-        per[b] = {"ratio": d["ratio"], "n_bins": d["n_bins"], "n_controls": len(cs),
-                  "controls_max": round(max(cs), 3) if cs else None, "variable": v}
-        (variable if v else undetermined if v is None else decided_no).append(b)
+    r_ = P.variability_report(f, cuts, sp["points"], strict_json(s.d / "gaia.json"), kind)
+    per = r_["per_band"]
+    variable = [b for b in sorted(per) if per[b]["variable"]]
+    undetermined = [b for b in sorted(per) if per[b]["variable"] is None]
+    decided_no = [b for b in sorted(per) if per[b]["variable"] is False]
     need = MIN_VARIABLE_BANDS.get(key, 1)
-    status = PASS if len(variable) >= need else (INFO if undetermined else FAIL)
+    if not per:
+        status = FAIL
+    else:
+        status = PASS if len(variable) >= need else (INFO if undetermined else FAIL)
+    rep.add(sec, "per band: target ratio, largest control, controls", INFO,
+            measured={b: [d["ratio"], d["controls_max"], d["n_controls"]] for b, d in sorted(per.items())})
     rep.add(sec, "bands where is_variable is true", INFO, measured=variable)
     rep.add(sec, f"brightness change at the target ({kind} series; >= {need} bands variable)", status,
-            measured={"variable": variable, "not_variable": decided_no, "undetermined": undetermined,
-                      "per_band": per},
+            measured={"variable": variable, "not_variable": decided_no, "undetermined": undetermined},
             threshold="spx.photometry.is_variable: >= 5 controls, ratio > 1.15 and > every control",
-            detail=f"target G {tg}, saturated={saturated}; {len(ctrl)} control stars"
+            detail=f"target G {r_['target_g']}, saturated={r_['saturated']}; {r_['n_controls']} control stars"
                    + ("; undetermined = fewer than 5 controls, not counted as a pass" if status == INFO else ""))
 
 

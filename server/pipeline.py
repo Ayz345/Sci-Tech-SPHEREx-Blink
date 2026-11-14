@@ -260,6 +260,12 @@ def open_field(target: str | None = None, ra: float | None = None, dec: float | 
     f = Field(key, name, qra, qdec, fov_deg, tc, tinfo, refs, labels, epochs, center, grid,
               moving=moving, source=(tinfo or {}).get("source") or source)
     f.notes = list((tinfo or {}).get("notes", []))
+    if target is not None:  # notes measured by the gallery build (precompute) when it exists
+        gm = GALLERY_DIR / target / "manifest.json"
+        try:
+            f.notes = json.loads(gm.read_text(encoding="utf-8")).get("notes", f.notes)
+        except (OSError, ValueError):
+            pass
     f.extra_bands = list((tinfo or {}).get("extra_bands", []))
     if target is None and refs:
         notes, extra = _nearby_targets(f)
@@ -339,7 +345,7 @@ def manifest(f: Field, status: dict | None = None, n_exposures: dict | None = No
             st = "empty"
         bands.append({**b, "n_exposures": nexp, "status": st})
     m["bands"] = bands
-    notes = list(f.notes) + _weak_epoch_notes(f, bands)
+    notes = list(dict.fromkeys(list(f.notes) + _weak_epoch_notes(f, bands)))  # no duplicates
     if f.moving:
         m["target_track"] = [{"epoch": e["id"], "ra": p[0], "dec": p[1]}
                              for e in f.epochs for p in [_radec(target_at(f.target, e["mjd_mid"]))]]
@@ -548,6 +554,7 @@ def gaia_neighbors(coord: SkyCoord, gaia: list[dict] | None, self_match_arcsec: 
 #: The co-add session's wing validation: summary.controls_p90 = 90th percentile of the wing-series epoch ratio on
 #: unsaturated control stars; a target ratio above it is significant. Read from the file, never typed in here.
 WING_VALIDATION = Path(__file__).resolve().parent.parent / "handoff" / "results" / "wing_validation_v2.json"
+GALLERY_DIR = Path(os.environ.get("SPX_GALLERY") or Path(__file__).resolve().parent.parent / "web" / "data")
 
 
 def wing_threshold() -> float | None:
@@ -566,6 +573,104 @@ def wing_bands(points) -> dict | None:
         return None
     v = ph.variability(ph.binned_series(points, kind="wing"))
     return {b: {"ratio": d["ratio"], "threshold": thr, "significant": bool(d["ratio"] > thr)} for b, d in v.items()}
+
+
+def variability_report(f: Field, cuts, points, gaia, kind: str = "flux") -> dict:
+    """The co-add session's variability metric on the PUBLISHED spectrum points, with control stars measured the
+    same way in the same cutouts (spx.photometry select_controls / binned_series / variability / is_variable).
+    Single source for the page notes and scripts/acceptance.py."""
+    from astropy.time import Time
+    from spx import photometry as ph
+    tvar = ph.variability(ph.binned_series(points, kind=kind))
+    t = f.target
+    tc = SkyCoord(t.ra, t.dec, frame="icrs")
+    close = [g for g in gaia if g.get("g_mag") is not None
+             and SkyCoord(g["ra"] * u.deg, g["dec"] * u.deg).separation(tc).arcsec < 3]
+    tg = min((g["g_mag"] for g in close), default=None)  # brightest within 3" (RW Aur: A, not the 1.5" B)
+    saturated = sum(bool(p.get("saturated")) for p in points) / max(1, len(points)) > 0.5
+    ctrl = ph.select_controls(gaia, (float(tc.ra.deg), float(tc.dec.deg)), tg, saturated=saturated)
+    cvar = {}
+    for g in ctrl:
+        cc = SkyCoord(ra=g["ra"] * u.deg, dec=g["dec"] * u.deg, pm_ra_cosdec=(g.get("pmra") or 0) * u.mas / u.yr,
+                      pm_dec=(g.get("pmdec") or 0) * u.mas / u.yr, obstime=Time(2016.0, format="jyear"))
+        pts = ph.spectrum_points(cuts, cc, epochs=f.epochs, wings=(kind == "wing"))["points"]
+        for b, d in ph.variability(ph.binned_series(pts, kind=kind)).items():
+            cvar.setdefault(b, []).append(d["ratio"])
+    per = {}
+    for b, d in tvar.items():
+        cs = cvar.get(b, [])
+        per[b] = {"ratio": d["ratio"], "n_bins": d["n_bins"], "n_controls": len(cs),
+                  "controls_max": round(max(cs), 3) if cs else None, "variable": ph.is_variable(d["ratio"], cs)}
+    return {"kind": kind, "target_g": tg, "saturated": saturated, "n_controls": len(ctrl), "per_band": per}
+
+
+#: Wording thresholds for the measured notes (how a variable band is described, not whether it is variable).
+SMALL_MARGIN = 1.20        # variable, but target / largest control below this: "exceeds its controls by a small margin"
+CLEARLY_ABOVE = 1.10       # wing ratio above threshold x this: "clearly above"; else "just above"
+WISE_DETECTION = Path(__file__).resolve().parent.parent / "handoff" / "results" / "wise0855_detection_v2.json"
+
+
+def measured_notes(f: Field, cuts, spec: dict, gaia) -> list[str]:
+    """Notes whose numbers are measured from this build's data (gallery targets only)."""
+    key = f.key
+    notes = []
+    fmt = lambda x: f"×{x:.2f}"  # noqa: E731
+    if key == "rw-aur":
+        rep = variability_report(f, cuts, spec["points"], gaia, "flux")
+        per = rep["per_band"]
+        var = [b for b in sorted(per) if per[b]["variable"]]
+        if var:
+            single = [b for b in var if per[b]["n_bins"] == 1]
+            small = [b for b in var if b not in single and per[b]["controls_max"]
+                     and per[b]["ratio"] / per[b]["controls_max"] < SMALL_MARGIN]
+            robust = [b for b in var if b not in single and b not in small]
+            detail = ", ".join(f"{b} {fmt(per[b]['ratio'])} (controls up to {fmt(per[b]['controls_max'])}, "
+                               f"{per[b]['n_controls']} stars)" for b in var)
+            s = (f"By the control-star test RW Aurigae changes between epochs in {len(var)} of {len(per)} bands: "
+                 f"{detail}.")
+            parts = []
+            if robust:
+                parts.append(f"most robust in {', '.join(robust)} (several wavelength bins)")
+            if single:
+                parts.append(f"{', '.join(single)} rest{'s' if len(single) == 1 else ''} on a single wavelength bin")
+            if small:
+                parts.append(f"{', '.join(small)} exceed{'s' if len(small) == 1 else ''} its controls by a small margin")
+            tail = "; ".join(parts)
+            notes.append(s + (" " + tail[0].upper() + tail[1:] + "." if parts else ""))
+        else:
+            notes.append("By the control-star test no band of RW Aurigae is variable in this data.")
+    if key == "r-dra":
+        pts = spec["points"]
+        n_sat = sum(bool(p.get("saturated")) for p in pts)
+        notes.append(f"R Draconis is saturated in {n_sat} of {len(pts)} exposures, so its own flux cannot be "
+                     "measured; its change shows in the brightness of the halo (common scale across epochs) and in "
+                     "the PSF-wing series.")
+        wb = spec.get("meta", {}).get("wing_bands") or {}
+        if wb:
+            thr = next(iter(wb.values()))["threshold"]
+            clear = [b for b, d in sorted(wb.items()) if d["significant"] and d["ratio"] > CLEARLY_ABOVE * thr]
+            just = [b for b, d in sorted(wb.items()) if d["significant"] and b not in clear]
+            no = [b for b, d in sorted(wb.items()) if not d["significant"]]
+            seg = []
+            if clear:
+                seg.append(" and ".join(f"{b} {fmt(wb[b]['ratio'])}" for b in clear) + " clearly exceed")
+            if just:
+                seg.append(" and ".join(f"{b} {fmt(wb[b]['ratio'])}" for b in just) + " is just above")
+            if no:
+                seg.append(" and ".join(f"{b} {fmt(wb[b]['ratio'])}" for b in no) + " does not exceed")
+            rep = variability_report(f, cuts, pts, gaia, "wing")
+            und = rep["n_controls"] < 5
+            notes.append(f"PSF-wing brightness between epochs against the ×{thr:.2f} seen on control stars "
+                         f"(90th percentile): " + "; ".join(seg) + "."
+                         + (f" With {rep['n_controls']} control stars the formal variability test is undetermined."
+                            if und else ""))
+    if key == "wise-0855" and WISE_DETECTION.exists():
+        det = json.loads(WISE_DETECTION.read_text(encoding="utf-8"))
+        seps = [e.get("sep_to_blend_star_arcsec") for e in det.get("epochs", [])]
+        if seps and all(x is not None for x in seps):
+            notes.append("Measured separation between WISE 0855 and that star (two-source PSF fit, co-add session): "
+                         + " → ".join(f"{x:.1f}″" for x in seps) + " over the three epochs.")
+    return notes
 
 
 def wings_for(f: Field, ra: float | None) -> bool:
