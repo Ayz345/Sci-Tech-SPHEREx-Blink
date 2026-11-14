@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 import re
 import threading
@@ -124,6 +125,21 @@ class Registry:
             w.start()
 
     # ---- fields
+    def near_key(self, key: str, ra: float, dec: float) -> str | None:
+        """A free field already in memory that is the same request up to rounding: same fov and proper motion
+        (the key after its position part) and query centre within half a grid pixel. The key rounds to 1e-4 deg,
+        so 3.059049 and 3.05905 gave two keys and built the same 414-exposure field twice (14 Nov)."""
+        tail = key.split("_", 2)[2]
+        lim = P.PIX_ARCSEC / 2.0
+        with self.lock:
+            cands = [(k, fs.field) for k, fs in self.fields.items()
+                     if k != key and fs.field.tinfo is None and k.startswith("r") and k.split("_", 2)[2:] == [tail]]
+        for k, f in cands:
+            dra = ((ra - f.query_ra + 180.0) % 360.0 - 180.0) * math.cos(math.radians(dec))
+            if math.hypot(dra, dec - f.query_dec) * 3600.0 < lim:
+                return k
+        return None
+
     def get(self, key: str, open_kw: dict | None = None, queue: bool = True) -> FieldState:
         """open_kw: exact position for a new free field (the key itself is rounded).
         queue=False: open the field without queueing its bands (they still build when asked for)."""
@@ -491,6 +507,8 @@ async def api_manifest(target: str | None = None, ra: str | None = None, dec: st
             if not all(np.isfinite(pm)) or abs(pm[0]) > 2e4 or abs(pm[1]) > 2e4:
                 raise ApiError(400, f"proper motion out of range: {pm}")
         key = P.free_key(r, d, fv, pm)
+        if key not in registry().fields:
+            key = registry().near_key(key, r, d) or key
         kw = {"ra": r, "dec": d, "fov_deg": fv, "pm": pm, "name": name,
               "source": "SIMBAD via CDS Sesame (proper motion given)" if pm else None}
     fs = await _field(key, kw, bool(queue))

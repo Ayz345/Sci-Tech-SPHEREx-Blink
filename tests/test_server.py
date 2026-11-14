@@ -531,3 +531,21 @@ def test_spectrum_passes_flag_names_through(client, monkeypatch):
     assert others and all(p["flags"] == [] for p in others)
     assert s["meta"]["flag_legend"][name] == ph.FLAG_LEGEND[name]
     assert set(s["meta"]["flag_legend"]) == {n for p in s["points"] for n in p["flags"]}
+
+
+# --------------------------------------------------------------------------- same field, different rounding
+
+def test_rounding_boundary_reuses_the_open_field(client):
+    from server import app as A
+    a = _strict(client.get("/api/manifest", params={"ra": 288.770496, "dec": 3.059049, "queue": 0}))
+    b = _strict(client.get("/api/manifest", params={"ra": 288.7705, "dec": 3.05905, "queue": 0}))
+    assert a["key"] == "r288p7705_dp3p0590_f0p117" and b["key"] == a["key"]          # was _dp3p0591 on 14 Nov
+    assert client.calls["sia"] == 1
+    # 2 arcsec away (more than half a 3" grid pixel): a field of its own; another fov too
+    c = _strict(client.get("/api/manifest", params={"ra": 288.770496, "dec": 3.059049 + 2.0 / 3600, "queue": 0}))
+    d = _strict(client.get("/api/manifest", params={"ra": 288.7705, "dec": 3.05905, "fov": 0.05, "queue": 0}))
+    assert len({a["key"], c["key"], d["key"]}) == 3 and client.calls["sia"] == 3
+    assert A.REG.near_key("r288p7705_dp3p0591_f0p117", 288.7705, 3.05905) == a["key"]
+    assert d["key"] == "r288p7705_dp3p0591_f0p050"
+    assert A.REG.near_key("r288p7705_dp3p0590_f0p050", 288.770496, 3.059049) == d["key"]   # same fov: found
+    assert A.REG.near_key("r288p7705_dp3p0591_f0p117_pm1p00_0p00_e2000p000", 288.7705, 3.05905) is None
