@@ -116,8 +116,8 @@ measure tool accepts marks on it with that date; when `epoch_mjd` is null it ref
 When the field has it (`{key}/catwise.json` for gallery targets, `/api/catwise?key=` for live fields), the
 Overlays box shows "CatWISE2020": squares (Gaia uses circles). Sources with `pmra`/`pmdec` are moved to each
 epoch from `ref_mjd`; when the catalogue has no proper motions the note says "positions at the catalogue epoch
-(2015.4), not moved". The cursor readout names the source under it with W1/W2. Live server: 202 = "being
-prepared" (asked again every 5 s), 503 = "WISE catalogue is not available right now". No file: not shown.
+(2015.4), not moved". Rows with `pm_reliable: false` (CatWISE fits of objects faster than about 1″/yr) are not moved: they are drawn as dashed squares at the catalogue position and the note quotes `meta.fast_note`. The cursor readout names the source under it with W1/W2. Live server: 202 = "being
+prepared" (asked again every 5 s), 503 = "WISE catalogue is not available right now"; a gallery target without the file says the same. A live field without a layer: not shown.
 Field names (`source_name, ra, dec, pmra, pmdec, w1mag, w2mag, ref_mjd`) are mapped in `normCatwise()`.
 
 ## Automatic candidates (F2)
