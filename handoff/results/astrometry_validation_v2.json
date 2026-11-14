@@ -1,0 +1,559 @@
+{
+ "frame_code_hash": "afe71dca5ee1",
+ "code_hash": "55495c66fa2a",
+ "object": "(433) Eros",
+ "wcs_floor_arcsec": 0.23,
+ "trail_limit_arcsec": 6.15,
+ "timing": {
+  "verified": false,
+  "obs_time": "DATE-AVG (header mid-exposure, UTC), not corrected",
+  "along_track_median_arcsec": -0.145850100481101,
+  "note": "Not verified. (433) Eros (motion PA 59-92 deg, 0.017-0.043 arcsec/s): along-track residual -0.15 arcsec, -4 s if it were all timing. (31) Euphrosyne (0.002-0.010 arcsec/s, different direction): along-track +0.01 +- 0.02 arcsec, i.e. +1.3 +- 2.3 s, but cross-track +0.14 arcsec. Object-dependent systematics of ~0.15 arcsec remain unexplained; a time offset larger than ~5 s is not supported. obsTime = DATE-AVG, uncorrected; rmsTime is not given. SPHEREx observes at ~90 deg solar elongation, so no retrograde motion is available to separate the two.",
+  "second_object_time_offset_s": [
+   1.3127754556341904,
+   2.3426953217422852
+  ]
+ },
+ "axes": {
+  "conclusion": "X_SC/Y_SC/Z_SC are geocentric with ICRF (GCRS, J2000) axes",
+  "files": [
+   {
+    "s3_key": "dr1/level2/2025W26_1A/l2b-v27-2026-213/1/level2_2025W26_1A_0410_1D1_spx_l2b-v27-2026-213.fits",
+    "frame": "GEOCENTER",
+    "dlon_gcrs_deg": -0.09605309984044652,
+    "dlon_earth_fixed_deg": -83.74573972103894,
+    "dlon_true_of_date_deg": -0.4207186580397888,
+    "altitude_km": 655.269566183003
+   },
+   {
+    "s3_key": "dr1/level2/2025W26_1A/l2b-v27-2026-213/4/level2_2025W26_1A_0410_1D4_spx_l2b-v27-2026-213.fits",
+    "frame": "GEOCENTER",
+    "dlon_gcrs_deg": -0.09605743096940955,
+    "dlon_earth_fixed_deg": -83.74573972103894,
+    "dlon_true_of_date_deg": -0.42072298916548334,
+    "altitude_km": 655.269566183003
+   },
+   {
+    "s3_key": "dr1/level2/2025W26_1A/l2b-v27-2026-213/4/level2_2025W26_1A_0410_2D4_spx_l2b-v27-2026-213.fits",
+    "frame": "GEOCENTER",
+    "dlon_gcrs_deg": 0.06592633550968685,
+    "dlon_earth_fixed_deg": -83.0423398650073,
+    "dlon_true_of_date_deg": -0.25599819647692357,
+    "altitude_km": 654.7053659267513
+   }
+  ],
+  "max_abs_dlon_gcrs_deg": 0.09605743096940955
+ },
+ "static_stars": {
+  "field": "wise-0855",
+  "n_fits": 1831,
+  "median_dra": -0.006115387927546851,
+  "median_ddec": -0.025885551951532193,
+  "by_snr": [
+   {
+    "snr": [
+     5,
+     10
+    ],
+    "n": 395,
+    "median_dra": -0.04553449284198677,
+    "median_ddec": -0.02701505684434835,
+    "scatter_ra": 0.29465557631311384,
+    "scatter_dec": 0.4286038199005493,
+    "fit_err_ra": 0.5453191987684134,
+    "fit_err_dec": 0.5388341521716313,
+    "pull_ra": 0.5364498286851077,
+    "pull_dec": 0.7665424861562259
+   },
+   {
+    "snr": [
+     10,
+     20
+    ],
+    "n": 718,
+    "median_dra": 0.001980133384421579,
+    "median_ddec": -0.047306273741476446,
+    "scatter_ra": 0.3511947413330718,
+    "scatter_dec": 0.4000919152891042,
+    "fit_err_ra": 0.27476005549124727,
+    "fit_err_dec": 0.28010978254327057,
+    "pull_ra": 1.2902490357151994,
+    "pull_dec": 1.4416422246440674
+   },
+   {
+    "snr": [
+     20,
+     50
+    ],
+    "n": 366,
+    "median_dra": 0.016201327605589726,
+    "median_ddec": 0.05907229283650395,
+    "scatter_ra": 0.2733394427533709,
+    "scatter_dec": 0.3214281716360988,
+    "fit_err_ra": 0.14877478251240428,
+    "fit_err_dec": 0.15768304626240603,
+    "pull_ra": 2.099626231832862,
+    "pull_dec": 2.2103125290473002
+   },
+   {
+    "snr": [
+     50,
+     null
+    ],
+    "n": 10,
+    "median_dra": 0.042211934261561,
+    "median_ddec": -0.0504885961071011,
+    "scatter_ra": 0.09012144602540502,
+    "scatter_dec": 0.2814367812189712,
+    "fit_err_ra": 0.05936496600268363,
+    "fit_err_dec": 0.06433580347911719,
+    "pull_ra": 1.2392710144915615,
+    "pull_dec": 3.7368070336609733
+   }
+  ],
+  "floor_arcsec": [
+   0.1690831021987714,
+   0.2770556736978371
+  ],
+  "floor_used_arcsec": 0.23
+ },
+ "eros": {
+  "object": "(433) Eros",
+  "prediction": "JPL Horizons geocentric astrometric RA/Dec + range, moved to the spacecraft position X_SC (ICRF); exposures from IRSA MOST (catalog=spherex)",
+  "n_total": 450,
+  "n_finast0": 450,
+  "n_accepted": 382,
+  "n": 382,
+  "median_dra_arcsec": -0.12337053051056888,
+  "median_ddec_arcsec": -0.05324906162407217,
+  "scatter_ra_arcsec": 0.17484931324747544,
+  "scatter_dec_arcsec": 0.1582747815160181,
+  "median_along_track_arcsec": -0.145850100481101,
+  "median_cross_track_arcsec": -0.015444860770266007,
+  "largest_residuals_arcsec": [
+   0.98,
+   1.41,
+   3.48
+  ],
+  "strict_rule": {
+   "n": 82,
+   "median_dra_arcsec": -0.14875395198096775,
+   "median_ddec_arcsec": -0.11328320669683478,
+   "scatter_ra_arcsec": 0.14546196187223118,
+   "scatter_dec_arcsec": 0.1563882919751657,
+   "median_along_track_arcsec": -0.16051827000045898,
+   "median_cross_track_arcsec": -0.08681359978286635,
+   "largest_residuals_arcsec": [
+    0.98,
+    1.41,
+    3.48
+   ]
+  },
+  "gained_by_mover_bits": {
+   "n": 300,
+   "median_dra_arcsec": -0.11743406484139376,
+   "median_ddec_arcsec": -0.03620217678914628,
+   "scatter_ra_arcsec": 0.17787235723755768,
+   "scatter_dec_arcsec": 0.1554455799784565,
+   "median_along_track_arcsec": -0.14284593848976912,
+   "median_cross_track_arcsec": -0.0021446561657800364,
+   "largest_residuals_arcsec": [
+    0.61,
+    0.65,
+    0.72
+   ]
+  },
+  "per_band": {
+   "D1": {
+    "n": 79,
+    "median_dra_arcsec": -0.16406113185723614,
+    "median_ddec_arcsec": 0.02232866225995167,
+    "scatter_ra_arcsec": 0.16864534121121572,
+    "scatter_dec_arcsec": 0.09229640287344182,
+    "median_along_track_arcsec": -0.1683814167618893,
+    "median_cross_track_arcsec": 0.036075803337127,
+    "largest_residuals_arcsec": [
+     0.85,
+     0.98,
+     1.41
+    ]
+   },
+   "D2": {
+    "n": 65,
+    "median_dra_arcsec": -0.10200995557579536,
+    "median_ddec_arcsec": -0.08681573336701831,
+    "scatter_ra_arcsec": 0.21446976108550192,
+    "scatter_dec_arcsec": 0.19642659899229897,
+    "median_along_track_arcsec": -0.1085275940353124,
+    "median_cross_track_arcsec": -0.0514865787704543,
+    "largest_residuals_arcsec": [
+     0.49,
+     0.59,
+     0.6
+    ]
+   },
+   "D3": {
+    "n": 42,
+    "median_dra_arcsec": -0.1377031847608841,
+    "median_ddec_arcsec": -0.11279480379471352,
+    "scatter_ra_arcsec": 0.2321089651583246,
+    "scatter_dec_arcsec": 0.3099798509193277,
+    "median_along_track_arcsec": -0.16314090992878513,
+    "median_cross_track_arcsec": 0.007786607182590155,
+    "largest_residuals_arcsec": [
+     0.6,
+     0.61,
+     0.72
+    ]
+   },
+   "D4": {
+    "n": 84,
+    "median_dra_arcsec": -0.11726881842029879,
+    "median_ddec_arcsec": -0.07736453904705343,
+    "scatter_ra_arcsec": 0.12467066719753196,
+    "scatter_dec_arcsec": 0.13175601498253825,
+    "median_along_track_arcsec": -0.14263691546241303,
+    "median_cross_track_arcsec": -0.04523108758559383,
+    "largest_residuals_arcsec": [
+     0.47,
+     0.56,
+     3.48
+    ]
+   },
+   "D5": {
+    "n": 67,
+    "median_dra_arcsec": -0.13705870395920214,
+    "median_ddec_arcsec": -0.12527803641830815,
+    "scatter_ra_arcsec": 0.14021621160090766,
+    "scatter_dec_arcsec": 0.1639009530872792,
+    "median_along_track_arcsec": -0.17033304199922789,
+    "median_cross_track_arcsec": -0.08151926201986748,
+    "largest_residuals_arcsec": [
+     0.53,
+     0.54,
+     0.54
+    ]
+   },
+   "D6": {
+    "n": 45,
+    "median_dra_arcsec": -0.09050891999704752,
+    "median_ddec_arcsec": 0.00040324071761688174,
+    "scatter_ra_arcsec": 0.2740666669254783,
+    "scatter_dec_arcsec": 0.15712854441774396,
+    "median_along_track_arcsec": -0.07743166182558021,
+    "median_cross_track_arcsec": 0.019736390622573347,
+    "largest_residuals_arcsec": [
+     0.53,
+     0.61,
+     0.65
+    ]
+   }
+  },
+  "per_snr": {
+   "5-10": {
+    "n": 4,
+    "median_dra_arcsec": 0.1457836405299233,
+    "median_ddec_arcsec": 0.11663353543447386,
+    "scatter_ra_arcsec": 0.11554312351805564,
+    "scatter_dec_arcsec": 0.12177952700919512,
+    "median_along_track_arcsec": 0.20012023776353238,
+    "median_cross_track_arcsec": 0.07069078069155421,
+    "largest_residuals_arcsec": [
+     0.28,
+     0.29,
+     0.3
+    ]
+   },
+   "10-20": {
+    "n": 59,
+    "median_dra_arcsec": -0.15369803353260886,
+    "median_ddec_arcsec": -0.06498608586937848,
+    "scatter_ra_arcsec": 0.23117666786578428,
+    "scatter_dec_arcsec": 0.14230298922731194,
+    "median_along_track_arcsec": -0.15929216773895663,
+    "median_cross_track_arcsec": -0.013952951801812684,
+    "largest_residuals_arcsec": [
+     0.6,
+     0.85,
+     0.98
+    ]
+   },
+   "20-40": {
+    "n": 253,
+    "median_dra_arcsec": -0.13008950788946705,
+    "median_ddec_arcsec": -0.05293940003809894,
+    "scatter_ra_arcsec": 0.16460290566993963,
+    "scatter_dec_arcsec": 0.15851046236306757,
+    "median_along_track_arcsec": -0.14737897422295448,
+    "median_cross_track_arcsec": -0.020499259577675375,
+    "largest_residuals_arcsec": [
+     0.73,
+     1.41,
+     3.48
+    ]
+   },
+   "40-1000": {
+    "n": 66,
+    "median_dra_arcsec": -0.10715242689107798,
+    "median_ddec_arcsec": -0.062101011648252324,
+    "scatter_ra_arcsec": 0.18271891394749934,
+    "scatter_dec_arcsec": 0.16293083169442396,
+    "median_along_track_arcsec": -0.11400840958924324,
+    "median_cross_track_arcsec": 0.011120541761848284,
+    "largest_residuals_arcsec": [
+     0.54,
+     0.56,
+     0.65
+    ]
+   }
+  },
+  "parallax_range_arcsec": [
+   0.1388366226654248,
+   10.416794961648101
+  ],
+  "trail_range_arcsec": [
+   1.8966851953460697,
+   4.904381474634468
+  ]
+ },
+ "wise0855": {
+  "regime": "between_epochs",
+  "n_exposures": 52,
+  "n_accepted": 2,
+  "per_epoch": [
+   {
+    "epoch": 0,
+    "date": "2025-05-06",
+    "n_exposures": 5,
+    "n_accepted": 1,
+    "n_snr_ge_3_unblended": 3,
+    "sep_from_coadd_arcsec": 0.4355938891698553,
+    "expected_arcsec": 0.8789757276840476
+   },
+   {
+    "epoch": 1,
+    "date": "2025-11-12",
+    "n_exposures": 24,
+    "n_accepted": 1,
+    "n_snr_ge_3_unblended": 14,
+    "sep_from_coadd_arcsec": 0.26376648026837746,
+    "expected_arcsec": 0.5164607567350147
+   },
+   {
+    "epoch": 2,
+    "date": "2026-04-26",
+    "n_exposures": 23,
+    "n_accepted": 0,
+    "n_snr_ge_3_unblended": 0
+   }
+  ],
+  "note": "too faint per exposure for MPC-grade positions; epoch means agree with the co-add"
+ },
+ "second_object": {
+  "object": "(31) Euphrosyne",
+  "speed_range_arcsec_per_s": [
+   0.002114789945915176,
+   0.009659335233750047
+  ],
+  "time_offset_if_all_along_track_s": [
+   1.3127754556341904,
+   2.3426953217422852
+  ],
+  "prediction": "JPL Horizons geocentric astrometric RA/Dec + range, moved to the spacecraft position X_SC (ICRF); exposures from IRSA MOST (catalog=spherex)",
+  "n_total": 350,
+  "n_finast0": 350,
+  "n_accepted": 275,
+  "n": 275,
+  "median_dra_arcsec": -0.010546029511375165,
+  "median_ddec_arcsec": 0.023906674783802373,
+  "scatter_ra_arcsec": 0.2390562350224929,
+  "scatter_dec_arcsec": 0.18289612383617054,
+  "median_along_track_arcsec": 0.009059149185129942,
+  "median_cross_track_arcsec": 0.14232556371170454,
+  "largest_residuals_arcsec": [
+   3.57,
+   5.67,
+   5.82
+  ],
+  "strict_rule": {
+   "n": 173,
+   "median_dra_arcsec": 0.027339703952410175,
+   "median_ddec_arcsec": 0.007789231582933098,
+   "scatter_ra_arcsec": 0.22613190831113486,
+   "scatter_dec_arcsec": 0.21138700954627268,
+   "median_along_track_arcsec": 0.05148459942305476,
+   "median_cross_track_arcsec": 0.12330408241790129,
+   "largest_residuals_arcsec": [
+    3.57,
+    5.67,
+    5.82
+   ]
+  },
+  "gained_by_mover_bits": {
+   "n": 102,
+   "median_dra_arcsec": -0.04585210195780198,
+   "median_ddec_arcsec": 0.04518243574480607,
+   "scatter_ra_arcsec": 0.22746648964210986,
+   "scatter_dec_arcsec": 0.1609795026057108,
+   "median_along_track_arcsec": -0.02376201223371993,
+   "median_cross_track_arcsec": 0.16630865476635764,
+   "largest_residuals_arcsec": [
+    0.53,
+    0.53,
+    0.61
+   ]
+  },
+  "per_band": {
+   "D1": {
+    "n": 49,
+    "median_dra_arcsec": -0.04372670251256164,
+    "median_ddec_arcsec": 0.037891432596381946,
+    "scatter_ra_arcsec": 0.27797341994659125,
+    "scatter_dec_arcsec": 0.11461670251170204,
+    "median_along_track_arcsec": 0.008308201775159237,
+    "median_cross_track_arcsec": 0.15228648772888992,
+    "largest_residuals_arcsec": [
+     0.68,
+     0.78,
+     0.96
+    ]
+   },
+   "D2": {
+    "n": 46,
+    "median_dra_arcsec": 0.005147383880781477,
+    "median_ddec_arcsec": 0.05929556231620836,
+    "scatter_ra_arcsec": 0.1914076902829477,
+    "scatter_dec_arcsec": 0.23180369977681747,
+    "median_along_track_arcsec": -0.0032624067088897965,
+    "median_cross_track_arcsec": 0.16309052284485132,
+    "largest_residuals_arcsec": [
+     0.62,
+     0.68,
+     1.15
+    ]
+   },
+   "D3": {
+    "n": 46,
+    "median_dra_arcsec": 0.1283028719745939,
+    "median_ddec_arcsec": 0.019071001379700192,
+    "scatter_ra_arcsec": 0.3675612211286144,
+    "scatter_dec_arcsec": 0.3965847233488085,
+    "median_along_track_arcsec": 0.1075457004449736,
+    "median_cross_track_arcsec": 0.198263584355243,
+    "largest_residuals_arcsec": [
+     1.17,
+     2.19,
+     5.82
+    ]
+   },
+   "D4": {
+    "n": 38,
+    "median_dra_arcsec": -0.02646443031395397,
+    "median_ddec_arcsec": 0.02177339204294526,
+    "scatter_ra_arcsec": 0.24338046510518171,
+    "scatter_dec_arcsec": 0.14133398568887628,
+    "median_along_track_arcsec": -0.06122218978041573,
+    "median_cross_track_arcsec": 0.109319988225699,
+    "largest_residuals_arcsec": [
+     0.58,
+     1.14,
+     3.57
+    ]
+   },
+   "D5": {
+    "n": 48,
+    "median_dra_arcsec": -0.037347045625558156,
+    "median_ddec_arcsec": -0.018607454163088732,
+    "scatter_ra_arcsec": 0.23229314622360026,
+    "scatter_dec_arcsec": 0.17704097372800107,
+    "median_along_track_arcsec": -0.07141621251457958,
+    "median_cross_track_arcsec": 0.10903217879983879,
+    "largest_residuals_arcsec": [
+     0.41,
+     0.43,
+     0.79
+    ]
+   },
+   "D6": {
+    "n": 48,
+    "median_dra_arcsec": 0.03564142667674745,
+    "median_ddec_arcsec": 0.0451549596370171,
+    "scatter_ra_arcsec": 0.16827889556331438,
+    "scatter_dec_arcsec": 0.16671811005729267,
+    "median_along_track_arcsec": 0.0613847662591654,
+    "median_cross_track_arcsec": 0.12109097038949874,
+    "largest_residuals_arcsec": [
+     0.54,
+     1.43,
+     5.67
+    ]
+   }
+  },
+  "per_snr": {
+   "5-10": {
+    "n": 27,
+    "median_dra_arcsec": -0.038738264842458674,
+    "median_ddec_arcsec": -0.03632483531248454,
+    "scatter_ra_arcsec": 0.11095218262598257,
+    "scatter_dec_arcsec": 0.25749884552067726,
+    "median_along_track_arcsec": 0.0023169945692670738,
+    "median_cross_track_arcsec": 0.05243607194781886,
+    "largest_residuals_arcsec": [
+     0.55,
+     0.56,
+     0.7
+    ]
+   },
+   "10-20": {
+    "n": 110,
+    "median_dra_arcsec": 0.03701930746778584,
+    "median_ddec_arcsec": 0.012667364731555608,
+    "scatter_ra_arcsec": 0.24491152065079067,
+    "scatter_dec_arcsec": 0.17603391796206777,
+    "median_along_track_arcsec": 0.008683675480144589,
+    "median_cross_track_arcsec": 0.14729222012955512,
+    "largest_residuals_arcsec": [
+     2.19,
+     3.57,
+     5.82
+    ]
+   },
+   "20-40": {
+    "n": 129,
+    "median_dra_arcsec": 0.016554349524165794,
+    "median_ddec_arcsec": 0.035092701224925804,
+    "scatter_ra_arcsec": 0.246353626091604,
+    "scatter_dec_arcsec": 0.1817958773871655,
+    "median_along_track_arcsec": 0.01855413683081776,
+    "median_cross_track_arcsec": 0.15292884042798888,
+    "largest_residuals_arcsec": [
+     1.15,
+     1.43,
+     5.67
+    ]
+   },
+   "40-1000": {
+    "n": 9,
+    "median_dra_arcsec": -0.2026799800886902,
+    "median_ddec_arcsec": 0.12062257343359306,
+    "scatter_ra_arcsec": 0.0692495476281986,
+    "scatter_dec_arcsec": 0.15174969500806867,
+    "median_along_track_arcsec": 0.07707654315364201,
+    "median_cross_track_arcsec": 0.20073820781788612,
+    "largest_residuals_arcsec": [
+     0.27,
+     0.3,
+     0.53
+    ]
+   }
+  },
+  "parallax_range_arcsec": [
+   0.06808578384326983,
+   1.8112168492794773
+  ],
+  "trail_range_arcsec": [
+   0.24020334051090508,
+   1.097132410120938
+  ]
+ }
+}
