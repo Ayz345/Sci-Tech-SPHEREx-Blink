@@ -14,7 +14,13 @@ The fraction of exposures truly saturated at the target is reported per band and
      exposures whose truly-saturated pixels touch the grid pixel (bilinear weight > 0.25) / overlapping exposures.
      Inside 36": every +inf pixel has grid_sat_frac > 0.15 or no kept sample (weight 0); every finite pixel has
      grid_sat_frac <= 0.15. sat_fraction_at_target (rule 2/3) is per exposure at the nearest DETECTOR pixel and is a
-     different quantity; the JSON gives both.
+     different quantity; the JSON gives both. The fraction branch needs >= 2 saturated exposures.
+  5. No false "saturated" claim in empty sky (scripts/acceptance.py check_empty_sky_inf, plus a 1-pixel gap
+     tolerance): +inf pixels are grouped 8-connected after a 1-pixel dilation, so a saturated region broken by a
+     single row of recovered (finite) pixels stays one region (R Dra D1 epoch 1: islands at 20" from the target);
+     every group must contain a pixel within 12" of the target track or of a Gaia DR3 source with G < 12
+     (inf_regions_unattached = 0). no_sample_inf_max_dist_arcsec = largest
+     distance from a no-sample +inf pixel to a persistent overflow core (OVERFLOW in >= 2 exposures; rule <= 21").
 """
 from __future__ import annotations
 
@@ -30,7 +36,10 @@ warnings.filterwarnings("ignore")
 import numpy as np
 
 from spx import access
-from scipy.ndimage import map_coordinates
+import astropy.units as u
+import pyvo
+from astropy.coordinates import SkyCoord
+from scipy.ndimage import binary_dilation, distance_transform_edt, label, map_coordinates
 
 from spx.coadd import build_frames, half_px_for, prepare, saturated_pixels, target_at
 from spx.targets import TARGETS, target_coord
@@ -50,11 +59,13 @@ def sat_fraction(cuts, tgt):
 
 
 def grid_sat_fraction(frame, cuts):
-    """Per grid pixel: (n truly-saturated exposures, n overlapping exposures), recomputed like build_frames."""
+    """Per grid pixel: (n truly-saturated exposures, n overlapping exposures, any-exposure OVERFLOW map),
+    recomputed like build_frames."""
     yy, xx = np.mgrid[0:frame.grid.shape[0], 0:frame.grid.shape[1]]
     sky = frame.grid.wcs.pixel_to_world(xx, yy)
     nsat = np.zeros(frame.grid.shape)
     nov = np.zeros(frame.grid.shape)
+    novf = np.zeros(frame.grid.shape)
     for c in cuts:
         p = prepare(c)
         if p is None:
@@ -63,7 +74,17 @@ def grid_sat_fraction(frame, cuts):
         ny, nx = p[0].shape
         nov += (px >= 0) & (py >= 0) & (px <= nx - 1) & (py <= ny - 1)
         nsat += map_coordinates(p[3], [py, px], order=1, cval=0.0, prefilter=False) > 0.25
-    return nsat, nov
+        o = ((np.asarray(c.flags) & (1 << 1)) != 0).astype(float)  # OVERFLOW
+        novf += map_coordinates(o, [py, px], order=1, cval=0.0, prefilter=False) > 0.25
+    return nsat, nov, novf >= 2
+
+
+def bright_gaia(center, radius_deg=0.1, gmax=12.0):
+    t = pyvo.dal.TAPService("https://gea.esac.esa.int/tap-server/tap").run_sync(
+        "select ra, dec from gaiadr3.gaia_source where "
+        f"1=CONTAINS(POINT('ICRS',ra,dec), CIRCLE('ICRS',{center.ra.deg},{center.dec.deg},{radius_deg})) "
+        f"and phot_g_mean_mag < {gmax}").to_table()
+    return SkyCoord(np.array(t["ra"]) * u.deg, np.array(t["dec"]) * u.deg) if len(t) else None
 
 
 def run():
@@ -74,6 +95,7 @@ def run():
         refs = access.find_images(c.ra.deg, c.dec.deg)
         _, ep = access.epochs_for(refs)
         cuts, _ = access.fetch_cutouts(refs, c.ra.deg, c.dec.deg, half_px=half_px_for(7.0))
+        bright = bright_gaia(c)
         for d in range(1, 7):
             dc = [x for x in cuts if x.detector == d]
             fs = build_frames(dc, tgt, epochs=ep, center=c)
@@ -89,15 +111,37 @@ def run():
                 fin = np.where(np.isfinite(f.image) & (np.hypot(xx - tx, yy - ty) <= 3), f.image, -np.inf)
                 j = np.argmax(fin)
                 peak_off = float(np.hypot(xx.flat[j] - tx, yy.flat[j] - ty)) if np.isfinite(fin.flat[j]) else None
-                ns, no = grid_sat_fraction(f, [x for x in dc if x.obs_id in ids])
+                ns, no, ovf = grid_sat_fraction(f, [x for x in dc if x.obs_id in ids])
                 gfrac = np.where(no > 0, ns / np.maximum(no, 1), 0.0)
+                byfrac = (gfrac > 0.15) & (ns >= 2)
                 inf_m, fin_m = near & np.isposinf(f.image), near & np.isfinite(f.image)
-                viol_inf = inf_m & ~((gfrac > 0.15) | (f.weight == 0))
-                viol_fin = fin_m & (gfrac > 0.15)
+                viol_inf = inf_m & ~(byfrac | (f.weight == 0))
+                viol_fin = fin_m & byfrac
+                allinf = np.isposinf(f.image)
+                farmask = np.hypot(xx - tx, yy - ty) * f.grid.pix_arcsec > 30
+                if bright is not None:
+                    bx, by = f.grid.wcs.world_to_pixel(bright)
+                    for x_, y_ in zip(np.atleast_1d(bx), np.atleast_1d(by)):
+                        farmask &= np.hypot(xx - x_, yy - y_) * f.grid.pix_arcsec > 30
+                attach = np.hypot(xx - tx, yy - ty) * f.grid.pix_arcsec <= 12
+                if bright is not None:
+                    for x_, y_ in zip(np.atleast_1d(bx), np.atleast_1d(by)):
+                        attach |= np.hypot(xx - x_, yy - y_) * f.grid.pix_arcsec <= 12
+                eight = np.ones((3, 3), bool)
+                grouped = binary_dilation(allinf, iterations=1, structure=eight) if allinf.any() else allinf
+                lab, nreg = label(grouped, structure=eight)
+                lab = np.where(allinf, lab, 0)
+                unattached = [k for k in range(1, nreg + 1) if (lab == k).any() and not attach[lab == k].any()]
+                nosamp = allinf & (f.weight == 0)
+                dist = distance_transform_edt(~ovf) * f.grid.pix_arcsec if ovf.any() else np.full(ovf.shape, np.inf)
                 rows.append({"target": key, "band": f.band, "epoch": f.epoch, "date": f.epoch_label,
                              "grid_sat_frac_at_target": round(float(gfrac[yi, xi]), 3),
-                             "inf_px_by_fraction": int((inf_m & (gfrac > 0.15)).sum()),
-                             "inf_px_no_sample": int((inf_m & (gfrac <= 0.15) & (f.weight == 0)).sum()),
+                             "inf_px_by_fraction": int((inf_m & byfrac).sum()),
+                             "inf_px_no_sample": int((inf_m & ~byfrac & (f.weight == 0)).sum()),
+                             "inf_far_from_target_and_bright_stars": int((allinf & farmask).sum()),
+                             "inf_regions_unattached": len(unattached),
+                             "inf_px_unattached": int(np.isin(lab, unattached).sum()) if unattached else 0,
+                             "no_sample_inf_max_dist_arcsec": round(float(dist[nosamp].max()), 1) if nosamp.any() else None,
                              "inf_min_grid_sat_frac": round(float(gfrac[inf_m].min()), 3) if inf_m.any() else None,
                              "finite_max_grid_sat_frac": round(float(gfrac[fin_m].max()), 3) if fin_m.any() else None,
                              "rule_violations": int(viol_inf.sum() + viol_fin.sum()),
@@ -119,7 +163,14 @@ def test_saturated_cores():
           [(r["target"], r["band"], r["epoch"], r["rule_violations"]) for r in rows if r["rule_violations"]])
     bad = [r for r in rows if r["nan_covered"] > 0]
     assert not bad, f"NaN inside covered area: {[(r['target'], r['band'], r['epoch'], r['nan_covered']) for r in bad]}"
+    print("+inf regions not attached to the target or a G<12 star:",
+          [(r["target"], r["band"], r["epoch"], r["inf_px_unattached"]) for r in rows if r["inf_regions_unattached"]])
+    print("+inf pixels beyond 30 arcsec (attached to the target / bright star):",
+          [(r["target"], r["band"], r["epoch"], r["inf_far_from_target_and_bright_stars"]) for r in rows if r["inf_far_from_target_and_bright_stars"]])
+    md = [r["no_sample_inf_max_dist_arcsec"] for r in rows if r["no_sample_inf_max_dist_arcsec"] is not None]
+    print("no-sample +inf: largest distance to a persistent overflow core:", max(md) if md else None, "arcsec")
     assert not any(r["rule_violations"] for r in rows)
+    assert not any(r["inf_regions_unattached"] for r in rows)
     for r in rows:
         if r["target"] in ("barnard", "r-dra") and r["sat_fraction_at_target"] > 0.15:
             assert r["core"] == "inf", r

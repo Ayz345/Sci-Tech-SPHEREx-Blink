@@ -37,7 +37,7 @@ from astropy.coordinates import SkyCoord
 from astropy.stats import sigma_clipped_stats
 from astropy.time import Time
 from astropy.wcs import WCS
-from scipy.ndimage import gaussian_filter, map_coordinates
+from scipy.ndimage import distance_transform_edt, gaussian_filter, map_coordinates
 
 PIX_ARCSEC = 6.15  # native SPHEREx pixel
 
@@ -57,8 +57,13 @@ _OVF, _SUR, _NL = (1 << FLAG_BITS[n] for n in ("OVERFLOW", "SUR_ERROR", "NONLINE
 # bits that may accompany a recovered overflow (bright-star core: late transient, bloom mantle)
 _OVF_COMPANIONS = _OVF | (1 << FLAG_BITS["TRANSIENT"]) | (1 << FLAG_BITS["BLOOM"])
 SATURATION_MASK = _OVF | _NL  # kept for callers; use saturated_pixels() for the exact rule
-# any sign of a bright/saturated source at a pixel: decides +inf when no usable sample is left
+# sign of a bright/saturated source at a pixel: decides +inf when no usable sample is left, but only within
+# MANTLE_ARCSEC of a PERSISTENT overflow core (grid pixels with OVERFLOW in >= 2 exposures). A star overflows at the
+# same sky position in several exposures; a cosmic ray or snowball overflows in one, and ghosts move on the sky
+# between exposures. Elsewhere a pixel without usable samples stays NaN (no data). 21" = largest distance of a
+# no-sample pixel around the saturated cores of Barnard (15") and R Dra (20") in the test fields.
 SATURATION_EVIDENCE = _OVF | _NL | (1 << FLAG_BITS["BLOOM"]) | (1 << FLAG_BITS["TRANSIENT"])
+MANTLE_ARCSEC = 21.0
 
 
 def saturated_pixels(flags) -> np.ndarray:
@@ -66,7 +71,8 @@ def saturated_pixels(flags) -> np.ndarray:
     SUR_ERROR on the same pixel (overflow in the first ~5 s, no usable reads, no nonlinearity correction),
     or NONLINEAR (correction not trusted)."""
     f = np.asarray(flags)
-    return (((f & _OVF) != 0) & ((f & _SUR) != 0)) | ((f & _NL) != 0)
+    # dead/hot/cold/missing pixels prove nothing (Eps Indi B D6: a NONFUNC cluster carries OVERFLOW+SUR_ERROR)
+    return ((((f & _OVF) != 0) & ((f & _SUR) != 0)) | ((f & _NL) != 0)) & ((f & HARD_MASK) == 0)
 
 
 def usable_pixels(flags) -> np.ndarray:
@@ -189,7 +195,7 @@ def select_spread(mjd, n: int) -> np.ndarray:
 # --------------------------------------------------------------------------- per exposure
 
 def prepare(cut, min_good: int = 200):
-    """Mask, subtract local background. Returns (clean, soft, sigma, satmask, evidence) or None.
+    """Mask, subtract local background. Returns (clean, soft, sigma, satmask, evidence, overflow) or None.
 
     clean: unusable pixels NaN. soft: only HARD_MASK pixels NaN (used only to fill saturated cores when
     saturated="fill"). satmask: float 1 where the pixel is truly saturated (saturated_pixels). evidence: float 1
@@ -218,8 +224,10 @@ def prepare(cut, min_good: int = 200):
     soft = np.where(np.isfinite(img) & ((flags & HARD_MASK) == 0), d, np.nan)
     d[~good] = np.nan
     sat = saturated_pixels(flags).astype(float)
-    ev = (((flags & SATURATION_EVIDENCE) != 0) | (~np.isfinite(img) & ((flags & _OVF) != 0))).astype(float)
-    return d, soft, float(std), sat, ev
+    live = (flags & HARD_MASK) == 0
+    ovf = ((flags & _OVF) != 0) & live
+    ev = ((((flags & SATURATION_EVIDENCE) != 0) & live) | (~np.isfinite(img) & ovf)).astype(float)
+    return d, soft, float(std), sat, ev, ovf.astype(float)
 
 
 def resample(d: np.ndarray, px: np.ndarray, py: np.ndarray, min_cov: float = 0.4):
@@ -358,7 +366,7 @@ def build_frames(cutouts, target: SkyCoord, fov_arcmin: float = 7.0, pix_arcsec:
     for (band, e), idx in sorted(groups.items()):
         if max_exposures:
             idx = [idx[j] for j in select_spread(mjd[idx], max_exposures)]
-        vals, softs, sats, evs, ovl, sig, used = [], [], [], [], [], [], []
+        vals, softs, sats, evs, ovfs, ovl, sig, used = [], [], [], [], [], [], [], []
         for i in idx:
             p = prepare(cuts[i])
             if p is None:
@@ -372,6 +380,7 @@ def build_frames(cutouts, target: SkyCoord, fov_arcmin: float = 7.0, pix_arcsec:
                 softs.append(resample(p[1], px, py)[0])
                 sats.append(map_coordinates(p[3], [py, px], order=1, cval=0.0, prefilter=False) > 0.25)
                 evs.append(map_coordinates(p[4], [py, px], order=1, cval=0.0, prefilter=False) > 0.25)
+                ovfs.append(map_coordinates(p[5], [py, px], order=1, cval=0.0, prefilter=False) > 0.25)
         if len(used) < min_exposures:
             continue
         stack = np.stack(vals)
@@ -380,12 +389,19 @@ def build_frames(cutouts, target: SkyCoord, fov_arcmin: float = 7.0, pix_arcsec:
         mean, wsum, nkeep = combine(stack, sig, clip=clip, rel_tol=rel_tol)
         filled = np.zeros(grid.shape, bool)
         if saturated != "nan":
-            # +inf where (a) no usable sample is left and some exposure shows saturation there, or (b) more than
-            # 15% of the overlapping exposures are truly saturated there: the recovered rest is then a brightness-
-            # biased subset (Barnard D5: 20% saturated -> recovered core 2373/1882/1353 MJy/sr over three epochs of a
-            # constant star; D6, 0% saturated: 1247/1176/1195)
+            # +inf where (a) no usable sample is left, saturation evidence is there in at least min(2, overlap)
+            # exposures and the pixel is within MANTLE_ARCSEC of a persistent overflow core (OVERFLOW in >= 2
+            # exposures), or (b) at least 2 and more than 15% of the overlapping exposures are truly saturated there:
+            # the recovered rest is then a brightness-biased subset (Barnard D5: 20% saturated -> recovered core
+            # 2373/1882/1353 MJy/sr over three epochs of a constant star; D6, 0% saturated: 1247/1176/1195).
+            # A star saturates at the same sky position in several exposures; a single saturated exposure is a
+            # cosmic ray or snowball (Eps Indi B D1 epoch 0: one early overflow in 1 of 3 exposures, empty sky).
             nsat = np.sum(sats, axis=0)
-            filled = (overlap > 0) & (((nkeep == 0) & np.any(evs, axis=0)) | (nsat > 0.15 * overlap))
+            nev = np.sum(evs, axis=0)
+            core = np.sum(ovfs, axis=0) >= 2
+            mantle = (distance_transform_edt(~core) * grid.pix_arcsec <= MANTLE_ARCSEC) if core.any() else core
+            filled = (overlap > 0) & (((nkeep == 0) & (nev >= np.minimum(2, overlap)) & mantle)
+                                      | ((nsat >= 2) & (nsat > 0.15 * overlap)))
             if filled.any():
                 if saturated == "fill":
                     with warnings.catch_warnings():
