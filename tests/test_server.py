@@ -600,3 +600,25 @@ def test_candidates_without_detector_is_503(client, monkeypatch):
     key = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}))["key"]
     r = client.get("/api/candidates", params={"key": key})
     assert r.status_code == 503 and "spx.detect" in r.json()["message"]
+
+
+def test_make_candidates_script_on_a_gallery_folder(tmp_path, monkeypatch):
+    import importlib.util
+    from server import pipeline as P
+    spec = importlib.util.spec_from_file_location("make_candidates", P.Path(__file__).parent.parent / "scripts" / "make_candidates.py")
+    mc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mc)
+    d = tmp_path / "wise-0855"
+    d.mkdir()
+    (tmp_path / "index.json").write_text(json.dumps({"targets": [{"key": "wise-0855"}, {"key": "barnard"}]}))
+    (d / "manifest.json").write_text(json.dumps({"schema": 1, "key": "wise-0855"}))
+    (d / "gaia.json").write_text(json.dumps([{"ra": 1.0, "dec": 2.0}]))
+    (d / "D1.json").write_text("{}")
+    fake = _FakeDetect()
+    monkeypatch.setattr(P, "detect_module", lambda: fake)
+    assert mc.main(["--data", str(tmp_path)]) == 1                     # barnard has no folder
+    c = json.loads((d / "candidates.json").read_text())
+    assert c["schema"] == 1 and c["key"] == "wise-0855" and c["bands_searched"] == ["D1"]
+    assert fake.seen[0]["gaia"] == [{"ra": 1.0, "dec": 2.0}]
+    monkeypatch.setattr(P, "detect_module", lambda: None)
+    assert mc.main(["--data", str(tmp_path), "wise-0855"]) == 2
