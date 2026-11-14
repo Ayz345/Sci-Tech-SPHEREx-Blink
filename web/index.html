@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPHEREx Blink · test harness</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <strong>SPHEREx Blink</strong> <span class="tag">placeholder test page, not the final design</span>
+  <span id="source" class="muted"></span>
+  <span id="links"></span>
+  <button id="copyEmbed" type="button" disabled title="copy an iframe snippet for this view">copy embed code</button>
+</header>
+
+<section id="pick">
+  <div id="targets"></div>
+  <form id="coordForm">
+    <label>Name <input name="name" size="14" placeholder="e.g. RW Aur"></label>
+    <span class="muted">or</span>
+    <label>RA <input name="ra" size="12" placeholder="deg or hh:mm:ss"></label>
+    <label>Dec <input name="dec" size="12" placeholder="deg or dd:mm:ss"></label>
+    <label>FOV <input name="fov" size="6" placeholder="deg" value="0.1"></label>
+    <button>Go</button>
+  </form>
+  <div id="fovButtons" class="row"><span class="muted">field</span></div>
+</section>
+
+<div id="status"></div>
+<ul id="notes"></ul>
+
+<main>
+  <div id="view">
+    <canvas id="canvas" width="420" height="420"></canvas>
+    <div id="readout" class="mono">move the mouse over the image</div>
+    <div id="embedLine" class="muted"><a id="fullView" target="_blank" rel="noopener">open full view</a> · <span id="ackLine"></span></div>
+  </div>
+
+  <aside>
+    <fieldset><legend>Band</legend><div id="bands"></div>
+      <button id="swapBand" type="button" disabled title="switch back to the previous band (key t)">⇄ previous band (t)</button></fieldset>
+
+    <fieldset><legend>Frame</legend>
+      <div class="row">
+        <button id="play">Play</button>
+        <label>speed <input id="speed" type="range" min="1" max="10" value="3"></label>
+      </div>
+      <input id="epoch" type="range" min="0" max="0" value="0">
+      <div id="epochLabel" class="mono"></div>
+    </fieldset>
+
+    <fieldset><legend>View</legend>
+      <label>mode <select id="mode">
+        <option value="blink">blink</option><option value="diff">difference (epoch − mean of others)</option>
+        <option value="sum">sum (mean of all epochs)</option>
+        <option value="rgb">false colour (3 bands)</option></select></label>
+      <div id="rgbBox" hidden>
+        <label>red <select id="rgbR"></select></label>
+        <label>green <select id="rgbG"></select></label>
+        <label>blue <select id="rgbB"></select></label>
+        <div class="muted">each channel uses its own band's shared scale</div>
+      </div>
+      <label>layer <select id="layer">
+        <option value="image">image</option><option value="weight">weight (exposures)</option>
+        <option value="flagfrac">flagfrac (masked fraction)</option></select></label>
+      <label>zoom <select id="zoom"><option>1</option><option>2</option><option selected>3</option>
+        <option>4</option><option>6</option></select> <span class="muted">(cosmetic, nearest-neighbour)</span></label>
+    </fieldset>
+
+    <fieldset id="stretchBox"><legend>Stretch (asinh)</legend>
+      <label>vmin <input id="vmin" size="9"></label>
+      <label>vmax <input id="vmax" size="9"></label>
+      <label>soft <input id="soft" size="9"></label>
+      <button id="autoScale" type="button">reset</button>
+      <div id="scaleSrc" class="muted"></div>
+    </fieldset>
+
+    <fieldset id="overlayBox"><legend>Overlays</legend>
+      <label><input type="checkbox" id="ovQuery" checked> query position (+)</label>
+      <label><input type="checkbox" id="ovTrack" checked> target track</label>
+      <label><input type="checkbox" id="ovGaia"> Gaia DR3 (propagated to epoch)</label>
+    </fieldset>
+  </aside>
+</main>
+
+<section id="plots">
+  <div><h3>Spectrum <span id="specWhere" class="muted"></span></h3><svg id="spec" viewBox="0 0 460 220"></svg></div>
+  <div><h3>Light curve <span id="lcWhere" class="muted"></span></h3><svg id="lc" viewBox="0 0 460 220"></svg></div>
+  <div id="wingBox" hidden><h3>Relative brightness from PSF wings <span id="wingWhere" class="muted"></span></h3>
+    <svg id="wing" viewBox="0 0 460 220"></svg>
+    <div class="muted">Saturated exposures only. MJy/sr, relative; not comparable with the mJy axes.</div></div>
+</section>
+<div id="specNote" class="muted"></div>
+
+<section id="meta"></section>
+
+<details id="logBox" open><summary>Request log</summary><ol id="log" class="mono"></ol></details>
+
+<footer class="muted">
+  Keys: space play/pause · ←/→ epoch · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · +/− zoom.
+  Data source: <code>?data=dev-fixtures/data</code> (static, default <code>data</code>) or
+  <code>?api=http://localhost:8000</code>. Pixel scale is read from the manifest grid; SPHEREx native pixel is 6.15″.
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

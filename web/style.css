@@ -1,0 +1,55 @@
+/* Placeholder styling for the test harness. The real design comes later. */
+:root { color-scheme: dark; --bg: #121214; --fg: #e6e6e6; --muted: #8a8a90; --line: #2c2c31; --accent: #e89a3c; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 12px 16px 40px; background: var(--bg); color: var(--fg);
+  font: 14px/1.4 system-ui, sans-serif; }
+.mono, code, #log { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.muted { color: var(--muted); }
+.tag { font-size: 12px; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); }
+header { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; margin-bottom: 10px; }
+#pick { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+#targets { display: flex; gap: 6px; flex-wrap: wrap; }
+button, select, input { background: #1d1d21; color: var(--fg); border: 1px solid var(--line); border-radius: 4px;
+  padding: 3px 7px; font: inherit; }
+button { cursor: pointer; }
+button.on { border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+#status { min-height: 1.4em; color: var(--accent); }
+#status.err { color: #ff6b5b; }
+#notes { margin: 4px 0 8px; padding-left: 18px; color: #d8c48a; }
+main { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+#view { max-width: 100%; }
+canvas { display: block; background: #000; max-width: 100%; image-rendering: pixelated; cursor: crosshair; }
+#readout { margin-top: 4px; min-height: 2.8em; white-space: pre; }
+aside { flex: 1 1 260px; max-width: 380px; }
+fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0 0 10px; padding: 6px 10px 10px; }
+fieldset label { display: block; margin: 4px 0; }
+#bands { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+[hidden] { display: none !important; }
+#bands button small { display: block; font-size: 10px; color: var(--muted); }
+.row { display: flex; gap: 10px; align-items: center; }
+#epoch { width: 100%; margin-top: 8px; }
+#plots { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+#plots > div { flex: 1 1 360px; max-width: 560px; }
+#plots h3 { margin: 4px 0; font-size: 14px; }
+svg { width: 100%; background: #0b0b0d; border: 1px solid var(--line); }
+#meta { margin-top: 12px; font-size: 13px; }
+#meta dt { color: var(--muted); }
+#meta dd { margin: 0 0 6px 0; }
+#log { max-height: 220px; overflow: auto; padding-left: 24px; }
+#log .bad { color: #ff6b5b; }
+footer { margin-top: 16px; font-size: 12px; }
+#links a, #embedLine a { color: var(--accent); margin-right: 8px; }
+#fovButtons { gap: 4px; }
+#embedLine { display: none; font-size: 11px; max-width: 520px; }
+/* ?embed=1: player and essential controls only; the acknowledgement stays as one small line */
+body.embed { padding: 6px; }
+body.embed header, body.embed #pick, body.embed footer, body.embed #logBox, body.embed #meta,
+body.embed #plots, body.embed #specNote, body.embed #stretchBox, body.embed #overlayBox { display: none; }
+body.embed #embedLine { display: block; max-width: 420px; }
+body.embed #readout { white-space: normal; max-width: 420px; }
+body.embed aside select { max-width: 150px; }
+body.embed main { flex-wrap: nowrap; gap: 8px; }
+body.embed #view { flex: 0 1 auto; min-width: 0; }
+body.embed aside { flex: 0 0 210px; max-width: 210px; font-size: 13px; }
+body.embed fieldset { padding: 4px 8px 6px; margin-bottom: 6px; }
