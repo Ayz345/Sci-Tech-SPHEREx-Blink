@@ -58,8 +58,9 @@ def fit_position(cut, guess: SkyCoord, neighbors: SkyCoord | None = None, fwhm_a
     Model: pixel-integrated Gaussian (FWHM = PSF_FWHM of the exposure unless given) for the object at a free position,
     plus fixed-position Gaussians for `neighbors` (already at this epoch) inside the box, plus a constant. Usable
     pixels only (clean or recovered overflow). Returns a dict (ra, dec, sig_ra_arcsec, sig_dec_arcsec, flux_mjy,
-    snr, chi2r, flagged, saturated, shift_px, core_bits) or None when the box is off the cutout or the fit fails.
-    sig_* are fit errors only (no WCS term). allow_bits: extra FLAGS bits treated as usable (MOVER_ALLOWED_BITS for a
+    snr, snr_noise, chi2r, flagged, saturated, shift_px, core_bits) or None when the box is off the cutout or the fit
+    fails. sig_* are fit errors only (no WCS term). snr: amplitude / its error inflated by sqrt(chi2r) (includes the
+    Gaussian-model misfit); snr_noise: amplitude / its error propagated from VARIANCE alone (noise, not misfit). allow_bits: extra FLAGS bits treated as usable (MOVER_ALLOWED_BITS for a
     moving object); flagged then means a pixel near the core that is unusable even with them.
     """
     img = np.asarray(cut.image, float)
@@ -112,9 +113,11 @@ def fit_position(cut, guess: SkyCoord, neighbors: SkyCoord | None = None, fwhm_a
     dof = max(1, Z.size - len(p0))
     chi2r = float(np.sum(r.fun ** 2) / dof)
     try:
-        cov = np.linalg.inv(r.jac.T @ r.jac) * max(1.0, chi2r)
+        cov0 = np.linalg.inv(r.jac.T @ r.jac)  # VARIANCE-weighted residuals: noise-only covariance
     except np.linalg.LinAlgError:
         return None
+    cov = cov0 * max(1.0, chi2r)
+    ea0 = float(np.sqrt(abs(cov0[2, 2])))
     ex, ey, ea = np.sqrt(np.abs(np.diag(cov)))[:3]
     c, J = _local_scale(cut.wcs, r.x[0], r.x[1])
     cxy = cov[:2, :2]
@@ -126,7 +129,8 @@ def fit_position(cut, guess: SkyCoord, neighbors: SkyCoord | None = None, fwhm_a
                         and ((flags[near] & (1 << b)) != 0).any()})
     return {"ra": float(c.ra.deg), "dec": float(c.dec.deg),
             "sig_ra_arcsec": float(np.sqrt(csky[0, 0])), "sig_dec_arcsec": float(np.sqrt(csky[1, 1])),
-            "flux_mjy": float(r.x[2] * to_mjy), "snr": float(r.x[2] / ea) if ea > 0 else 0.0, "chi2r": chi2r,
+            "flux_mjy": float(r.x[2] * to_mjy), "snr": float(r.x[2] / ea) if ea > 0 else 0.0,
+            "snr_noise": float(r.x[2] / ea0) if ea0 > 0 else 0.0, "chi2r": chi2r,
             "flagged": bool((~usable)[near].any() | ~np.isfinite(img[near]).all()), "core_bits": core_bits,
             "saturated": bool(saturated_pixels(flags)[near].any()),
             "shift_px": float(np.hypot(r.x[0] - gx, r.x[1] - gy)), "n_neighbors": len(nxy)}
@@ -203,8 +207,20 @@ def measure_track(cutouts, marks, neighbors: SkyCoord | None = None, snr_min: fl
     fitted as fixed PSFs within blend_radius_arcsec. Returns (rows, info); one row per cutout in the model's time
     window, accepted or not, with the reason. Row fields: obs_id, detector, band, wavelength_um, obs_time (DATE-AVG,
     UTC mid-exposure), mjd_mid, exp_s, ra, dec, rms_ra, rms_dec (arcsec; RA as RA*cos(dec)), snr_fit,
-    snr_calibrated, flux_mjy, flagged, saturated, core_bits, finast, offset_from_model_arcsec, trail_arcsec,
-    trailed, sc_pos_km, sc_vel_kms, regime, accepted, reason.
+    snr_calibrated, snr_variance, snr_image, flux_mjy, flagged, saturated, core_bits, finast,
+    offset_from_model_arcsec, trail_arcsec, trailed, sc_pos_km, sc_vel_kms, regime, accepted, reason.
+
+    S/N fields (measured on a (433) Eros pass, 52 exposures: snr_fit 15-66, snr_variance 57-150, snr_calibrated
+    126-613):
+      snr_fit         amplitude / fit error inflated by sqrt(chi2r): includes the Gaussian-PSF misfit, which grows with
+                      brightness; a fit-quality number, not the image noise.
+      snr_calibrated  flux / scatter of the same PSF flux at empty positions: background noise only, so it overstates
+                      a bright source whose own photon noise dominates (~4x the background term on Eros).
+      snr_variance    amplitude / error propagated from the VARIANCE layer: background plus source photon noise.
+      snr_image       min(snr_variance, snr_calibrated): the S/N of the source in the image (ADES logSNR). On Eros the
+                      empty-position scatter is ~1.3x the VARIANCE prediction, so for a background-limited source the
+                      calibrated value is expected to be the lower one.
+    Acceptance stays min(snr_fit, snr_calibrated) >= snr_min (conservative: a poor fit is not accepted).
     """
     position, info = track_model(marks)
     lo, hi = info["window_mjd"]
@@ -250,6 +266,8 @@ def measure_track(cutouts, marks, neighbors: SkyCoord | None = None, snr_min: fl
         off = float(fit_c.separation(pred).arcsec)
         row.update({"ra": f["ra"], "dec": f["dec"], "rms_ra": round(rms_ra, 3), "rms_dec": round(rms_dec, 3),
                     "snr_fit": round(f["snr"], 2), "snr_calibrated": None if snr_cal is None else round(snr_cal, 2),
+                    "snr_variance": round(f["snr_noise"], 2),
+                    "snr_image": None if snr_cal is None else round(min(f["snr_noise"], snr_cal), 2),
                     "flux_mjy": round(f["flux_mjy"], 5), "flagged": f["flagged"], "saturated": f["saturated"],
                     "core_bits": f["core_bits"], "offset_from_model_arcsec": round(off, 2)})
         reasons = []

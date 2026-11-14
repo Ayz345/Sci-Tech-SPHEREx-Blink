@@ -61,6 +61,11 @@ For an MPC report each exposure is measured on its own, since blink frames combi
 
 - **Measurement:** a pixel-integrated Gaussian PSF (the exposure's PSF_FWHM) is fitted at a free position near the motion predicted from the user's marks. Gaia DR3 neighbours within 25″ are fitted as fixed PSFs. Pixels flagged only OUTLIER or TRANSIENT on the object's core are kept, because a moving source raises them.
 - **Uncertainty:** the fit error, scaled by √χ²ᵣ, added in quadrature to a 0.23″ per-axis floor measured on Gaia stars.
+- **Signal-to-noise, three numbers per exposure.** On one 3-day Eros pass (52 exposures, all bands) they are 15–66, 126–613 and 57–150, in the order below.
+  - **Fit S/N (`snr_fit`)** is the PSF amplitude divided by its fit error scaled by √χ²ᵣ. It therefore drops as the Gaussian model misfits a bright source (χ²ᵣ 2–82 on Eros): it measures fit quality, not image noise.
+  - **Calibrated S/N (`snr_calibrated`)** is the flux divided by the scatter of the same PSF flux at 24 empty positions of the cutout. It sees only the background noise, so it overstates a bright source whose own photon noise dominates (about 4× the background term on Eros).
+  - **Image S/N (`snr_image`)** is the smaller of the calibrated S/N and the S/N propagated from the VARIANCE layer (background plus source photon noise). It is the S/N of the source in the image, as ADES defines logSNR, and is what logSNR should carry.
+  - Acceptance still uses the smaller of the fit and calibrated S/N.
 - **Realistic single-exposure error per axis:** ~0.5″ at S/N 5–10, ~0.4″ at S/N 10–20, ~0.3″ at S/N 20–50, against a 6.15″ pixel.
 - **Validation:** positions were compared with JPL Horizons, moved from the geocentre to the spacecraft position in the header (X_SC/Y_SC/Z_SC, which we verified to be geocentric ICRF axes; the parallax correction is 1–10″).
 
