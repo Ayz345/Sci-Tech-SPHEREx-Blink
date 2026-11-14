@@ -1,0 +1,17 @@
+{
+ "schema": 1,
+ "note": "SYNTHETIC mock of POST /api/track for the web page (field names proposed, not the server's)",
+ "report_id": "mock-between",
+ "regime": "between_epochs",
+ "regime_reason": "marks are 361 days apart: proper motion of a star or brown dwarf",
+ "rate": {"east": -8.1, "north": 0.7, "unit": "arcsec/yr"},
+ "nights": [
+  {"night": "2025-05-06", "n_accepted": 3, "n_total": 4, "included": false},
+  {"night": "2026-05-02", "n_accepted": 5, "n_total": 5, "included": false}
+ ],
+ "measurements": [
+  {"obs_id": "mock-101", "obs_time": "2025-05-06T10:00:00.0Z", "mjd": 60801.41667, "ra": 133.76160, "dec": -7.24245, "rms_ra": 2.5, "rms_dec": 2.5, "snr": 8.0, "accepted": true, "reason": "", "band": "D6", "night": "2025-05-06"},
+  {"obs_id": "mock-102", "obs_time": "2026-05-02T10:00:00.0Z", "mjd": 61162.41667, "ra": 133.75912, "dec": -7.24162, "rms_ra": 2.2, "rms_dec": 2.2, "snr": 11.0, "accepted": true, "reason": "", "band": "D6", "night": "2026-05-02"}
+ ],
+ "validation": {"text": "SYNTHETIC validation text (mock).", "timing": "verified"}
+}

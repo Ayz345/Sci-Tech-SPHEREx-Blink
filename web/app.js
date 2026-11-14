@@ -45,14 +45,14 @@ const src = {
 };
 const enc = encodeURIComponent;
 
-async function fetchLogged(url, as) {
+async function fetchLogged(url, as, init) {
   const li = document.createElement("li");
   const t0 = performance.now();
   li.textContent = `… ${url}`;
   $("log").prepend(li);
   try {
     let r;
-    try { r = await fetch(url); } catch (netErr) { // network failure (server down), not an HTTP error
+    try { r = await fetch(url, init); } catch (netErr) { // network failure (server down), not an HTTP error
       if (API && url.startsWith(API)) setOffline(true);
       throw netErr;
     }
@@ -598,6 +598,9 @@ function renderMarks() {
   }
   $("measureResult").textContent = t;
   if (!S.measuring) setMeasuring(false);
+  // marks changed: an earlier single-exposure result no longer matches them
+  if (S.track) { S.track = null; $("refineResult").textContent = "Marks changed: refine again."; }
+  updateRefineButtons();
 }
 function drawMarks(ctx) {
   if (!S.marks.length) return;
@@ -614,6 +617,119 @@ function drawMarks(ctx) {
     ctx.fillStyle = MARK_COLOR; ctx.fillText(String(m.n), p[0] + r + 2, p[1] - r); ctx.strokeStyle = MARK_COLOR;
   }
   ctx.restore();
+}
+
+// ---------- refine on single exposures, report (live server) ----------
+// POST /api/track re-measures the marked object on single exposures; GET /api/report downloads the file the
+// server writes (CSV, or an MPC draft in ADES). The page never contacts the MPC and never writes report content.
+// ?mocktrack=within|between (developer) reads web/dev-fixtures/track_*.json instead of the server.
+const MOCK = params.get("mocktrack");
+S.track = null;
+const serverForTrack = () => !!(MOCK || API);
+function updateRefineButtons() {
+  const srv = serverForTrack(), n = S.marks.length;
+  const why = !srv ? "Refining and reports need the live server, which is not reachable right now."
+    : n < 2 ? "Mark the object in at least two frames to refine it on single exposures." : "";
+  $("refineBtn").disabled = !!why; $("refineWhy").textContent = why;
+  $("reportBtn").disabled = !srv || !S.track;
+  $("reportBtn").title = !srv ? "needs the live server" : !S.track ? "refine on single exposures first" : "";
+}
+// server answer -> page fields (one place to adapt if the server's field names differ)
+function normTrack(j) {
+  return {
+    id: j.report_id ?? j.id, regime: j.regime, regimeReason: j.regime_reason ?? "",
+    nights: (j.nights || []).map((n) => ({ night: n.night, nAcc: n.n_accepted, nTot: n.n_total, included: n.included })),
+    meas: (j.measurements || []).map((m) => ({ id: m.obs_id, time: m.obs_time, mjd: m.mjd, ra: m.ra, dec: m.dec,
+      rmsRa: m.rms_ra, rmsDec: m.rms_dec, snr: m.snr, ok: !!m.accepted, reason: m.reason || "", band: m.band, night: m.night })),
+    validation: j.validation || {},
+  };
+}
+// straight-line fit of position against time (arcsec, years); sigma per axis from the point uncertainties
+function fitMotion(pts) {
+  if (pts.length < 2) return null;
+  const r0 = pts[0], cosd = Math.cos(r0.dec * D2R);
+  const p = pts.map((m) => ({ t: (m.mjd - r0.mjd) / 365.25, x: ((m.ra - r0.ra + 540) % 360 - 180) * cosd * 3600, y: (m.dec - r0.dec) * 3600, s: m.sig }));
+  const mean = (f) => p.reduce((a, q) => a + f(q), 0) / p.length, tm = mean((q) => q.t), xm = mean((q) => q.x), ym = mean((q) => q.y);
+  const stt = p.reduce((a, q) => a + (q.t - tm) ** 2, 0);
+  if (stt === 0) return null;
+  const vx = p.reduce((a, q) => a + (q.t - tm) * (q.x - xm), 0) / stt, vy = p.reduce((a, q) => a + (q.t - tm) * (q.y - ym), 0) / stt;
+  return { vx, vy, sv: mean((q) => q.s) / Math.sqrt(stt), pa: (Math.atan2(vx, vy) / D2R + 360) % 360, dtDays: pts.at(-1).mjd - r0.mjd };
+}
+function rateText(f, n, what) {
+  const short = f.dtDays < 2, k = short ? 1 / (365.25 * 24) : 1, unit = short ? "″/h" : "″/yr";
+  return `rate ${(Math.hypot(f.vx, f.vy) * k).toPrecision(3)} ± ${(f.sv * k).toPrecision(2)} ${unit} towards ${compass(f.pa)} ` +
+    `(position angle ${f.pa.toFixed(0)}°) from ${n} ${what}`;
+}
+async function refine() {
+  $("refineResult").textContent = "Measuring the object on single exposures…";
+  S.track = null; updateRefineButtons();
+  const body = { key: S.key, band: S.band, marks: [...S.marks].sort((a, b) => a.mjd - b.mjd).map((m) => ({ ra: m.ra, dec: m.dec, mjd: m.mjd, band: m.band })) };
+  try {
+    const j = MOCK ? await fetchLogged(`dev-fixtures/track_${MOCK}.json`)
+      : await fetchLogged(`${API}/api/track`, "json", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    S.track = normTrack(j); renderTrack();
+  } catch (e) { $("refineResult").textContent = `Refining failed: ${e.message}`; }
+  updateRefineButtons();
+}
+function renderTrack() {
+  const t = S.track, ok = t.meas.filter((m) => m.ok).sort((a, b) => a.mjd - b.mjd);
+  const f = fitMotion(ok.map((m) => ({ ra: m.ra, dec: m.dec, mjd: m.mjd, sig: Math.hypot(m.rmsRa, m.rmsDec) / Math.SQRT2 })));
+  const head = document.createElement("div");
+  head.className = "mono";
+  head.textContent = `${t.regime}${t.regimeReason ? ": " + t.regimeReason : ""}` +
+    (f ? `\n${rateText(f, ok.length, "single-exposure measurements")}` : "\nfewer than two accepted measurements: no rate");
+  head.style.whiteSpace = "pre-wrap";
+  const tbl = document.createElement("table");
+  tbl.innerHTML = "<tr><th>time (UTC)</th><th>RA</th><th>Dec</th><th>±″</th><th>S/N</th><th>band</th><th></th></tr>" +
+    t.meas.map((m) => `<tr class="${m.ok ? "" : "rejected"}"><td>${escapeHtml(String(m.time ?? ""))}</td><td>${(+m.ra).toFixed(5)}</td>` +
+      `<td>${(+m.dec).toFixed(5)}</td><td>${Math.hypot(m.rmsRa, m.rmsDec).toFixed(1)}</td><td>${(+m.snr).toFixed(1)}</td>` +
+      `<td>${escapeHtml(String(m.band ?? ""))}</td><td style="text-align:left">${m.ok ? "accepted" : "rejected: " + escapeHtml(m.reason)}</td></tr>`).join("");
+  $("refineResult").replaceChildren(head, tbl);
+}
+
+// report window
+const ADES_BLOCKED_BETWEEN = "The Minor Planet Center accepts Solar System objects only. This motion over months looks like a star or brown dwarf; use the CSV.";
+function openReport() {
+  const t = S.track; if (!t) return;
+  const v = t.validation || {};
+  $("dlgValidation").textContent = [v.text, v.timing === "not verified" ? "Timing: not verified." : ""].filter(Boolean).join(" ");
+  $("dlgNights").replaceChildren(...t.nights.map((n) => {
+    const div = document.createElement("div"), inFile = n.included !== false && n.nAcc >= 3;
+    div.className = inFile ? "" : "excluded";
+    div.textContent = `${n.night}: ${n.nAcc} accepted of ${n.nTot}` + (inFile ? "" : " — not in the MPC draft (fewer than 3 accepted that night)");
+    return div;
+  }));
+  const goodNight = t.nights.some((n) => n.included !== false && n.nAcc >= 3);
+  const why = t.regime === "between_epochs" ? ADES_BLOCKED_BETWEEN
+    : t.regime !== "within_visit" ? `The server did not classify this motion as within one visit (${t.regime ?? "unknown"}); use the CSV.`
+    : !goodNight ? "The MPC asks for at least three observations per night; no night has three accepted measurements. Use the CSV." : "";
+  $("dlgAdes").disabled = !!why; $("dlgWhy").textContent = why;
+  $("dlgStatus").textContent = ""; $("dlgStatus").className = "";
+  $("reportDlg").showModal();
+}
+async function downloadReport(format) {
+  const t = S.track, st = $("dlgStatus");
+  const submitter = $("dlgSubmitter").value.trim(), trksub = $("dlgTrksub").value.trim();
+  if (format === "ades" && !submitter) { st.textContent = "Enter the submitter name (for example I. M. Lastname)."; st.className = "err"; return; }
+  st.textContent = "Preparing the file…"; st.className = "";
+  try {
+    let blob, name;
+    if (MOCK) { // developer mock: no server, so the fixture itself is saved, clearly named
+      blob = new Blob([JSON.stringify({ mock: true, format, submitter, trksub, track: t }, null, 1)], { type: "application/json" });
+      name = `MOCK_${format}_report.json`;
+    } else {
+      const q = new URLSearchParams({ id: t.id, format });
+      if (format === "ades") { q.set("submitter", submitter); if (trksub) q.set("trksub", trksub); }
+      const r = await fetch(`${API}/api/report?${q}`);
+      if (!r.ok) { let msg = `${r.status}`; try { msg = (await r.json()).message || msg; } catch { /* not json */ } throw new Error(msg); }
+      blob = await r.blob();
+      const cd = r.headers.get("Content-Disposition") || "";
+      name = (cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i) || [])[1] || `spherex_${format}.txt`; // name chosen by the server
+    }
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: decodeURIComponent(name) });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    st.textContent = `Downloaded ${decodeURIComponent(name)}.`;
+  } catch (e) { st.textContent = e.message; st.className = "err"; } // server messages are shown as they are
 }
 
 // visible label on a low-coverage frame (only reachable with "show low-coverage frames" on)
@@ -1009,6 +1125,12 @@ function wire() {
   // measure mode: a click adds a mark, a drag moves the mark under the cursor
   $("measureBtn").onclick = () => setMeasuring(!S.measuring);
   $("clearMarks").onclick = () => { S.marks = []; renderMarks(); draw(); };
+  $("refineBtn").onclick = refine;
+  $("reportBtn").onclick = openReport;
+  $("dlgCsv").onclick = () => downloadReport("csv");
+  $("dlgAdes").onclick = () => downloadReport("ades");
+  $("dlgClose").onclick = () => $("reportDlg").close();
+  updateRefineButtons();
   setMeasuring(false);
   let drag = null, dragged = false, downOnMark = false;
   const markAt = (ev) => {
@@ -1059,7 +1181,7 @@ function renderSource(probing) {
 const serverReady = probeServer(); // one quick check; nothing below waits for it except free positions and names
 renderSource(true);
 serverReady.then((ok) => {
-  renderSource(false); renderFov();
+  renderSource(false); renderFov(); updateRefineButtons();
   if (ok && S.health?.max_fov_deg) {
     const fov = $("coordForm").fov;
     fov.max = S.health.max_fov_deg; fov.title = `max ${(+S.health.max_fov_deg).toFixed(4)}° on this server`;

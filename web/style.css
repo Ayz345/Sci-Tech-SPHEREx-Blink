@@ -49,6 +49,15 @@ footer { margin-top: 16px; font-size: 12px; }
 #markList li button { padding: 0 5px; margin-left: 6px; font-size: 11px; }
 #measureResult { white-space: pre-wrap; }
 canvas.measuring { cursor: cell; }
+#refineResult table { border-collapse: collapse; font: 11px ui-monospace, Consolas, monospace; margin-top: 6px; }
+#refineResult td, #refineResult th { border-bottom: 1px solid var(--line); padding: 1px 4px; text-align: right; }
+#refineResult tr.rejected, #dlgNights .excluded { opacity: .45; }
+dialog { background: #18181c; color: var(--fg); border: 1px solid var(--line); border-radius: 8px; max-width: 640px; }
+dialog::backdrop { background: rgba(0,0,0,.6); }
+dialog .warn { padding-left: 18px; font-size: 13px; }
+dialog .warn a { color: var(--accent); }
+dialog label { display: block; margin: 6px 0; }
+#dlgStatus.err { color: #ff6b5b; }
 #wingMissing { margin: 8px 0; }
 #wingMissing a { color: var(--accent); }
 #wingMethod { margin-top: 6px; font-size: 12px; }

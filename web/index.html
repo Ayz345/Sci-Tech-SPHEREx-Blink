@@ -85,6 +85,12 @@
       <div id="measureHelp" class="muted"></div>
       <ol id="markList" class="mono"></ol>
       <div id="measureResult" class="mono"></div>
+      <div class="row">
+        <button id="refineBtn" type="button" disabled>Refine on single exposures</button>
+        <button id="reportBtn" type="button" disabled>Download report…</button>
+      </div>
+      <div id="refineWhy" class="muted"></div>
+      <div id="refineResult"></div>
     </fieldset>
 
     <fieldset id="overlayBox"><legend>Overlays</legend>
@@ -118,6 +124,33 @@
   Keys: space play/pause · ←/→ epoch · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · m measure · +/− zoom.
   Pixel scale is read from the manifest grid; SPHEREx native pixel is 6.15″.
 </footer>
+
+<dialog id="reportDlg">
+  <h3>Download measurements</h3>
+  <ul class="warn">
+    <li>This is a draft. Nothing is sent anywhere: the file is only downloaded to your computer.</li>
+    <li>Before submitting, test the file with the MPC's own checker:
+      <a href="https://minorplanetcenter.net/submit_psv_test" target="_blank" rel="noopener">submit_psv_test</a>.
+      Submission form: <a href="https://minorplanetcenter.net/submit_psv" target="_blank" rel="noopener">submit_psv</a>.
+      Rules: <a href="https://docs.minorplanetcenter.net/mpc-ops-docs/astrometry/reporting-observations/" target="_blank" rel="noopener">reporting observations</a>.
+      Reading the rules and checking the file is your responsibility.</li>
+    <li>The MPC asks for at least three observations of an object per night and returns batches with single positions.</li>
+    <li>Station code 288 is SPHEREx. Submitting archival measurements under it may need a program code: contact the MPC first.</li>
+    <li>SPHEREx pixels are 6.15″ (the MPC advises 2–3″ for ground observers). The position uncertainty of every
+      measurement is written in the file. <span id="dlgValidation"></span></li>
+    <li>No magnitudes are included.</li>
+  </ul>
+  <div id="dlgNights" class="mono"></div>
+  <label>Submitter name (required for the MPC draft) <input id="dlgSubmitter" placeholder="I. M. Lastname" size="22"></label>
+  <label>Temporary designation (optional, up to 7 characters) <input id="dlgTrksub" maxlength="7" size="9"></label>
+  <div class="row">
+    <button id="dlgCsv" type="button">Download CSV</button>
+    <button id="dlgAdes" type="button">Download MPC draft (ADES)</button>
+    <button id="dlgClose" type="button">Close</button>
+  </div>
+  <div id="dlgWhy" class="muted"></div>
+  <div id="dlgStatus"></div>
+</dialog>
 
 <script src="config.js"></script>
 <script type="module" src="app.js"></script>

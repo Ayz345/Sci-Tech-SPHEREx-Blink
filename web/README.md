@@ -97,6 +97,23 @@ uncertainty assumes each click is good to about one grid pixel (`grid.cdelt`, 3�
 This runs in the browser only and works on the static gallery. Checked: Barnard D1, epochs 1 and 3 → 9.6 ± 4.3″/yr
 north (catalogue 10.4″/yr); WISE 0855 W → 9.6 ± 4.3″/yr west (catalogue ~8″/yr).
 
+### Refine and report (live server)
+
+- "Refine on single exposures" (needs the live server and 2+ marks): `POST /api/track` with
+  `{key, band, marks: [{ra, dec, mjd, band}]}`. The result table shows each exposure (time, RA, Dec, ±″, S/N,
+  band, accepted / rejected with reason; rejected rows faint) and the rate is fitted again from the accepted
+  measurements.
+- "Download report…" opens a window with fixed text (draft only, nothing is sent; MPC checker, form and rules
+  links; three observations per night; station 288; pixel size and the server's validation text; no magnitudes).
+  CSV is always available; "MPC draft (ADES)" only when the server says `regime: within_visit` and a night has
+  3+ accepted measurements, otherwise the reason is shown. Submitter name (required for ADES, "I. M. Lastname",
+  checked by the server) and an optional temporary designation (up to 7 characters); no e-mail, no comment field.
+  Files come from `GET /api/report?id=&format=csv|ades&submitter=&trksub=`, named by the server
+  (Content-Disposition); server errors are shown as they are. The page never contacts the MPC.
+- Field names are proposed, not final: `normTrack()` in `app.js` is the one place that maps the server's answer.
+- Developer mock without a server: `?mocktrack=within` or `?mocktrack=between` reads
+  `dev-fixtures/track_within.json` / `track_between.json` (SYNTHETIC) and downloads a clearly named MOCK file.
+
 ## API mode (`?api=`)
 
 - Only the band on screen is requested (an `/api/band` request moves that band to the front of the server queue);
