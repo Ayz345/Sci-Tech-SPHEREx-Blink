@@ -1,7 +1,10 @@
 {
  "target": "rw-aur",
  "method": "variability(binned_series(points)): per band, the band's wavelength range in 8 equal bins; per bin the epoch medians of the usable (not flagged) points; max/min over epochs (bins with any value <= 3 err skipped); median over bins. Significance: control stars measured the SAME way in the SAME cutouts (select_controls): Gaia DR3 stars 30\" to 4.5' from the target, G within +-1.5 mag of the target (G 10-15 when the target is saturated or brighter than G 11.5), with no Gaia neighbour within 20\" brighter than G_control + 2.5 (neighbour light < 10%), up to 20 stars. A band is variable when at least 5 controls have a ratio in that band and the target's ratio exceeds both 1.15 and the largest control ratio; with fewer than 5 controls the band is reported as undetermined.",
- "n_controls": 12,
+ "target_g": 12.18407154083252,
+ "saturated": false,
+ "photometry": "psf_deblended",
+ "n_controls": 5,
  "controls": [
   {
    "ra": 76.97763,
@@ -27,95 +30,60 @@
    "ra": 76.89684,
    "dec": 30.41303,
    "g_mag": 12.78
-  },
-  {
-   "ra": 77.04031,
-   "dec": 30.39296,
-   "g_mag": 14.36
-  },
-  {
-   "ra": 77.03928,
-   "dec": 30.40636,
-   "g_mag": 14.43
-  },
-  {
-   "ra": 76.96899,
-   "dec": 30.45301,
-   "g_mag": 14.77
-  },
-  {
-   "ra": 77.03264,
-   "dec": 30.38945,
-   "g_mag": 14.77
-  },
-  {
-   "ra": 76.99491,
-   "dec": 30.41284,
-   "g_mag": 14.8
-  },
-  {
-   "ra": 76.97007,
-   "dec": 30.43066,
-   "g_mag": 14.85
-  },
-  {
-   "ra": 76.90848,
-   "dec": 30.45659,
-   "g_mag": 14.89
   }
  ],
  "bands": {
   "D1": {
-   "target_ratio": 1.542,
+   "target_ratio": 1.4,
    "n_bins": 8,
-   "n_controls": 12,
-   "control_max": 1.039,
-   "control_median": 1.026,
+   "n_controls": 5,
+   "control_max": 1.031,
+   "control_median": 1.024,
    "variable": true,
    "weak": false
   },
   "D2": {
-   "target_ratio": 1.327,
-   "n_bins": 5,
-   "n_controls": 12,
+   "target_ratio": 1.373,
+   "n_bins": 6,
+   "n_controls": 5,
    "control_max": 1.061,
    "control_median": 1.034,
    "variable": true,
    "weak": false
   },
   "D3": {
-   "target_ratio": 1.218,
+   "target_ratio": 1.463,
    "n_bins": 1,
-   "n_controls": 12,
-   "control_max": 1.059,
-   "control_median": 1.036,
+   "n_controls": 5,
+   "control_max": 1.051,
+   "control_median": 1.038,
    "variable": true,
    "weak": true
   },
   "D4": {
-   "target_ratio": 1.265,
+   "target_ratio": 1.172,
    "n_bins": 1,
-   "n_controls": 12,
-   "control_max": 1.063,
-   "control_median": 1.046,
+   "n_controls": 5,
+   "control_max": 1.058,
+   "control_median": 1.042,
    "variable": true,
    "weak": true
   },
   "D5": {
-   "target_ratio": 1.703,
+   "target_ratio": 1.942,
    "n_bins": 7,
-   "n_controls": 12,
-   "control_max": 1.177,
-   "control_median": 1.062,
+   "n_controls": 5,
+   "control_max": 1.063,
+   "control_median": 1.035,
    "variable": true,
    "weak": false
   },
   "D6": {
-   "target_ratio": 1.46,
-   "n_bins": 7,
-   "n_controls": 12,
-   "control_max": 1.289,
-   "control_median": 1.123,
+   "target_ratio": 1.641,
+   "n_bins": 8,
+   "n_controls": 5,
+   "control_max": 1.111,
+   "control_median": 1.06,
    "variable": true,
    "weak": false
   }
