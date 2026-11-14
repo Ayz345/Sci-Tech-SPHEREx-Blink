@@ -600,8 +600,11 @@ def variability_report(f: Field, cuts, points, gaia, kind: str = "flux") -> dict
     for b, d in tvar.items():
         cs = cvar.get(b, [])
         per[b] = {"ratio": d["ratio"], "n_bins": d["n_bins"], "n_controls": len(cs),
-                  "controls_max": round(max(cs), 3) if cs else None, "variable": ph.is_variable(d["ratio"], cs)}
-    return {"kind": kind, "target_g": tg, "saturated": saturated, "n_controls": len(ctrl), "per_band": per}
+                  "controls_max": round(max(cs), 3) if cs else None,
+                  "controls_min": round(min(cs), 3) if cs else None, "variable": ph.is_variable(d["ratio"], cs)}
+    cg = [g["g_mag"] for g in ctrl if g.get("g_mag") is not None]
+    return {"kind": kind, "target_g": tg, "saturated": saturated, "n_controls": len(ctrl),
+            "control_g": [round(min(cg), 1), round(max(cg), 1)] if cg else None, "per_band": per}
 
 
 #: Wording thresholds for the measured notes (how a variable band is described, not whether it is variable).
@@ -648,22 +651,30 @@ def measured_notes(f: Field, cuts, spec: dict, gaia) -> list[str]:
         wb = spec.get("meta", {}).get("wing_bands") or {}
         if wb:
             thr = next(iter(wb.values()))["threshold"]
-            clear = [b for b, d in sorted(wb.items()) if d["significant"] and d["ratio"] > CLEARLY_ABOVE * thr]
-            just = [b for b, d in sorted(wb.items()) if d["significant"] and b not in clear]
-            no = [b for b, d in sorted(wb.items()) if not d["significant"]]
+            above = [b for b, d in sorted(wb.items()) if d["ratio"] > thr]
+            clear = [b for b in above if wb[b]["ratio"] > CLEARLY_ABOVE * thr]
+            just = [b for b in above if b not in clear]
+            no = [b for b, d in sorted(wb.items()) if d["ratio"] <= thr]
+            lst = lambda bs: " and ".join(f"{b} {fmt(wb[b]['ratio'])}" for b in bs)  # noqa: E731
             seg = []
             if clear:
-                seg.append(" and ".join(f"{b} {fmt(wb[b]['ratio'])}" for b in clear) + " clearly exceed")
+                seg.append(f"{lst(clear)} exceed{'s' if len(clear) == 1 else ''} it")
             if just:
-                seg.append(" and ".join(f"{b} {fmt(wb[b]['ratio'])}" for b in just) + " is just above")
+                seg.append(f"{lst(just)} {'is' if len(just) == 1 else 'are'} just above it")
             if no:
-                seg.append(" and ".join(f"{b} {fmt(wb[b]['ratio'])}" for b in no) + " does not exceed")
+                seg.append(f"{lst(no)} {'does' if len(no) == 1 else 'do'} not exceed it")
             rep = variability_report(f, cuts, pts, gaia, "wing")
-            und = rep["n_controls"] < 5
-            notes.append(f"PSF-wing brightness between epochs against the ×{thr:.2f} seen on control stars "
-                         f"(90th percentile): " + "; ".join(seg) + "."
-                         + (f" With {rep['n_controls']} control stars the formal variability test is undetermined."
-                            if und else ""))
+            cr = [d[k] for d in rep["per_band"].values() for k in ("controls_min", "controls_max")
+                  if d.get(k) is not None]
+            s = (f"PSF-wing brightness between epochs is indicative, not a formal detection. Against the scatter of "
+                 f"bright control stars in other fields (×{thr:.2f}, 90th percentile): " + "; ".join(seg) + ".")
+            if rep["n_controls"] and cr:
+                g = rep["control_g"]
+                s += (f" The {rep['n_controls']} fainter control stars in this field"
+                      + (f" (G {g[0]:.1f}–{g[1]:.1f})" if g else "")
+                      + f" vary more in the same measurement (×{min(cr):.2f}–{max(cr):.2f}), so the formal "
+                        "variability test is undetermined.")
+            notes.append(s)
     if key == "wise-0855" and WISE_DETECTION.exists():
         det = json.loads(WISE_DETECTION.read_text(encoding="utf-8"))
         seps = [e.get("sep_to_blend_star_arcsec") for e in det.get("epochs", [])]

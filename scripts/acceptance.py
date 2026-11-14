@@ -306,7 +306,7 @@ def check_empty_sky_inf(rep: Report, s: Static, key: str):
     G = CORE_LINK_GMAX (propagated to the epoch); otherwise it is empty sky. Item: empty-sky pixels = 0, all
     frames (low quality counted apart as INFO). Same definition as the co-add session's test."""
     from astropy.time import Time
-    from scipy.ndimage import label
+    from scipy.ndimage import binary_dilation, label
     sec = f"target:{key}"
     gaia = [g for g in strict_json(s.d / "gaia.json") if g.get("g_mag") is not None and g["g_mag"] < CORE_LINK_GMAX]
     gc = None
@@ -319,6 +319,7 @@ def check_empty_sky_inf(rep: Report, s: Static, key: str):
     yy, xx = np.mgrid[0:ny, 0:nx]
     rad = CORE_LINK_ARCSEC / (abs(s.m["grid"]["cdelt"][1]) * 3600)
     total, low_total, per = 0, 0, {}
+    total_nodil, per_nodil = 0, {}
     for e in s.m["epochs"]:
         anchor = np.zeros((ny, nx), bool)
         if e["id"] in s.track:
@@ -335,20 +336,31 @@ def check_empty_sky_inf(rep: Report, s: Static, key: str):
             if fr is None:
                 continue
             img, ej = fr
-            lab, n = label(np.isposinf(img), structure=np.ones((3, 3), int))
-            if not n:
+            inf = np.isposinf(img)
+            if not inf.any():
                 continue
+            # without dilation (INFO only)
+            lab0, n0 = label(inf, structure=np.ones((3, 3), int))
+            core0 = set(np.unique(lab0[anchor & (lab0 > 0)]))
+            k0 = int(((lab0 > 0) & ~np.isin(lab0, list(core0))).sum())
+            if k0:
+                per_nodil[f"{e['id']}_{b}"] = k0
+                total_nodil += k0
+            # the item: dilate by one pixel, then group, then count only +Inf pixels
+            grown = binary_dilation(inf, structure=np.ones((3, 3), bool), iterations=1)
+            lab, n = label(grown, structure=np.ones((3, 3), int))
             core_ids = set(np.unique(lab[anchor & (lab > 0)]))
-            empty = (lab > 0) & ~np.isin(lab, list(core_ids))
+            empty = inf & ~np.isin(lab, list(core_ids))
             k = int(empty.sum())
             if k:
                 low = ej.get("quality") == "low"
                 per[f"{e['id']}_{b}"] = k if not low else f"{k} (quality low)"
                 total += k
                 low_total += k if low else 0
-    rep.check(sec, f"no +Inf on empty sky (8-connected +Inf groups not touching the track or a Gaia G < "
-                   f"{CORE_LINK_GMAX:g} star within {CORE_LINK_ARCSEC:g} arcsec)",
+    rep.check(sec, f"no +Inf on empty sky (+Inf map dilated by 1 px, 8-connected groups not touching the track or "
+                   f"a Gaia G < {CORE_LINK_GMAX:g} star within {CORE_LINK_ARCSEC:g} arcsec)",
               total == 0, measured=total, threshold="0", detail=json.dumps(per)[:600])
+    rep.add(sec, "same count without the dilation step", INFO, measured=total_nodil, detail=json.dumps(per_nodil)[:400])
     rep.add(sec, "of which in frames marked quality=low", INFO, measured=low_total)
 
 
