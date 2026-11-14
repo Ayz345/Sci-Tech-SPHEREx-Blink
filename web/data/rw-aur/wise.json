@@ -1,0 +1,49 @@
+{
+ "schema": 1,
+ "key": "rw-aur",
+ "survey": "AllWISE Atlas",
+ "source": "AllWISE Atlas (IRSA)",
+ "source_url": "https://nasa-irsa-wise.s3.amazonaws.com/wise/allwise/images/p3am_cdd/",
+ "coadd_id": "0765p302_ac51",
+ "tiles": [
+  {
+   "coadd_id": "0765p302_ac51",
+   "midobs": "2010-09-10T09:08:40.724",
+   "dateobs1": "2010-03-03T02:34:29.745",
+   "dateobs2": "2010-09-12T23:02:46.168",
+   "grid_fraction": 1.0
+  }
+ ],
+ "epoch_mjd": 55449.381,
+ "date": "2010-09-10",
+ "epoch_source": "header MIDOBS = 2010-09-10T09:08:40.724 of tile 0765p302_ac51 (field centre); DATEOBS1 = 2010-03-03T02:34:29.745, DATEOBS2 = 2010-09-12T23:02:46.168",
+ "bands": [
+  {
+   "id": "W1",
+   "file": "wise_W1.f32",
+   "wave_um": 3.4,
+   "scale": {
+    "vmin": 4.3462,
+    "vmax": 169.7907,
+    "soft": 0.4671
+   },
+   "unit": "DN per Atlas pixel (1.375 arcsec), area mean",
+   "magzp": 20.5,
+   "nan_fraction": 0.0
+  },
+  {
+   "id": "W2",
+   "file": "wise_W2.f32",
+   "wave_um": 4.6,
+   "scale": {
+    "vmin": 10.5352,
+    "vmax": 155.4884,
+    "soft": 0.2875
+   },
+   "unit": "DN per Atlas pixel (1.375 arcsec), area mean",
+   "magzp": 19.5,
+   "nan_fraction": 0.0
+  }
+ ],
+ "note": "AllWISE Atlas image (IRSA, open S3 copy) resampled to this field's 3 arcsec grid: each grid pixel is the mean of 6 x 6 sub-points, each taking the Atlas pixel (1.375 arcsec) it falls in, i.e. an area average of surface brightness in DN per Atlas pixel (MAGZP 20.5). The Atlas co-adds WISE exposures from 2010 (epoch below is the tile's header MIDOBS; DATEOBS1/DATEOBS2 give the range); a moving source is where it was then, not where SPHEREx saw it."
+}
