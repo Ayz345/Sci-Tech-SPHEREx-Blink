@@ -79,6 +79,14 @@
       <div id="scaleSrc" class="muted"></div>
     </fieldset>
 
+    <fieldset id="measureBox"><legend>Measure</legend>
+      <button id="measureBtn" type="button" title="click an object in one frame, then the same object in another frame (key m)">Measure / mark (m)</button>
+      <button id="clearMarks" type="button">clear marks</button>
+      <div id="measureHelp" class="muted"></div>
+      <ol id="markList" class="mono"></ol>
+      <div id="measureResult" class="mono"></div>
+    </fieldset>
+
     <fieldset id="overlayBox"><legend>Overlays</legend>
       <label><input type="checkbox" id="ovQuery" checked> query position (+)</label>
       <label><input type="checkbox" id="ovTrack" checked> target track</label>
@@ -107,7 +115,7 @@
 <details id="logBox" open><summary>Request log</summary><ol id="log" class="mono"></ol></details>
 
 <footer class="muted">
-  Keys: space play/pause · ←/→ epoch · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · +/− zoom.
+  Keys: space play/pause · ←/→ epoch · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · m measure · +/− zoom.
   Pixel scale is read from the manifest grid; SPHEREx native pixel is 6.15″.
 </footer>
 

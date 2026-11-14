@@ -536,6 +536,86 @@ function draw() {
   lowLabel(ctx);
 }
 
+// ---------- measure / mark ----------
+// Marks are made by the user on co-added frames: {n, ra, dec, mjd (frame's mjd_mid), epoch, date, band}.
+// The motion is a straight-line fit of position against time over all marks; the uncertainty assumes the click
+// is good to about one grid pixel per mark. Everything here runs in the browser, without the server.
+S.marks = []; S.measuring = false; S.markSeq = 0;
+const MARK_COLOR = "#ff4fd8";
+function addMark(ra, dec) {
+  const ep = S.m.epochs[S.epoch];
+  S.marks.push({ n: ++S.markSeq, ra, dec, mjd: ep.mjd_mid, epoch: S.epoch, date: ep.date, band: S.mode === "rgb" ? "rgb" : S.band });
+  renderMarks(); draw();
+}
+function removeMark(n) { S.marks = S.marks.filter((m) => m.n !== n); renderMarks(); draw(); }
+function setMeasuring(on) {
+  S.measuring = on;
+  $("measureBtn").classList.toggle("on", on);
+  $("canvas").classList.toggle("measuring", on);
+  $("measureHelp").textContent = on
+    ? "Click the object in one frame, step to another frame (←/→) and click it again. Drag a mark to move it."
+    : S.marks.length ? "" : "Turn on to mark a moving object in two or more frames.";
+}
+const compass = (pa) => ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"][Math.round(pa / 45) % 8];
+function motion() {
+  const ms = [...S.marks].sort((a, b) => a.mjd - b.mjd);
+  if (ms.length < 2) return null;
+  const r0 = ms[0], cosd = Math.cos(r0.dec * D2R);
+  // offsets in arcsec (x = east, y = north) against time in years
+  const p = ms.map((m) => ({ t: (m.mjd - r0.mjd) / 365.25, x: ((m.ra - r0.ra + 540) % 360 - 180) * cosd * 3600, y: (m.dec - r0.dec) * 3600 }));
+  const tm = p.reduce((s, q) => s + q.t, 0) / p.length, xm = p.reduce((s, q) => s + q.x, 0) / p.length, ym = p.reduce((s, q) => s + q.y, 0) / p.length;
+  const stt = p.reduce((s, q) => s + (q.t - tm) ** 2, 0);
+  if (stt === 0) return { sameTime: true };
+  const vx = p.reduce((s, q) => s + (q.t - tm) * (q.x - xm), 0) / stt, vy = p.reduce((s, q) => s + (q.t - tm) * (q.y - ym), 0) / stt;
+  const pix = pixArcsec(), sv = pix / Math.sqrt(stt); // per-axis rate uncertainty from ~1 px per click
+  const last = ms.at(-1), sep = angSep(r0.ra, r0.dec, last.ra, last.dec) * 3600;
+  return { n: ms.length, vx, vy, rate: Math.hypot(vx, vy), sv, pa: (Math.atan2(vx, vy) / D2R + 360) % 360,
+    sep, sepErr: Math.SQRT2 * pix, dtDays: last.mjd - r0.mjd, pix };
+}
+function angSep(ra1, dec1, ra2, dec2) {
+  const a = Math.sin(((dec2 - dec1) * D2R) / 2) ** 2 + Math.cos(dec1 * D2R) * Math.cos(dec2 * D2R) * Math.sin(((ra2 - ra1) * D2R) / 2) ** 2;
+  return (2 * Math.asin(Math.min(1, Math.sqrt(a)))) / D2R;
+}
+function renderMarks() {
+  $("markList").replaceChildren(...S.marks.map((m) => {
+    const li = document.createElement("li"), del = document.createElement("button");
+    li.value = m.n;
+    li.append(`${m.date} ${m.band}  RA ${m.ra.toFixed(5)}  Dec ${m.dec.toFixed(5)}`);
+    del.textContent = "×"; del.title = "delete this mark"; del.onclick = () => removeMark(m.n);
+    li.append(del);
+    return li;
+  }));
+  const r = motion();
+  let t = "";
+  if (S.marks.length === 1) t = "Mark the same object in another frame.";
+  else if (r?.sameTime) t = "All marks are in the same frame: mark the object in at least two different frames.";
+  else if (r) {
+    const short = r.dtDays < 2, k = short ? 1 / (365.25 * 24) : 1, unit = short ? "″/h" : "″/yr";
+    t = `shift ${r.sep.toFixed(1)}″ ± ${r.sepErr.toFixed(1)}″ over ${r.dtDays < 2 ? (r.dtDays * 24).toFixed(1) + " h" : r.dtDays.toFixed(1) + " days"}` +
+      `\nrate ${(r.rate * k).toPrecision(3)} ± ${(r.sv * k).toPrecision(2)} ${unit} towards ${compass(r.pa)} (position angle ${r.pa.toFixed(0)}°)` +
+      `\n  east ${(r.vx * k).toPrecision(3)}, north ${(r.vy * k).toPrecision(3)} ${unit}` +
+      `\nfrom your clicks on co-added frames (${r.n} marks), assuming each click is good to about one grid pixel (${r.pix.toFixed(1)}″)`;
+  }
+  $("measureResult").textContent = t;
+  if (!S.measuring) setMeasuring(false);
+}
+function drawMarks(ctx) {
+  if (!S.marks.length) return;
+  const z = S.zoom, ms = [...S.marks].sort((a, b) => a.mjd - b.mjd).map((m) => ({ m, p: toScreen(m.ra, m.dec) }));
+  ctx.save();
+  ctx.strokeStyle = MARK_COLOR; ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
+  ctx.beginPath(); ms.forEach(({ p }, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.stroke();
+  ctx.setLineDash([]);
+  for (const { m, p } of ms) {
+    const here = m.epoch === S.epoch, r = Math.max(5, 2 * z);
+    ctx.lineWidth = here ? 2 : 1; ctx.globalAlpha = here ? 1 : 0.6;
+    ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 2 * Math.PI); ctx.stroke();
+    ctx.font = "bold 12px system-ui"; ctx.lineWidth = 3; ctx.strokeStyle = "#000"; ctx.strokeText(String(m.n), p[0] + r + 2, p[1] - r);
+    ctx.fillStyle = MARK_COLOR; ctx.fillText(String(m.n), p[0] + r + 2, p[1] - r); ctx.strokeStyle = MARK_COLOR;
+  }
+  ctx.restore();
+}
+
 // visible label on a low-coverage frame (only reachable with "show low-coverage frames" on)
 function lowLabel(ctx) {
   const bands = S.mode === "rgb" ? [...new Set(Object.values(rgbBands()))] : [S.band];
@@ -599,6 +679,7 @@ function overlays(ctx, ep) {
   ctx.lineWidth = 1.5; ctx.strokeStyle = "#eee"; ctx.beginPath(); ctx.moveTo(10, H - 12); ctx.lineTo(10 + len, H - 12); ctx.stroke();
   label(`30″  (grid ${pixArcsec().toFixed(2)}″/px)`, 10, H - 18);
   label("N ↑  E ←", ctx.canvas.width - 64, 16);
+  drawMarks(ctx);
 }
 
 // ---------- plots (spectrum + light curve) ----------
@@ -925,8 +1006,24 @@ function wire() {
     $("readout").textContent = head + `${S.layer} value ${fmt(inside ? raw : NaN)}` +
       (other ? " (saturated in another epoch)" : "") + (fw != null ? `   weight ${fw}` : "");
   };
+  // measure mode: a click adds a mark, a drag moves the mark under the cursor
+  $("measureBtn").onclick = () => setMeasuring(!S.measuring);
+  $("clearMarks").onclick = () => { S.marks = []; renderMarks(); draw(); };
+  setMeasuring(false);
+  let drag = null, dragged = false, downOnMark = false;
+  const markAt = (ev) => {
+    const r = cv.getBoundingClientRect(), k = cv.width / r.width, x = (ev.clientX - r.left) * k, y = (ev.clientY - r.top) * k;
+    return S.marks.find((m) => { const p = toScreen(m.ra, m.dec); return Math.hypot(p[0] - x, p[1] - y) < Math.max(8, 2.5 * S.zoom); });
+  };
+  cv.addEventListener("mousedown", (ev) => { if (S.measuring && S.m?.grid) { drag = markAt(ev) || null; downOnMark = !!drag; dragged = false; } });
+  cv.addEventListener("mousemove", (ev) => {
+    if (!drag) return;
+    [drag.ra, drag.dec] = pix2world(...gridAt(ev)); dragged = true; draw();
+  });
+  window.addEventListener("mouseup", () => { if (drag && dragged) renderMarks(); drag = null; });
   cv.onclick = (ev) => {
     if (!S.m?.grid) return;
+    if (S.measuring) { if (!dragged && !downOnMark) addMark(...pix2world(...gridAt(ev))); dragged = false; downOnMark = false; return; }
     const [ra, dec] = pix2world(...gridAt(ev));
     if (!API) { status("A spectrum at a clicked point needs the live server, which is not reachable right now; the gallery has the target's spectrum."); return; }
     S.specAt = [ra, dec]; draw();
@@ -942,6 +1039,7 @@ function wire() {
     else if (e.key === "ArrowLeft") step(-1);
     else if (/^[1-9]$/.test(e.key) && S.m?.bands?.[+e.key - 1]) selectBand(S.m.bands[+e.key - 1].id);
     else if (e.key === "t" && S.prevBand) selectBand(S.prevBand);
+    else if (e.key === "m") setMeasuring(!S.measuring);
     else if (e.key === "b" || e.key === "d" || e.key === "s" || e.key === "c") setMode({ b: "blink", d: "diff", s: "sum", c: "rgb" }[e.key]); else if (e.key === "+" || e.key === "-") {
       const zs = [1, 2, 3, 4, 6], i = zs.indexOf(S.zoom);
       S.zoom = zs[Math.max(0, Math.min(zs.length - 1, (i < 0 ? 2 : i) + (e.key === "+" ? 1 : -1)))];

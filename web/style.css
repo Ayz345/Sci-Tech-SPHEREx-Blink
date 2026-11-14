@@ -44,6 +44,11 @@ svg { width: 100%; background: #0b0b0d; border: 1px solid var(--line); }
 #log .bad { color: #ff6b5b; }
 footer { margin-top: 16px; font-size: 12px; }
 #links a, #embedLine a { color: var(--accent); margin-right: 8px; }
+#measureBtn.on { border-color: #ff4fd8; color: #ff4fd8; }
+#markList { padding-left: 20px; margin: 6px 0; }
+#markList li button { padding: 0 5px; margin-left: 6px; font-size: 11px; }
+#measureResult { white-space: pre-wrap; }
+canvas.measuring { cursor: cell; }
 #wingMissing { margin: 8px 0; }
 #wingMissing a { color: var(--accent); }
 #wingMethod { margin-top: 6px; font-size: 12px; }

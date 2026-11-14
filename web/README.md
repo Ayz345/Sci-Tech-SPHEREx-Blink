@@ -87,6 +87,16 @@ position without coverage.
 - Spectrum: `overflow: true` = recovered from overflow (valid, reduced accuracy): filled diamond, kept in the
   light curve; `saturated: true` stays a lower limit and is left out.
 
+## Measure / mark (key `m`)
+
+Turn measuring on, click the moving object in one frame, step to another frame and click it again (any number
+of marks; drag a mark to move it, × deletes it). The panel fits a straight line of position against time over
+all marks and shows the shift (″), the direction (compass word and position angle east of north), the time span
+and the rate (″/yr, or ″/h when the marks are less than 2 days apart), with east and north components. The
+uncertainty assumes each click is good to about one grid pixel (`grid.cdelt`, 3″): two marks give ±√2·pixel / Δt.
+This runs in the browser only and works on the static gallery. Checked: Barnard D1, epochs 1 and 3 → 9.6 ± 4.3″/yr
+north (catalogue 10.4″/yr); WISE 0855 W → 9.6 ± 4.3″/yr west (catalogue ~8″/yr).
+
 ## API mode (`?api=`)
 
 - Only the band on screen is requested (an `/api/band` request moves that band to the front of the server queue);
