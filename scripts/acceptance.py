@@ -293,7 +293,17 @@ def check_core(rep: Report, s: Static, key: str):
             rep.add(sec, "saturation rule per grid pixel (co-add session's check)", FAIL,
                     detail=f"missing {SATURATION_CHECK}")
             return
-        rows = [r_ for r_ in strict_json(SATURATION_CHECK) if r_["target"] == key]
+        sc = strict_json(SATURATION_CHECK)
+        frames_all = sc.get("frames", []) if isinstance(sc, dict) else sc
+        sc_hash = sc.get("spx_code_hash") if isinstance(sc, dict) else None
+        sc_hash = sc_hash or next((r_.get("spx_code_hash") for r_ in frames_all if r_.get("spx_code_hash")), None)
+        gal_hash = strict_json(s.d / "provenance.json").get("spx_code_hash")
+        if not sc_hash or sc_hash != gal_hash:
+            rep.add(sec, "saturation rule holds per grid pixel in every frame", PENDING,
+                    measured={"saturation_check_spx_code_hash": sc_hash, "gallery_spx_code_hash": gal_hash},
+                    detail="saturation check is stale: not made by the gallery's code")
+            return
+        rows = [r_ for r_ in frames_all if r_["target"] == key]
         viol = {f"{r_['epoch']}_{r_['band']}": r_.get("rule_violations") for r_ in rows if r_.get("rule_violations")}
         nanc = {f"{r_['epoch']}_{r_['band']}": r_.get("nan_covered") for r_ in rows if r_.get("nan_covered")}
         rep.check(sec, f"saturation rule holds per grid pixel in every frame ({SATURATION_CHECK.name}: "
@@ -311,7 +321,7 @@ NAN_NEAR_INF_PX = 2                  # NaN within this many grid pixels of a +In
 
 def check_nan_next_to_inf(rep: Report, s: Static, key: str):
     """A saturated region must not be ringed by NaN: NaN AND (the +Inf map dilated by NAN_NEAR_INF_PX) = 0 over
-    the whole field, every frame (frames marked quality=low counted apart as INFO)."""
+    the whole field, every frame, frames marked quality=low included (their share is listed as INFO)."""
     from scipy.ndimage import binary_dilation
     sec = f"target:{key}"
     total, low_total, per = 0, 0, {}
@@ -325,13 +335,11 @@ def check_nan_next_to_inf(rep: Report, s: Static, key: str):
             if n:
                 low = ej.get("quality") == "low"
                 per[f"{e}_{b}"] = n if not low else f"{n} (quality low)"
-                if low:
-                    low_total += n
-                else:
-                    total += n
-    rep.check(sec, f"no NaN within {NAN_NEAR_INF_PX} px of a +Inf pixel (whole field, every frame)", total == 0,
-              measured=total, threshold="0", detail=json.dumps(per)[:600])
-    rep.add(sec, "same, in frames marked quality=low", INFO, measured=low_total)
+                total += n                      # low-quality frames included: the page shows them too
+                low_total += n if low else 0
+    rep.check(sec, f"no NaN within {NAN_NEAR_INF_PX} px of a +Inf pixel (whole field, every frame, low quality "
+                   "included)", total == 0, measured=total, threshold="0", detail=json.dumps(per)[:600])
+    rep.add(sec, "of which in frames marked quality=low", INFO, measured=low_total)
 
 
 def check_empty_sky_inf(rep: Report, s: Static, key: str):
