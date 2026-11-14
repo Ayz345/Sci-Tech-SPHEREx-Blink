@@ -501,3 +501,33 @@ def test_parse_window():
     assert P.parse_window("D6") is None and P.parse_window("W") is None
     assert P.parse_window("w750_800")["wave_um"] == [0.75, 0.8]
     assert P.is_window("w4300_5000") and not P.is_window("w4300_4310") and not P.is_window("D1")
+
+
+# --------------------------------------------------------------------------- flag names at the clicked point (F3)
+
+def test_spectrum_passes_flag_names_through(client, monkeypatch):
+    from spx import photometry as ph
+    if not hasattr(ph, "flag_legend"):
+        pytest.skip("spx.photometry has no flag names yet (quality session, PLAN.md 17 F3)")
+    name = "TRANSIENT" if "TRANSIENT" in ph.FLAG_BITS else sorted(ph.FLAG_BITS, key=ph.FLAG_BITS.get)[0]
+    bit = ph.FLAG_BITS[name]
+    fake = access.fetch_cutouts
+
+    def flagged(refs, ra, dec, *a, **k):
+        cuts, n = fake(refs, ra, dec, *a, **k)
+        for c in cuts:
+            if c.detector == 6 and c.flags is not None:
+                cy, cx = (int(round(v)) for v in c.target_xy[::-1])
+                c.flags[cy, cx] |= np.int32(1 << bit)
+        return cuts, n
+    monkeypatch.setattr(access, "fetch_cutouts", flagged)
+    key = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}))["key"]
+    for b in ("D5", "D6"):
+        assert client.get("/api/band", params={"key": key, "band": b}).status_code == 200
+    s = _strict(client.get("/api/spectrum", params={"key": key}))
+    d6 = [p for p in s["points"] if p["band"] == "D6"]
+    others = [p for p in s["points"] if p["band"] != "D6"]
+    assert d6 and all(name in p["flags"] for p in d6), [p["flags"] for p in d6][:3]
+    assert others and all(p["flags"] == [] for p in others)
+    assert s["meta"]["flag_legend"][name] == ph.FLAG_LEGEND[name]
+    assert set(s["meta"]["flag_legend"]) == {n for p in s["points"] for n in p["flags"]}
