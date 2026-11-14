@@ -50,7 +50,7 @@ def aperture_flux(cut, x, y, r_ap=2.0, r_in=4.0, r_out=7.0):
     Returns (flux_mJy, err_mJy, flagged, n_bad_in_aperture, saturated, overflow) or None when the aperture is
     off the cutout. flagged = a pixel in the aperture that is not usable (coadd.usable_pixels); saturated =
     early overflow or NONLINEAR in the aperture (flux is a lower limit); overflow = recovered-overflow pixels in
-    the aperture (valid, ~4% accuracy).
+    the aperture (valid; recovered/clean median 1.04 over 10 pairs, range 1.00-1.51).
     Pixels with HARD_MASK flags (dead, hot, cold, missing...) are excluded and the flux is scaled
     up by the excluded aperture fraction; any BAD_MASK pixel in the aperture sets flagged=True
     (saturated cores of bright stars are kept but flagged).
@@ -273,7 +273,7 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
                           "correction; flagged = non-informational FLAGS bit within 1.5 px; saturated = "
                           "early overflow (OVERFLOW+SUR_ERROR) or NONLINEAR within 2 px (flux = lower limit; such "
                           "exposures fall back to aperture photometry, point.photometry = 'aperture'); overflow = "
-                          "recovered overflow pixels (valid, ~4%); neighbor_flux = fitted flux of the removed "
+                          "recovered overflow pixels (valid; recovered/clean median 1.04, 10 pairs, range 1.00-1.51); neighbor_flux = fitted flux of the removed "
                           "neighbours. Systematic: the Gaussian PSF leaves ~5-15% of a neighbour's flux as a "
                           "residual on the target (measured on WISE 0855 / G=16.3 star at 3-11 arcsec), so treat "
                           "|flux| < 0.15 x neighbor_flux as consistent with zero",
@@ -296,7 +296,7 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
                       "(e.g. saturated core), err from VARIANCE (or annulus scatter) + background error; "
                       "saturated = early overflow (OVERFLOW+SUR_ERROR) or NONLINEAR in the aperture: the flux is a "
                       "lower limit; overflow = recovered overflow pixels (OVERFLOW without SUR_ERROR, slope from the "
-                      "reads before the threshold; measured 1.04x clean on RW Aur), usable with ~4% accuracy; "
+                      "reads before the threshold; recovered/clean flux on RW Aur D1, same epoch and wavelength: median 1.04 over 10 pairs, eight within 1.00-1.20, two at 1.30 and 1.51 near 0.85 um), usable; "
                       "keep flagged points out of light curves",
             "n_points": len(pts), "n_flagged": int(sum(p["flagged"] for p in pts)),
             "n_saturated": int(sum(p["saturated"] for p in pts)), "n_overflow": int(sum(p["overflow"] for p in pts))}
