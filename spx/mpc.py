@@ -197,8 +197,9 @@ def ades_rows(detections, trk_sub: str) -> list[dict]:
     return rows
 
 
-def write_ades_psv(detections, context: dict) -> str:
-    """ADES PSV draft (version 2022). Raises ValueError when a required input or a verified fact is missing."""
+def build_ades(detections, context: dict):
+    """Validated content shared by the PSV and XML writers: (context records, fields, rows).
+    context records: [(record, [(child, value), ...]), ...] in the PSV order."""
     detections = list(detections)
     sub = _clean_text(context.get("submitter") or "", 100)
     if not sub:
@@ -210,27 +211,52 @@ def write_ades_psv(detections, context: dict) -> str:
         raise ValueError("telescope context not verified yet: " + ", ".join(missing))
     trk = check_trksub(context.get("trk_sub") or make_trksub(detections))
     measurers = [_clean_text(m, 100) for m in (context.get("measurers") or [sub]) if _clean_text(m, 100)]
-    out = [f"# version={ADES_VERSION}",
-           "# observatory", f"! mpcCode {STATION}", f"! name {STATION_NAME}",
-           "# submitter", f"! name {sub}",
-           "# measurers", *[f"! name {m}" for m in measurers],
-           "# telescope", f"! design {TELESCOPE['design']}", f"! aperture {TELESCOPE['aperture']}",
-           f"! detector {TELESCOPE['detector']}",
-           "# software",
-           "! astrometry " + _clean_text(f"SPHEREx Blink {context.get('tool_version', '')} "
-                                         f"{context.get('code_hash', '')}", 100),
-           "# comment", *[f"! line {x}" for x in _comment_lines(context)]]
+    ctx = [("observatory", [("mpcCode", STATION), ("name", STATION_NAME)]),
+           ("submitter", [("name", sub)]),
+           ("measurers", [("name", m) for m in measurers]),
+           ("telescope", [("design", str(TELESCOPE["design"])), ("aperture", str(TELESCOPE["aperture"])),
+                          ("detector", str(TELESCOPE["detector"]))]),
+           ("software", [("astrometry", _clean_text(f"SPHEREx Blink {context.get('tool_version', '')} "
+                                                    f"{context.get('code_hash', '')}", 100))]),
+           ("comment", [("line", x) for x in _comment_lines(context)])]
     rows = ades_rows(detections, trk)
     fields = [f for f in FIELDS if any(f in r for r in rows)]
+    return ctx, fields, rows
+
+
+def write_ades_psv(detections, context: dict) -> str:
+    """ADES PSV draft (version 2022). Raises ValueError when a required input or a verified fact is missing."""
+    ctx, fields, rows = build_ades(detections, context)
+    out = [f"# version={ADES_VERSION}"]
+    for rec, children in ctx:
+        out.append(f"# {rec}")
+        out += [f"! {k} {v}" for k, v in children]
     width = {f: max(len(f), *(len(r.get(f, "")) for r in rows)) for f in fields}
-    out.append("|".join(f.ljust(width[f]) if f == fields[-1] == "remarks" else f.ljust(width[f]) for f in fields).rstrip())
+    out.append("|".join(f.ljust(width[f]) for f in fields).rstrip())
     for r in rows:
-        cells = []
-        for f in fields:
-            v = r.get(f, "")
-            cells.append(v.ljust(width[f]) if f in ("remarks", "trkSub") else v.rjust(width[f]))
+        cells = [r.get(f, "").ljust(width[f]) if f in ("remarks", "trkSub") else r.get(f, "").rjust(width[f])
+                 for f in fields]
         out.append("|".join(cells).rstrip())
     return "\n".join(out) + "\n"
+
+
+def write_ades_xml(detections, context: dict) -> str:
+    """The same content as write_ades_psv in ADES XML (<ades version="2022"> with one obsBlock)."""
+    from xml.sax.saxutils import escape
+    ctx, fields, rows = build_ades(detections, context)
+    x = ['<?xml version="1.0" encoding="UTF-8"?>', f'<ades version="{ADES_VERSION}">', "  <obsBlock>",
+         "    <obsContext>"]
+    for rec, children in ctx:
+        x.append(f"      <{rec}>")
+        x += [f"        <{k}>{escape(v)}</{k}>" for k, v in children]
+        x.append(f"      </{rec}>")
+    x += ["    </obsContext>", "    <obsData>"]
+    for r in rows:
+        x.append("      <optical>")
+        x += [f"        <{f}>{escape(r[f])}</{f}>" for f in fields if r.get(f, "") != ""]
+        x.append("      </optical>")
+    x += ["    </obsData>", "  </obsBlock>", "</ades>"]
+    return "\n".join(x) + "\n"
 
 
 CSV_FIELDS = ["trk_sub", "obs_time_utc_mid", "ra_deg", "dec_deg", "rms_ra_arcsec", "rms_dec_arcsec", "snr",

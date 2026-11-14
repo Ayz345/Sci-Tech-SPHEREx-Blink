@@ -295,12 +295,16 @@ def check_core(rep: Report, s: Static, key: str):
             return
         sc = strict_json(SATURATION_CHECK)
         frames_all = sc.get("frames", []) if isinstance(sc, dict) else sc
-        sc_hash = sc.get("spx_code_hash") if isinstance(sc, dict) else None
-        sc_hash = sc_hash or next((r_.get("spx_code_hash") for r_ in frames_all if r_.get("spx_code_hash")), None)
-        gal_hash = strict_json(s.d / "provenance.json").get("spx_code_hash")
+        top = sc if isinstance(sc, dict) else {}
+        prov = strict_json(s.d / "provenance.json")
+        # compare RECORDED values: the frame-code hash when both carry it, else (transition) the older spx_code_hash
+        if top.get("frame_code_hash") and prov.get("spx_frame_code_hash"):
+            kind, sc_hash, gal_hash = "frame_code_hash", top["frame_code_hash"], prov["spx_frame_code_hash"]
+        else:
+            kind, sc_hash, gal_hash = "spx_code_hash (legacy)", top.get("spx_code_hash"), prov.get("spx_code_hash")
         if not sc_hash or sc_hash != gal_hash:
             rep.add(sec, "saturation rule holds per grid pixel in every frame", PENDING,
-                    measured={"saturation_check_spx_code_hash": sc_hash, "gallery_spx_code_hash": gal_hash},
+                    measured={"compared": kind, "saturation_check": sc_hash, "gallery": gal_hash},
                     detail="saturation check is stale: not made by the gallery's code")
             return
         rows = [r_ for r_ in frames_all if r_["target"] == key]

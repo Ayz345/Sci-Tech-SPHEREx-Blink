@@ -100,7 +100,8 @@ def build_target(key: str, out_root: Path, bands=None) -> dict:
     prov = {
         "schema": 1, "key": key, "generated_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "spx_version": spx.__version__, **{f"spx_{k}": v for k, v in P.spx_commit().items()},
-        "spx_code_hash": spx.code_hash(),
+        "spx_frame_code_hash": spx.frame_code_hash(),   # access, coadd, display, photometry: compared by checks
+        "spx_code_hash": spx.code_hash(),               # whole package: information
         "collections": list(access.COLLECTIONS), "n_images_sia2": len(f.refs),
         "n_images_per_detector": {f"D{d}": sum(r.detector == d for r in f.refs) for d in range(1, 7)},
         "n_cutouts_used_per_detector": {f"D{d}": len(v) for d, v in sorted(by_det.items())},

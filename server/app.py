@@ -570,4 +570,5 @@ async def api_health():
                   "collections": list(access.COLLECTIONS), "max_fov_deg": P.MAX_FOV_DEG,
                   "live_layers": list(LIVE_LAYERS), "fields_in_memory": fields, "bands_queued": queued, "bands_running": running,
                   "s3_max_concurrency": access.S3_MAX_CONCURRENCY, "code_hash": CODE_HASH,
+                  "spx_frame_code_hash": spx.frame_code_hash(), "spx_code_hash": spx.code_hash(),
                   "network_totals": dict(access.TOTALS)})
