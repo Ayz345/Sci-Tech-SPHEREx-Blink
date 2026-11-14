@@ -11,7 +11,7 @@
   "spherex_dr1",
   "spherex_qr3"
  ],
- "max_fov_deg": 0.11666666666666667,
+ "max_fov_deg": 0.25,
  "data_range": {
   "mjd_min": 60919.419647,
   "mjd_max": 61299.897229
@@ -167,8 +167,8 @@
  "target_source": "Gaia DR3 156430822114424576",
  "default_band": "D1",
  "notes": [
-  "Its brightest pixels overflow; their flux is recovered from the reads before the overflow (median ratio 1.04 to clean pixels over 10 pairs, range 1.00–1.51; co-add session, methods_v2.md).",
-  "By the control-star test RW Aurigae changes between epochs in 6 of 6 bands: D1 ×1.40 (controls up to ×1.03, 5 stars), D2 ×1.37 (controls up to ×1.06, 5 stars), D3 ×1.46 (controls up to ×1.05, 5 stars), D4 ×1.17 (controls up to ×1.06, 5 stars), D5 ×1.94 (controls up to ×1.06, 5 stars), D6 ×1.64 (controls up to ×1.11, 5 stars). Most robust in D1, D2, D5, D6 (several wavelength bins); D3, D4 rest on a single wavelength bin."
+  "Its brightest pixels overflow; their flux is recovered from the reads before the overflow (median ratio 1.04 to clean pixels over 10 pairs, range 1.00–1.51; see the tool's Methods page).",
+  "By the control-star test RW Aurigae changes between epochs in 6 of 6 bands: D1 ×1.40 (controls up to ×1.03, 5 stars), D2 ×1.37 (controls up to ×1.06, 5 stars), D3 ×1.46 (controls up to ×1.04, 5 stars), D4 ×1.17 (controls up to ×1.04, 5 stars), D5 ×1.94 (controls up to ×1.06, 5 stars), D6 ×1.64 (controls up to ×1.10, 5 stars). Most robust in D1, D2, D5, D6 (several wavelength bins); D3, D4 rest on a single wavelength bin."
  ],
  "processing": "spx 0.1: FLAGS mask, local background, clipped inverse-variance mean per epoch and band, fixed 3 arcsec TAN grid (north up); data spherex_dr1, spherex_qr3",
  "acknowledgement": "This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration.",

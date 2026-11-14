@@ -11,7 +11,7 @@
   "spherex_dr1",
   "spherex_qr3"
  ],
- "max_fov_deg": 0.11666666666666667,
+ "max_fov_deg": 0.25,
  "data_range": {
   "mjd_min": 60811.955829,
   "mjd_max": 61237.874566
@@ -221,8 +221,8 @@
  "target_source": "Gaia DR3 1648328016354496384",
  "default_band": "D5",
  "notes": [
-  "R Draconis is saturated in 412 of 413 exposures, so its own flux cannot be measured; its change shows in the brightness of the halo (common scale across epochs) and in the PSF-wing series.",
-  "PSF-wing brightness between epochs is indicative, not a formal detection. Against the scatter of bright control stars in other fields (×1.47, 90th percentile): D2 ×2.42 and D6 ×1.77 exceed it; D3 ×1.49 is just above it; D1 ×1.31 does not exceed it. The 4 fainter control stars in this field (G 12.5–14.2) vary more in the same measurement (×1.63–3.15), so the formal variability test is undetermined."
+  "R Draconis is saturated in 412 of 412 exposures, so its own flux cannot be measured; its change shows in the brightness of the halo (common scale across epochs) and in the PSF-wing series.",
+  "PSF-wing brightness between epochs is indicative, not a formal detection. Against the scatter of bright control stars in other fields (×1.51, 90th percentile): D2 ×2.42 and D6 ×1.77 exceed it; D1 ×1.31 and D3 ×1.49 do not exceed it. The 4 fainter control stars in this field (G 12.5–14.2) vary more in the same measurement (×1.62–3.15), so the formal variability test is undetermined."
  ],
  "processing": "spx 0.1: FLAGS mask, local background, clipped inverse-variance mean per epoch and band, fixed 3 arcsec TAN grid (north up); data spherex_dr1, spherex_qr3",
  "acknowledgement": "This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration.",

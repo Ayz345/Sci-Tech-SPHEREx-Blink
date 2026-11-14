@@ -23,9 +23,9 @@
    "file": "wise_W1.f32",
    "wave_um": 3.4,
    "scale": {
-    "vmin": 2.7494,
-    "vmax": 26.1536,
-    "soft": 0.1495
+    "vmin": 2.7522,
+    "vmax": 25.8046,
+    "soft": 0.1479
    },
    "unit": "DN per Atlas pixel (1.375 arcsec), area mean",
    "magzp": 20.5,
@@ -36,8 +36,8 @@
    "file": "wise_W2.f32",
    "wave_um": 4.6,
    "scale": {
-    "vmin": 7.9579,
-    "vmax": 17.2179,
+    "vmin": 7.9572,
+    "vmax": 17.3858,
     "soft": 0.1063
    },
    "unit": "DN per Atlas pixel (1.375 arcsec), area mean",

@@ -3,15 +3,15 @@
  "key": "wise-0855",
  "name": "WISE 0855",
  "query": {
-  "ra": 133.7831722,
-  "dec": -7.2442516,
+  "ra": 133.783924,
+  "dec": -7.2443404,
   "fov_deg": 0.11666666666666667
  },
  "collections": [
   "spherex_dr1",
   "spherex_qr3"
  ],
- "max_fov_deg": 0.11666666666666667,
+ "max_fov_deg": 0.25,
  "data_range": {
   "mjd_min": 60800.700028,
   "mjd_max": 61174.28855
@@ -22,8 +22,8 @@
    "DEC--TAN"
   ],
   "crval": [
-   133.7593766079248,
-   -7.242273658713223
+   133.76012840323816,
+   -7.242362458705562
   ],
   "crpix": [
    70.5,
@@ -164,26 +164,26 @@
  "target_track": [
   {
    "epoch": 0,
-   "ra": 133.76057191365928,
-   "dec": -7.242373045020399
+   "ra": 133.76132370920803,
+   "dec": -7.242461845013487
   },
   {
    "epoch": 1,
-   "ra": 133.7594176056711,
-   "dec": -7.242277067612799
+   "ra": 133.76016940099257,
+   "dec": -7.242365867605165
   },
   {
    "epoch": 2,
-   "ra": 133.7583255084308,
-   "dec": -7.242186260135926
+   "ra": 133.75907730353723,
+   "dec": -7.242275060127574
   }
  ],
- "target_source": "CatWISE2020 + Luhman & Esplin 2016; verified in SPHEREx DR1 (3 epochs)",
+ "target_source": "CatWISE2020 motion-solution position (ra_pm, dec_pm) at MJD 57170 + Luhman & Esplin 2016 proper motion; verified in SPHEREx DR1 (3 epochs)",
  "default_band": "W",
  "notes": [
   "At short wavelengths (1.0–2.5 µm) the source next to the marker is NOT WISE 0855: it is a fixed background star, Gaia DR3 5756956644387831296 (G = 16.3, RA 133.75818, Dec −7.24116). WISE 0855 moves towards it.",
   "WISE 0855 itself is seen only at long wavelengths (band W, 4.3–5.0 µm).",
-  "Measured separation between WISE 0855 and that star (two-source PSF fit, co-add session): 11.4″ → 8.2″ → 3.7″ over the three epochs.",
+  "Measured separation between WISE 0855 and that star (two-source PSF fit, co-add session): 11.4″ → 8.2″ → 3.8″ over the three epochs.",
   "Epoch 0 (2025-05-06) has only 3–8 exposures per band (the other epochs 14–25), so its frames are noisier."
  ],
  "processing": "spx 0.1: FLAGS mask, local background, clipped inverse-variance mean per epoch and band, fixed 3 arcsec TAN grid (north up); data spherex_dr1, spherex_qr3",

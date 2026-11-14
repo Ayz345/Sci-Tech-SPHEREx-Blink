@@ -1,11 +1,12 @@
 {
  "schema": 1,
  "key": "r-dra",
- "generated_utc": "2026-11-14T10:41:20+00:00",
+ "generated_utc": "2026-11-14T22:49:46+00:00",
  "spx_version": "0.1",
- "spx_commit": "8a5c415",
+ "spx_commit": "6a55b82",
  "spx_uncommitted_code": [],
- "spx_code_hash": "342a1d5f0b05",
+ "spx_frame_code_hash": "ecd39f140011",
+ "spx_code_hash": "744c2be5ca1c",
  "collections": [
   "spherex_dr1",
   "spherex_qr3"
@@ -70,7 +71,7 @@
      24
     ]
    ],
-   "t_coadd": 5.9,
+   "t_coadd": 7.9,
    "fetch": {
     "D1": {
      "n_refs": 91,
@@ -78,7 +79,7 @@
      "n_skipped": 0,
      "n_from_cache": 91,
      "bytes": 0,
-     "seconds": 2.895318031311035
+     "seconds": 3.696758985519409
     }
    }
   },
@@ -106,7 +107,7 @@
      19
     ]
    ],
-   "t_coadd": 6.6,
+   "t_coadd": 7.6,
    "fetch": {
     "D2": {
      "n_refs": 89,
@@ -114,7 +115,7 @@
      "n_skipped": 0,
      "n_from_cache": 89,
      "bytes": 0,
-     "seconds": 2.7856781482696533
+     "seconds": 3.5811150074005127
     }
    }
   },
@@ -138,7 +139,7 @@
      9
     ]
    ],
-   "t_coadd": 6.5,
+   "t_coadd": 8.0,
    "fetch": {
     "D3": {
      "n_refs": 91,
@@ -146,7 +147,7 @@
      "n_skipped": 0,
      "n_from_cache": 91,
      "bytes": 0,
-     "seconds": 2.8802330493927
+     "seconds": 3.562788963317871
     }
    }
   },
@@ -170,7 +171,7 @@
      23
     ]
    ],
-   "t_coadd": 6.3,
+   "t_coadd": 7.4,
    "fetch": {
     "D4": {
      "n_refs": 88,
@@ -178,7 +179,7 @@
      "n_skipped": 0,
      "n_from_cache": 88,
      "bytes": 0,
-     "seconds": 2.855548620223999
+     "seconds": 3.421334743499756
     }
    }
   },
@@ -206,7 +207,7 @@
      19
     ]
    ],
-   "t_coadd": 6.5,
+   "t_coadd": 7.5,
    "fetch": {
     "D5": {
      "n_refs": 89,
@@ -214,7 +215,7 @@
      "n_skipped": 0,
      "n_from_cache": 89,
      "bytes": 0,
-     "seconds": 2.7634589672088623
+     "seconds": 3.5858659744262695
     }
    }
   },
@@ -238,7 +239,7 @@
      9
     ]
    ],
-   "t_coadd": 6.4,
+   "t_coadd": 7.3,
    "fetch": {
     "D6": {
      "n_refs": 91,
@@ -246,7 +247,7 @@
      "n_skipped": 0,
      "n_from_cache": 91,
      "bytes": 0,
-     "seconds": 3.2670230865478516
+     "seconds": 3.570830821990967
     }
    }
   }
@@ -257,12 +258,12 @@
   "n": 101
  },
  "spectrum": {
-  "n_points": 413
+  "n_points": 412
  },
  "software": {
   "python": "3.13.7",
   "numpy": "2.3.3",
   "astropy": "7.1.0"
  },
- "seconds": 190.3
+ "seconds": 208.9
 }

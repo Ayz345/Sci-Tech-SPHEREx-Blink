@@ -1,0 +1,142 @@
+{
+ "schema": 1,
+ "key": "wise-0855",
+ "method": "difference of each epoch from the inverse-variance mean of all epochs (static sky cancels); Gaussian matched filter with a noise model from the weight maps plus a bright-star systematic; shift-and-stack over trial velocities using all epochs at once; local fits of a moving-source model and a fixed variable-source model (template subtraction built into both); Gaia DR3 proper motions label known movers; a motion common to bright stars is an alignment residual and is dropped; one threshold set for every field. Not a detection claim: candidates are for a person to inspect.",
+ "params": {
+  "max_shift_px": 8.0,
+  "shift_step_px": 0.5,
+  "min_shift_px": 1.0,
+  "min_epochs_mover": 3,
+  "seed_snr": 4.5,
+  "mover_snr": 6.0,
+  "variable_snr": 6.0,
+  "sat_grow_px": 7,
+  "edge_px": 5,
+  "fit_half_px": 5,
+  "known_match_px": 2.0,
+  "known_rate_tol_px": 1.5,
+  "align_min_stars": 3,
+  "align_tol_px": 0.75,
+  "extended_min_frac": 0.67,
+  "halo_px": 20.0,
+  "halo_frac": 0.05,
+  "mover_residual_px": 6.0,
+  "merge_px": 2.0,
+  "merge_rate_tol_px": 1.5
+ },
+ "bands_searched": [
+  "D1",
+  "D2",
+  "D3",
+  "D4",
+  "D5",
+  "D6",
+  "W"
+ ],
+ "candidates": [
+  {
+   "id": 1,
+   "kind": "mover",
+   "known": false,
+   "snr": 10.8,
+   "n_bands": 1,
+   "grade": "A",
+   "grade_reason": "three passes on a line",
+   "bands": [
+    "D5",
+    "W"
+   ],
+   "positions": [
+    {
+     "epoch": 0,
+     "ra": 133.761238,
+     "dec": -7.242313,
+     "snr": 6.6,
+     "snr_single": 15.2
+    },
+    {
+     "epoch": 1,
+     "ra": 133.760007,
+     "dec": -7.242218,
+     "snr": 0.7,
+     "snr_single": 16.4
+    },
+    {
+     "epoch": 2,
+     "ra": 133.75884,
+     "dec": -7.242129,
+     "snr": 3.3,
+     "snr_single": 21.6
+    }
+   ],
+   "rate_arcsec_per_year": [
+    -8.65,
+    0.67
+   ],
+   "near_gaia": null,
+   "notes": [
+    "D5: S/N 10.8",
+    "W: S/N 9.9",
+    "motion 8.6 arcsec over 0.99 yr"
+   ]
+  },
+  {
+   "id": 2,
+   "kind": "variable",
+   "known": false,
+   "snr": 6.2,
+   "n_bands": 1,
+   "grade": "B",
+   "grade_reason": "one band",
+   "bands": [
+    "D2"
+   ],
+   "positions": [
+    {
+     "epoch": 0,
+     "ra": 133.714895,
+     "dec": -7.261742,
+     "snr": -1.9,
+     "snr_single": 6.5
+    },
+    {
+     "epoch": 1,
+     "ra": 133.714895,
+     "dec": -7.261742,
+     "snr": 5.0,
+     "snr_single": 15.9
+    },
+    {
+     "epoch": 2,
+     "ra": 133.714895,
+     "dec": -7.261742,
+     "snr": -3.9,
+     "snr_single": 7.1
+    }
+   ],
+   "rate_arcsec_per_year": null,
+   "near_gaia": null,
+   "notes": [
+    "D2: S/N 6.2"
+   ]
+  }
+ ],
+ "rejected": {
+  "extended_change": 2,
+  "below_threshold": 36,
+  "rate_at_search_limit": 2
+ },
+ "validation": [
+  "Finds objects that move at least about 10 arcsec (about the width of a star image) over the time covered; slower motion is mostly missed.",
+  "In a sparse field an object at S/N 12 per pass moving 15 arcsec was recovered in 18 of 18 injections; in a crowded field in 8 of 18.",
+  "Grade A: seen in two independent wavelength ranges, or in three passes on a straight line, or a known moving star. Grade B: one wavelength range only; very cold objects look like this, and so do most false alarms.",
+  "D1: epochs [1, 2] (low-coverage [0] left out), span 0.50 yr, FWHM 3.04 px, noise rescale 2.85, 2.84, bright-star systematic 0.065 (pixel) / 0.037 (PSF amplitude) (55 peaks), saturated px 0, masked 0 px, 5 seeds, 0 movers, 0 variables",
+  "D2: epochs [0, 1, 2], span 0.99 yr, FWHM 2.99 px, noise rescale 2.74, 2.76, 2.63, bright-star systematic 0.077 (pixel) / 0.027 (PSF amplitude) (67 peaks), saturated px 0, masked 0 px, 11 seeds, 0 movers, 1 variables",
+  "D3: epochs [1, 2] (low-coverage [0] left out), span 0.45 yr, FWHM 3.02 px, noise rescale 3.25, 3.27, bright-star systematic 0.039 (pixel) / 0.021 (PSF amplitude) (79 peaks), saturated px 0, masked 0 px, 11 seeds, 0 movers, 0 variables",
+  "D4: epochs [1, 2] (low-coverage [0] left out), span 0.50 yr, FWHM 3.28 px, noise rescale 2.75, 2.75, bright-star systematic 0.047 (pixel) / 0.046 (PSF amplitude) (77 peaks), saturated px 0, masked 0 px, 8 seeds, 0 movers, 0 variables",
+  "D5: epochs [0, 1, 2], span 0.99 yr, FWHM 3.23 px, noise rescale 2.82, 3.46, 3.05, bright-star systematic 0.046 (pixel) / 0.044 (PSF amplitude) (19 peaks), saturated px 0, masked 0 px, 10 seeds, 1 movers, 0 variables",
+  "D6: epochs [1, 2] (low-coverage [0] left out), span 0.45 yr, FWHM 3.45 px, noise rescale 3.79, 3.79, bright-star systematic 0.041 (pixel) / 0.026 (PSF amplitude) (11 peaks), saturated px 0, masked 0 px, 0 seeds, 0 movers, 0 variables",
+  "W: epochs [0, 1, 2], span 0.97 yr, FWHM 3.39 px, noise rescale 3.06, 3.78, 3.40, bright-star systematic 0.046 (pixel) / 0.042 (PSF amplitude) (11 peaks), saturated px 0, masked 0 px, 3 seeds, 1 movers, 0 variables"
+ ],
+ "seconds": 16.48
+}

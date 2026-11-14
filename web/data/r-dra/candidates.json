@@ -1,0 +1,52 @@
+{
+ "schema": 1,
+ "key": "r-dra",
+ "method": "difference of each epoch from the inverse-variance mean of all epochs (static sky cancels); Gaussian matched filter with a noise model from the weight maps plus a bright-star systematic; shift-and-stack over trial velocities using all epochs at once; local fits of a moving-source model and a fixed variable-source model (template subtraction built into both); Gaia DR3 proper motions label known movers; a motion common to bright stars is an alignment residual and is dropped; one threshold set for every field. Not a detection claim: candidates are for a person to inspect.",
+ "params": {
+  "max_shift_px": 8.0,
+  "shift_step_px": 0.5,
+  "min_shift_px": 1.0,
+  "min_epochs_mover": 3,
+  "seed_snr": 4.5,
+  "mover_snr": 6.0,
+  "variable_snr": 6.0,
+  "sat_grow_px": 7,
+  "edge_px": 5,
+  "fit_half_px": 5,
+  "known_match_px": 2.0,
+  "known_rate_tol_px": 1.5,
+  "align_min_stars": 3,
+  "align_tol_px": 0.75,
+  "extended_min_frac": 0.67,
+  "halo_px": 20.0,
+  "halo_frac": 0.05,
+  "mover_residual_px": 6.0,
+  "merge_px": 2.0,
+  "merge_rate_tol_px": 1.5
+ },
+ "bands_searched": [
+  "D1",
+  "D2",
+  "D3",
+  "D4",
+  "D5",
+  "D6"
+ ],
+ "candidates": [],
+ "rejected": {
+  "below_threshold": 290,
+  "saturated_halo": 45
+ },
+ "validation": [
+  "Finds objects that move at least about 10 arcsec (about the width of a star image) over the time covered; slower motion is mostly missed.",
+  "In a sparse field an object at S/N 12 per pass moving 15 arcsec was recovered in 18 of 18 injections; in a crowded field in 8 of 18.",
+  "Grade A: seen in two independent wavelength ranges, or in three passes on a straight line, or a known moving star. Grade B: one wavelength range only; very cold objects look like this, and so do most false alarms.",
+  "D1: epochs [1, 2, 5] (low-coverage [0] left out), span 0.98 yr, FWHM 3.04 px, noise rescale 3.82, 2.86, 2.71, bright-star systematic 0.105 (pixel) / 0.082 (PSF amplitude) (30 peaks), saturated px 125, masked 513 px, 1 seeds, 0 movers, 0 variables",
+  "D2: epochs [0, 1, 2, 3, 5], span 1.03 yr, FWHM 2.97 px, noise rescale 2.32, 6.08, 1.23, 1.01, 1.88, bright-star systematic 0.208 (pixel) / 0.217 (PSF amplitude) (24 peaks), saturated px 327, masked 853 px, 4 seeds, 0 movers, 0 variables",
+  "D3: epochs [0, 3, 4, 5], span 1.01 yr, FWHM 3.03 px, noise rescale 2.54, 2.06, 0.53, 0.19, bright-star systematic 1.015 (pixel) / 1.092 (PSF amplitude) (17 peaks), saturated px 316, masked 830 px, 133 seeds, 0 movers, 0 variables",
+  "D4: epochs [1, 2, 5] (low-coverage [0] left out), span 0.98 yr, FWHM 3.29 px, noise rescale 2.91, 1.87, 1.23, bright-star systematic 0.194 (pixel) / 0.204 (PSF amplitude) (27 peaks), saturated px 699, masked 1407 px, 4 seeds, 0 movers, 0 variables",
+  "D5: epochs [0, 1, 2, 3, 5], span 1.03 yr, FWHM 2.30 px, noise rescale 1.79, 1.96, 0.85, 0.78, 0.66, bright-star systematic 0.250 (pixel) / 0.269 (PSF amplitude) (18 peaks), saturated px 498, masked 1094 px, 70 seeds, 0 movers, 0 variables",
+  "D6: epochs [0, 3, 4, 5], span 1.01 yr, FWHM 2.30 px, noise rescale 2.12, 1.06, 0.62, 0.54, bright-star systematic 0.382 (pixel) / 0.399 (PSF amplitude) (13 peaks), saturated px 262, masked 732 px, 123 seeds, 0 movers, 0 variables"
+ ],
+ "seconds": 194.34
+}

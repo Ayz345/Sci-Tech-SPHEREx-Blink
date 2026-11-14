@@ -11,7 +11,7 @@
   "spherex_dr1",
   "spherex_qr3"
  ],
- "max_fov_deg": 0.11666666666666667,
+ "max_fov_deg": 0.25,
  "data_range": {
   "mjd_min": 60789.855522,
   "mjd_max": 61315.479408
