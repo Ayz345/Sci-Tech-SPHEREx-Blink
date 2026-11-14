@@ -4,8 +4,13 @@ Astrometry from CONTEXT.md 4b (values supplied by the image-quality session, 14 
 Gaia DR3 gaiadr3.gaia_source, ref_epoch 2016.0; ra/dec in degrees, proper motion in mas/yr
 (pmra = mu_alpha * cos(dec)).
 
-WISE 0855 is not in Gaia: CatWISE2020 J085507.96-071439.3 position at MJD 57170 with the Luhman & Esplin 2016
-proper motion; the image-quality session verified it in SPHEREx DR1 (3 epochs).
+WISE 0855 is not in Gaia: CatWISE2020 J085507.96-071439.3 motion-solution position (ra_pm, dec_pm) at MJD 57170
+with the Luhman & Esplin 2016 proper motion; verified in SPHEREx DR1 (3 epochs). Corrected 14 Nov 2026 evening: the
+earlier 133.7831722, -7.2442516 was the row's STATIONARY ra/dec (no stated epoch; row mean epoch MJD 57338.6), not
+the MJD 57170 position (IRSA catwise_2020 column description: ra_pm/dec_pm "at epoch ... MJD=57170"). Against the
+SPHEREx positions of handoff/results/wise0855_detection_v2.json the stationary value put the object +2.15"
+(mean, rms 2.25") too far west; ra_pm/dec_pm gives -0.53" (rms 1.04"). CatWISE2020 also lists a second row for the
+object, J085506.91-071437.5 (nb=1, ra_pm 133.7835555, dec_pm -7.2440520, pm -7.92/+0.49 arcsec/yr), not used.
 
 Optional per-target fields used by the manifest: default_band, extra_bands, notes, challenge_radec.
 wings: True publishes spx.photometry's PSF-wing flux series in the target's spectrum (only R Dra).
@@ -29,9 +34,10 @@ TARGETS = {
         "source": "Gaia DR3 6412596012146801152 (Ba+Bb, G = 18.0)", "kind": "brown dwarf binary", "fov_arcmin": 7.0,
     },
     "wise-0855": {
-        "name": "WISE 0855", "ra": 133.7831722, "dec": -7.2442516,
+        "name": "WISE 0855", "ra": 133.783924, "dec": -7.2443404,      # CatWISE2020 ra_pm, dec_pm (MJD 57170)
         "pmra": -8118.0, "pmdec": 680.0, "parallax": None, "ref_epoch": 2015.4018,  # MJD 57170
-        "source": "CatWISE2020 + Luhman & Esplin 2016; verified in SPHEREx DR1 (3 epochs)",
+        "source": "CatWISE2020 motion-solution position (ra_pm, dec_pm) at MJD 57170 + Luhman & Esplin 2016 proper "
+                  "motion; verified in SPHEREx DR1 (3 epochs)",
         "kind": "Y dwarf, fast proper motion", "fov_arcmin": 7.0,
         # the challenge page gives the ~2010 position; by 2026 the object is ~2.15' west of it
         "challenge_radec": (133.79512916666667, -7.245147222222222),  # 08h55m10.831s -07d14m42.53s

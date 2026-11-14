@@ -1,0 +1,359 @@
+{
+ "what": "CatWISE2020 PMRA/PMDec (IRSA catwise_2020, mas/yr) against Gaia DR3 pmra (= mu_alpha cos dec) and pmdec, stars matched by scripts/make_catwise.py --pm-check (G < 16, |pm| > 15 mas/yr, one CatWISE source within 2 arcsec of the Gaia position moved to MJD 57170)",
+ "fields": {
+  "barnard": [
+   {
+    "source_name": "J175733.26+044603.9",
+    "sep_arcsec": 0.028,
+    "g_mag": 13.0975895,
+    "dec": 4.767772430406224,
+    "gaia_pmra": -16.97650615335151,
+    "gaia_pmdec": -19.030510892637945,
+    "cw_pmra": -16.21,
+    "cw_pmdec": -18.38,
+    "cw_sigpmra": 4.4,
+    "cw_sigpmdec": 4.8
+   },
+   {
+    "source_name": "J175745.31+044904.0",
+    "sep_arcsec": 0.152,
+    "g_mag": 15.046462,
+    "dec": 4.817789039656115,
+    "gaia_pmra": -7.086822524258558,
+    "gaia_pmdec": -23.29192310045618,
+    "cw_pmra": -17.67,
+    "cw_pmdec": -16.18,
+    "cw_sigpmra": 10.6,
+    "cw_sigpmdec": 10.5
+   },
+   {
+    "source_name": "J175800.55+044829.8",
+    "sep_arcsec": 0.019,
+    "g_mag": 15.170515,
+    "dec": 4.808300077624067,
+    "gaia_pmra": -7.332488308602975,
+    "gaia_pmdec": -14.871559310838368,
+    "cw_pmra": -6.3,
+    "cw_pmdec": -17.23,
+    "cw_sigpmra": 5.9,
+    "cw_sigpmdec": 6.0
+   },
+   {
+    "source_name": "J175727.95+044625.7",
+    "sep_arcsec": 0.053,
+    "g_mag": 15.354758,
+    "dec": 4.773819287918584,
+    "gaia_pmra": -18.59749217837953,
+    "gaia_pmdec": -17.28387280716847,
+    "cw_pmra": -27.52,
+    "cw_pmdec": -40.98,
+    "cw_sigpmra": 5.8,
+    "cw_sigpmdec": 5.6
+   },
+   {
+    "source_name": "J175805.95+044729.8",
+    "sep_arcsec": 0.096,
+    "g_mag": 15.47465,
+    "dec": 4.791636219455112,
+    "gaia_pmra": 14.934033000196226,
+    "gaia_pmdec": 13.303050704126086,
+    "cw_pmra": 10.34,
+    "cw_pmdec": 15.4,
+    "cw_sigpmra": 4.8,
+    "cw_sigpmdec": 4.8
+   },
+   {
+    "source_name": "J175731.55+044912.2",
+    "sep_arcsec": 0.05,
+    "g_mag": 15.894824,
+    "dec": 4.820052580450456,
+    "gaia_pmra": -15.996983607489444,
+    "gaia_pmdec": -23.662651450503603,
+    "cw_pmra": -31.91,
+    "cw_pmdec": -23.58,
+    "cw_sigpmra": 5.8,
+    "cw_sigpmdec": 5.6
+   }
+  ],
+  "eps-indi-b": [
+   {
+    "source_name": "J220431.08-564629.0",
+    "sep_arcsec": 0.082,
+    "g_mag": 12.953572,
+    "dec": -56.774753379007024,
+    "gaia_pmra": -26.603905346571707,
+    "gaia_pmdec": -18.587487854395548,
+    "cw_pmra": -18.8,
+    "cw_pmdec": -33.75,
+    "cw_sigpmra": 4.3,
+    "cw_sigpmdec": 4.0
+   },
+   {
+    "source_name": "J220413.00-565141.8",
+    "sep_arcsec": 0.093,
+    "g_mag": 12.961529,
+    "dec": -56.86165393620249,
+    "gaia_pmra": 23.20504621933571,
+    "gaia_pmdec": -0.11453608385876528,
+    "cw_pmra": 31.02,
+    "cw_pmdec": -21.87,
+    "cw_sigpmra": 4.6,
+    "cw_sigpmdec": 3.8
+   },
+   {
+    "source_name": "J220440.78-564347.3",
+    "sep_arcsec": 0.13,
+    "g_mag": 14.536771,
+    "dec": -56.72985094767359,
+    "gaia_pmra": 15.690828030768468,
+    "gaia_pmdec": -7.344303136712975,
+    "cw_pmra": 9.67,
+    "cw_pmdec": -14.01,
+    "cw_sigpmra": 5.9,
+    "cw_sigpmdec": 5.9
+   },
+   {
+    "source_name": "J220444.26-565154.6",
+    "sep_arcsec": 0.179,
+    "g_mag": 14.618031,
+    "dec": -56.86521326163825,
+    "gaia_pmra": 19.45804931329592,
+    "gaia_pmdec": -10.691173514150531,
+    "cw_pmra": 24.34,
+    "cw_pmdec": -19.52,
+    "cw_sigpmra": 4.9,
+    "cw_sigpmdec": 4.8
+   },
+   {
+    "source_name": "J220418.80-564326.0",
+    "sep_arcsec": 0.077,
+    "g_mag": 14.7989,
+    "dec": -56.723927281724585,
+    "gaia_pmra": 10.045242670188175,
+    "gaia_pmdec": 17.253194923006788,
+    "cw_pmra": 14.16,
+    "cw_pmdec": 4.81,
+    "cw_sigpmra": 4.7,
+    "cw_sigpmdec": 4.1
+   },
+   {
+    "source_name": "J220441.21-564353.6",
+    "sep_arcsec": 0.114,
+    "g_mag": 14.920332,
+    "dec": -56.73159118358045,
+    "gaia_pmra": -6.432247367932822,
+    "gaia_pmdec": -16.548744685311203,
+    "cw_pmra": -0.44,
+    "cw_pmdec": -27.57,
+    "cw_sigpmra": 6.5,
+    "cw_sigpmdec": 6.4
+   },
+   {
+    "source_name": "J220444.70-565206.1",
+    "sep_arcsec": 0.24,
+    "g_mag": 14.949129,
+    "dec": -56.86844243620497,
+    "gaia_pmra": -8.001770958488962,
+    "gaia_pmdec": -75.25343653059579,
+    "cw_pmra": -0.38,
+    "cw_pmdec": -80.38,
+    "cw_sigpmra": 4.4,
+    "cw_sigpmdec": 4.2
+   },
+   {
+    "source_name": "J220405.02-564850.2",
+    "sep_arcsec": 0.1,
+    "g_mag": 15.728762,
+    "dec": -56.81396938910959,
+    "gaia_pmra": -5.22348139556413,
+    "gaia_pmdec": -23.63157275148862,
+    "cw_pmra": 12.61,
+    "cw_pmdec": -47.59,
+    "cw_sigpmra": 6.0,
+    "cw_sigpmdec": 5.4
+   },
+   {
+    "source_name": "J220455.70-564603.6",
+    "sep_arcsec": 0.128,
+    "g_mag": 15.895295,
+    "dec": -56.76769387646292,
+    "gaia_pmra": 0.6075017236139306,
+    "gaia_pmdec": -16.1342433100214,
+    "cw_pmra": 23.07,
+    "cw_pmdec": -23.4,
+    "cw_sigpmra": 11.4,
+    "cw_sigpmdec": 10.1
+   }
+  ],
+  "wise-0855": [
+   {
+    "source_name": "J085511.28-071528.3",
+    "sep_arcsec": 0.043,
+    "g_mag": 13.29808,
+    "dec": -7.257862301162162,
+    "gaia_pmra": -2.0829915743543155,
+    "gaia_pmdec": -17.433272879188863,
+    "cw_pmra": -12.33,
+    "cw_pmdec": -19.3,
+    "cw_sigpmra": 4.3,
+    "cw_sigpmdec": 4.8
+   },
+   {
+    "source_name": "J085509.43-071723.6",
+    "sep_arcsec": 0.035,
+    "g_mag": 14.058134,
+    "dec": -7.28988297661692,
+    "gaia_pmra": -17.143234877315166,
+    "gaia_pmdec": -1.9699893399648571,
+    "cw_pmra": -32.55,
+    "cw_pmdec": -11.2,
+    "cw_sigpmra": 4.8,
+    "cw_sigpmdec": 5.2
+   },
+   {
+    "source_name": "J085500.98-071608.1",
+    "sep_arcsec": 0.009,
+    "g_mag": 15.339063,
+    "dec": -7.2689260369971604,
+    "gaia_pmra": 19.26595434958186,
+    "gaia_pmdec": -31.500080136883067,
+    "cw_pmra": 2.89,
+    "cw_pmdec": -40.9,
+    "cw_sigpmra": 4.3,
+    "cw_sigpmdec": 4.9
+   }
+  ],
+  "rw-aur": [
+   {
+    "source_name": "J050758.51+301954.3",
+    "sep_arcsec": 0.098,
+    "g_mag": 10.954177,
+    "dec": 30.33173213735283,
+    "gaia_pmra": -39.51778479773462,
+    "gaia_pmdec": 9.523467303197966,
+    "cw_pmra": -40.76,
+    "cw_pmdec": -2.62,
+    "cw_sigpmra": 4.4,
+    "cw_sigpmdec": 4.6
+   },
+   {
+    "source_name": "J050754.63+302232.2",
+    "sep_arcsec": 0.133,
+    "g_mag": 11.876777,
+    "dec": 30.375593530632194,
+    "gaia_pmra": -15.553340565216564,
+    "gaia_pmdec": 7.5941440076665,
+    "cw_pmra": -13.97,
+    "cw_pmdec": 5.34,
+    "cw_sigpmra": 4.2,
+    "cw_sigpmdec": 4.2
+   },
+   {
+    "source_name": "J050749.48+302404.2",
+    "sep_arcsec": 0.301,
+    "g_mag": 12.184072,
+    "dec": 30.401204589097233,
+    "gaia_pmra": 2.6406431770317083,
+    "gaia_pmdec": -27.397582540455325,
+    "cw_pmra": -9.08,
+    "cw_pmdec": -82.0,
+    "cw_sigpmra": 23.9,
+    "cw_sigpmdec": 17.8
+   },
+   {
+    "source_name": "J050808.41+302208.9",
+    "sep_arcsec": 0.349,
+    "g_mag": 12.854334,
+    "dec": 30.36910266230194,
+    "gaia_pmra": 11.679188034457479,
+    "gaia_pmdec": -29.524993685695776,
+    "cw_pmra": 11.23,
+    "cw_pmdec": -37.4,
+    "cw_sigpmra": 4.3,
+    "cw_sigpmdec": 3.8
+   },
+   {
+    "source_name": "J050749.48+302404.2",
+    "sep_arcsec": 1.228,
+    "g_mag": 13.035076,
+    "dec": 30.401316149887936,
+    "gaia_pmra": 4.90603392110511,
+    "gaia_pmdec": -24.577534567492915,
+    "cw_pmra": -9.08,
+    "cw_pmdec": -82.0,
+    "cw_sigpmra": 23.9,
+    "cw_sigpmdec": 17.8
+   },
+   {
+    "source_name": "J050806.35+302622.9",
+    "sep_arcsec": 0.088,
+    "g_mag": 14.621793,
+    "dec": 30.43969777326366,
+    "gaia_pmra": 4.030340332137303,
+    "gaia_pmdec": -25.723113992160503,
+    "cw_pmra": 0.26,
+    "cw_pmdec": -35.6,
+    "cw_sigpmra": 4.6,
+    "cw_sigpmdec": 4.2
+   },
+   {
+    "source_name": "J050807.82+302322.1",
+    "sep_arcsec": 0.116,
+    "g_mag": 14.771431,
+    "dec": 30.38944659733318,
+    "gaia_pmra": 18.70633161095387,
+    "gaia_pmdec": -16.74694389724612,
+    "cw_pmra": 20.24,
+    "cw_pmdec": -32.2,
+    "cw_sigpmra": 5.0,
+    "cw_sigpmdec": 4.7
+   },
+   {
+    "source_name": "J050738.03+302723.7",
+    "sep_arcsec": 0.061,
+    "g_mag": 14.89211,
+    "dec": 30.456592447890117,
+    "gaia_pmra": -1.3371168191146352,
+    "gaia_pmdec": -28.606805816722893,
+    "cw_pmra": -8.7,
+    "cw_pmdec": -51.2,
+    "cw_sigpmra": 5.0,
+    "cw_sigpmdec": 4.8
+   },
+   {
+    "source_name": "J050734.59+302714.9",
+    "sep_arcsec": 0.074,
+    "g_mag": 15.961522,
+    "dec": 30.454129348495627,
+    "gaia_pmra": -5.986260631988767,
+    "gaia_pmdec": -18.099252082273694,
+    "cw_pmra": -7.98,
+    "cw_pmdec": -36.3,
+    "cw_sigpmra": 6.1,
+    "cw_sigpmdec": 5.8
+   }
+  ]
+ },
+ "wise0855_rows": [
+  {
+   "source_name": "J085506.91-071437.5",
+   "ra": 133.7788255,
+   "dec": -7.2437546,
+   "meanobsmjd": 57853.135215,
+   "ra_pm": 133.7835555,
+   "dec_pm": -7.244052,
+   "pmra": -7.919899940490723,
+   "pmdec": 0.49390000104904175
+  },
+  {
+   "source_name": "J085507.96-071439.3",
+   "ra": 133.7831722,
+   "dec": -7.2442516,
+   "meanobsmjd": 57338.571065,
+   "ra_pm": 133.783924,
+   "dec_pm": -7.2443404,
+   "pmra": -8.021200180053711,
+   "pmdec": 1.0356999635696411
+  }
+ ]
+}
