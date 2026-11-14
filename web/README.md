@@ -51,6 +51,12 @@ position without coverage.
 - Links: WiseView reads its state from the URL hash on load (`#ra=&dec=&size=&band=…`, checked in a browser);
   the link uses the object's latest track position and WiseView's own defaults. The IRSA SPHEREx Data Explorer
   has no documented URL that opens it at a position, so the link opens its start page.
+- Saturation union (default on; `?satunion=0` turns it off): a pixel that is +Infinity in any epoch of a band is
+  drawn saturated in every epoch of that band (blink, sum, false colour) and as no data in the difference, so a
+  changing saturated fraction does not blink like a variable star. The cursor readout still shows the epoch's own
+  value, with "(saturated in another epoch)".
+- PSF-wing plot: `meta.wing` (control-star systematics) is shown verbatim under it.
+- API mode survives a server restart: "server not reachable, retrying…" and it carries on when the server is back.
 - Spectrum: `overflow: true` = recovered from overflow (valid, reduced accuracy): filled diamond, kept in the
   light curve; `saturated: true` stays a lower limit and is left out.
 

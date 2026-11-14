@@ -269,11 +269,35 @@ const frameOf = (band, epoch, kind = S.layer) => {
   return f instanceof Float32Array ? f : null;
 };
 
+// ---------- saturation union ----------
+// A pixel that is +Infinity in any epoch of a band is shown saturated in every epoch of that band (blink, sum,
+// false colour) and as "no data" in the difference; otherwise a changing saturated fraction blinks like a
+// variable star. The files are unchanged; ?satunion=0 turns this off for comparison.
+const SATUNION = params.get("satunion") !== "0";
+function satMask(band) {
+  if (!SATUNION || !S.m?.epochs) return null;
+  const frames = S.m.epochs.map((e) => frameOf(band, e.id, "image")).filter(Boolean);
+  const c = (S.satCache ||= {})[band];
+  if (c && c.n === frames.length) return c.mask; // frames are only ever added, so the count is a valid key
+  let mask = null;
+  for (const f of frames) for (let i = 0; i < f.length; i++) if (f[i] === Infinity) (mask ||= new Uint8Array(f.length))[i] = 1;
+  S.satCache[band] = { n: frames.length, mask };
+  return mask;
+}
+function applySat(a, mask, value) {
+  if (!a || !mask) return a;
+  const o = Float32Array.from(a);
+  for (let i = 0; i < o.length; i++) if (mask[i]) o[i] = value;
+  return o;
+}
+
 // ---------- display array & scale ----------
 function displayArray() {
   const eps = S.m.epochs.map((e) => e.id);
   const cur = frameOf(S.band, eps[S.epoch]);
-  if (S.mode === "blink" || S.layer !== "image") return cur;
+  if (S.layer !== "image") return cur;
+  const sat = satMask(S.band);
+  if (S.mode === "blink") return applySat(cur, sat, Infinity);
   const others = eps.filter((_, i) => S.mode === "sum" || i !== S.epoch).map((e) => frameOf(S.band, e)).filter(Boolean);
   if (!others.length || (S.mode === "diff" && !cur)) return null;
   // +Infinity (saturated) propagates into the sum; any non-finite result is shown as "no data" (contract v1)
@@ -283,10 +307,10 @@ function displayArray() {
     for (const f of others) if (!Number.isNaN(f[i])) { s += f[i]; c++; }
     mean[i] = c && Number.isFinite(s) ? s / c : NaN;
   }
-  if (S.mode === "sum") return mean;
+  if (S.mode === "sum") return applySat(mean, sat, Infinity);
   const d = new Float32Array(n);
   for (let i = 0; i < n; i++) { const v = cur[i] - mean[i]; d[i] = Number.isFinite(v) ? v : NaN; }
-  return d;
+  return applySat(d, sat, NaN);
 }
 
 function percentile(arrs, ps) {
@@ -342,7 +366,7 @@ function bandScale(band) {
 }
 function drawRGB(ctx, ep, nx, ny, z) {
   const ch = rgbBands(), ids = [ch.r, ch.g, ch.b];
-  const fr = ids.map((b) => frameOf(b, ep.id, "image")), sc = ids.map(bandScale);
+  const fr = ids.map((b) => applySat(frameOf(b, ep.id, "image"), satMask(b), Infinity)), sc = ids.map(bandScale);
   $("scaleSrc").textContent = `false colour: R ${ch.r} · G ${ch.g} · B ${ch.b}, each with its band's own scale`;
   if (!fr.some(Boolean)) {
     ctx.fillStyle = "#888"; ctx.font = "14px system-ui";
@@ -529,6 +553,10 @@ function plots() {
     const wb = wing.filter(inBand);
     $("wingWhere").textContent = `(${S.band}; ${wb.length} of ${wing.length} saturated exposures)`;
     scatter($("wing"), wb, "mjd", "wing_flux", "MJD", "MJy/sr");
+    // meta.wing (control-star systematics) is shown verbatim
+    const mw = meta.wing;
+    $("wingNote").textContent = mw == null ? "" : typeof mw === "string" ? mw
+      : mw.text ?? Object.entries(mw).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ");
   }
   const nf = pts.filter((p) => p.flagged).length, ns = pts.filter((p) => p.saturated).length;
   const no = pts.filter((p) => p.overflow && !p.saturated).length;
@@ -746,14 +774,20 @@ function wire() {
     if (S.mode === "rgb") {
       const c = rgbBands(), ep = S.m.epochs[S.epoch].id;
       $("readout").textContent = head + [["R", c.r], ["G", c.g], ["B", c.b]].map(([k, b]) => {
-        const f = frameOf(b, ep, "image");
-        return `${k} ${b} ${fmt(f && inside ? f[yi * nx + xi] : NaN)}`;
+        const f = frameOf(b, ep, "image"), raw = f && inside ? f[yi * nx + xi] : NaN;
+        const other = inside && satMask(b)?.[yi * nx + xi] && raw !== Infinity;
+        return `${k} ${b} ${fmt(raw)}${other ? " (saturated in another epoch)" : ""}`;
       }).join("   ");
       return;
     }
-    const a = displayArray(), v = a && inside ? a[yi * nx + xi] : NaN;
-    const w = frameOf(S.band, S.m.epochs[S.epoch].id, "weight"), fw = w && inside ? w[yi * nx + xi] : null;
-    $("readout").textContent = head + `${S.layer} value ${fmt(v)}` + (fw != null ? `   weight ${fw}` : "");
+    // the real value of this epoch's file; the saturation union only changes how it is drawn
+    const i = yi * nx + xi, epId = S.m.epochs[S.epoch].id;
+    const a = displayArray(), shown = a && inside ? a[i] : NaN;
+    const raw = S.mode === "blink" && S.layer === "image" ? frameOf(S.band, epId)?.[i] ?? NaN : shown;
+    const other = S.layer === "image" && inside && satMask(S.band)?.[i] && frameOf(S.band, epId)?.[i] !== Infinity;
+    const w = frameOf(S.band, epId, "weight"), fw = w && inside ? w[i] : null;
+    $("readout").textContent = head + `${S.layer} value ${fmt(inside ? raw : NaN)}` +
+      (other ? " (saturated in another epoch)" : "") + (fw != null ? `   weight ${fw}` : "");
   };
   cv.onclick = (ev) => {
     if (!S.m?.grid) return;
