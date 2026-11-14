@@ -384,6 +384,10 @@ def check_fov(fov: float) -> None:
 app = FastAPI(title="SPHEREx blink API", version=spx.__version__)
 
 
+#: Response headers the browser may read across origins (/api/report: file name, schema check).
+EXPOSE_HEADERS = "Content-Disposition, X-ADES-Schema-Checked"
+
+
 @app.middleware("http")
 async def _cors(request: Request, call_next):
     """Access-Control-Allow-Origin: * on every response (contract), not only when Origin is sent."""
@@ -394,6 +398,8 @@ async def _cors(request: Request, call_next):
     resp.headers["Access-Control-Allow-Origin"] = "*"
     resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
     resp.headers["Access-Control-Allow-Headers"] = "*"
+    # The page runs on another origin: without this the browser hides the draft's file name and schema flag.
+    resp.headers["Access-Control-Expose-Headers"] = EXPOSE_HEADERS
     return resp
 
 
@@ -563,6 +569,14 @@ def _sesame(name: str) -> dict | None:
             "ref_epoch": 2000.0, "source": "SIMBAD via CDS Sesame"}
 
 
+def _validation_status() -> dict:
+    from spx import mpc
+    try:
+        return mpc.validation_status()
+    except Exception as e:  # health must answer even if the check itself breaks
+        return {"status": "error", "message": str(e)[:200]}
+
+
 @app.get("/api/health")
 async def api_health():
     reg = registry()
@@ -576,7 +590,7 @@ async def api_health():
                   "live_layers": list(LIVE_LAYERS), "fields_in_memory": fields, "bands_queued": queued, "bands_running": running,
                   "s3_max_concurrency": access.S3_MAX_CONCURRENCY, "code_hash": CODE_HASH,
                   "spx_frame_code_hash": spx.frame_code_hash(), "spx_code_hash": spx.code_hash(),
-                  "ades_schema": _ades_schema_available(),
+                  "ades_schema": _ades_schema_available(), "astrometry_validation": _validation_status(),
                   "network_totals": dict(access.TOTALS)})
 
 

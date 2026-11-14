@@ -208,6 +208,9 @@ def test_resolve_named_target_offline(client):
 def test_health(client):
     h = _strict(client.get("/api/health"))
     assert h["ok"] and h["collections"] and h["live_layers"] == ["IMAGE", "FLAGS"]
+    av = h["astrometry_validation"]
+    assert av["status"] in ("complete", "partial", "incomplete", "missing", "unreadable")
+    assert set(av) >= {"file", "status", "missing_keys", "frame_code_hash", "same_frame_code"}
 
 
 def test_json_safe():
@@ -348,7 +351,7 @@ def _track_rows(regime="within_visit"):
     rows = T._dets(5)
     for i, r in enumerate(rows):
         r.update({"mjd_mid": 60988.99 + i * 0.0007, "detector": 6, "accepted": True, "reason": "ok", "trailed": False,
-                  "regime": regime, "snr_fit": 30.0})
+                  "regime": regime, "snr_fit": 30.0, "snr_variance": 110.0, "snr_image": 12.5})
     rows[4].update({"accepted": False, "reason": "blended"})
     return rows
 
@@ -380,11 +383,15 @@ def test_track_and_reports(track_client):
     assert t["regime"] == "within_visit" and t["report_id"] and t["n_accepted"] == 4 and t["n_in_draft"] == 4
     assert t["nights"][0]["included"] and t["nights"][0]["n_accepted"] == 4
     assert [m["in_ades"] for m in t["measurements"]] == [True, True, True, True, False]
+    assert all(m["snr_image"] == 12.5 and m["snr_variance"] == 110.0 for m in t["measurements"])
     assert t["measurements"][4]["reason"] == "blended" and t["rate"]["arcsec_per_hour"] == pytest.approx(3.6)
     assert t["validation"]["timing"] == "not verified" and t["validation"]["text"]
     rid = t["report_id"]
-    r = c.get("/api/report", params={"id": rid, "format": "csv"})
+    r = c.get("/api/report", params={"id": rid, "format": "csv"}, headers={"Origin": "http://127.0.0.1:8765"})
     assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
+    exposed = {h.strip().lower() for h in r.headers["access-control-expose-headers"].split(",")}
+    assert {"content-disposition", "x-ades-schema-checked"} <= exposed            # page and server differ in origin
+    assert r.headers["access-control-allow-origin"] == "*"
     assert "blended" in r.text and r.headers["content-type"].startswith("text/csv")
     r = c.get("/api/report", params={"id": rid, "format": "ades", "submitter": "I. M. Tester"})
     assert r.status_code == 200 and r.text.startswith("# version=2022")
