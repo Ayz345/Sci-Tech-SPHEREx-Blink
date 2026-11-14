@@ -17,6 +17,10 @@ Method (one line each):
   astrom   reference: the same PSF fit on Gaia DR3 stars (G < 15, propagated to the epoch) in the same frames;
            their median offset is the frame's systematic astrometric error.
   pm err   formal errors are scaled by sqrt(chi2/dof) when chi2/dof > 1 (dof = n_epochs - 2).
+  fluxes   linear two-PSF fit with BOTH positions fixed (mover = its fitted position, star = Gaia) in band W
+           and in D2 (1.1-1.66 um); Gaussian total flux in mJy. Compared with the WISE W2 flux ratio of the
+           same two sources (AllWISE W2 13.704 for WISE 0855 at its 2010 position; CatWISE2020 W2 15.202 /
+           AllWISE 15.051 for the star). In D2 the mover must be consistent with zero.
   null     the same S/N measurement (max within 6") at 3000 random positions per epoch whose disc avoids
            any emission above 3 sigma in the matched-filtered frame; plus the S/N AT 3000 random empty
            positions, whose robust width w0 (1.4826 MAD) calibrates the scale:
@@ -40,7 +44,8 @@ from astropy.time import Time
 
 from spx import access
 from spx.coadd import build_frames, epoch_table, half_px_for, split_epochs, target_at
-from spx.photometry import fit_motion, fit_psf_pair, matched_filter, measure_fwhm, null_test, snr_map, source_mask
+from spx.photometry import (fit_motion, fit_psf_pair, gauss_flux_mjy, matched_filter, measure_fwhm, null_test,
+                            psf_amplitudes, snr_map, source_mask)
 from spx.targets import TARGETS, target_coord
 
 KEY = "wise-0855"
@@ -51,6 +56,10 @@ SEARCH_ARCSEC = 6.0
 BLEND_STAR = SkyCoord(133.75818250493919 * u.deg, -7.241155906974705 * u.deg,
                       pm_ra_cosdec=-6.188 * u.mas / u.yr, pm_dec=1.931 * u.mas / u.yr, obstime=Time(2016.0, format="jyear"))
 LIT_PM = (-8.118, 0.680)  # Luhman & Esplin 2016, arcsec/yr
+W2_ZP_JY = 171.787  # WISE W2 Vega zero point
+W2_MAG = {"wise0855": (13.704, 0.033, "AllWISE J085510.74-071442.5"),
+          "star_catwise": (15.202, 0.032, "CatWISE2020 J085501.95-071428.2"),
+          "star_allwise": (15.051, 0.075, "AllWISE J085501.95-071428.1")}
 OUT = ROOT / "handoff" / "results" / "wise0855_detection_v2.json"
 
 
@@ -90,6 +99,25 @@ def astrometric_offsets(f, stars, fwhm_px, min_sep_arcsec=20.0):
             "scatter": float(1.4826 * np.median(np.abs(d - np.median(d, axis=0))))}
 
 
+def spec_summary(cuts, tgt, ep, center):
+    """Per-exposure spectrum at the target, aperture vs PSF-deblended against Gaia neighbours (G < 19)."""
+    from spx.photometry import spectrum_points
+    nb = gaia_stars(center, 0.07, gmax=19.0)
+    out = {}
+    for label, kw in (("aperture", {}), ("psf_deblended", {"neighbors": nb})):
+        P = [p for p in spectrum_points(cuts, tgt, epochs=ep, **kw)["points"] if not p["flagged"]]
+        rows = []
+        for lo, hi in ((0.75, 1.1), (1.1, 1.65), (1.65, 2.4), (2.4, 3.8), (3.8, 4.3), (4.3, 5.0)):
+            q = [p for p in P if lo <= p["wavelength_um"] < hi]
+            f = np.array([p["flux"] for p in q]); w = 1 / np.array([p["err"] for p in q]) ** 2
+            m = float(np.sum(w * f) / w.sum())
+            rows.append({"um": [lo, hi], "n": len(q), "flux_mjy": round(m, 4), "err": round(float(1 / np.sqrt(w.sum())), 4),
+                         "chi2_dof": round(float(np.sum(w * (f - m) ** 2) / max(1, len(q) - 1)), 2),
+                         "neighbor_flux_mjy": round(float(np.median([p["neighbor_flux"] for p in q])), 4) if "neighbor_flux" in q[0] else None})
+        out[label] = rows
+    return out
+
+
 def run():
     tgt = target_coord(KEY)
     center = target_at(tgt, 61000.0)
@@ -111,6 +139,9 @@ def run():
 
     fwhm_px, fwhms = measure_fwhm(np.nanmean([f.image for f in frames], axis=0))
     stars = gaia_stars(center, FOV / 60 / 2 * 1.3)
+    d2 = {f.epoch: f for f in build_frames([c for c in cuts if c.detector == 2], tgt, fov_arcmin=FOV, pix_arcsec=PIX,
+                                           epochs=ep, center=center)}
+    fwhm_d2 = measure_fwhm(np.nanmean([np.where(np.isfinite(f.image), f.image, np.nan) for f in d2.values()], axis=0))[0]
     rows, nulls = [], {}
     for f in frames:
         noise_img = (fa[f.epoch].image - fb[f.epoch].image) / 2 if f.epoch in fa and f.epoch in fb else None
@@ -124,6 +155,13 @@ def run():
         sx, sy = f.grid.wcs.world_to_pixel(target_at(BLEND_STAR, f.mjd))
         fit = fit_psf_pair(f.image, (px, py), (float(sx), float(sy)), fwhm_px=fwhm_px, noise=pix_noise)
         pos = f.grid.wcs.pixel_to_world(fit["x"], fit["y"])
+        pair = [(fit["x"], fit["y"]), (float(sx), float(sy))]
+        a, ae, _ = psf_amplitudes(f.image, pair, fwhm_px, noise=pix_noise)
+        fl, fle = gauss_flux_mjy(a, fwhm_px, PIX), gauss_flux_mjy(ae, fwhm_px, PIX)
+        g = d2.get(f.epoch)
+        if g is not None:
+            b, be, _ = psf_amplitudes(np.where(np.isfinite(g.image), g.image, np.nan), pair, fwhm_d2)
+            fd, fde = gauss_flux_mjy(b, fwhm_d2, PIX), gauss_flux_mjy(be, fwhm_d2, PIX)
         pred = SkyCoord(*f.target_radec, unit="deg")
         mask = source_mask(matched_filter(f.image, fwhm_px))
         nl = null_test(snr, mask, n=3000, search_px=SEARCH_ARCSEC / PIX, seed=f.epoch)
@@ -140,6 +178,12 @@ def run():
             "offset_from_prediction_arcsec": round(pos.separation(pred).arcsec, 2),
             "pred_ra": round(pred.ra.deg, 6), "pred_dec": round(pred.dec.deg, 6),
             "sep_to_blend_star_arcsec": round(pos.separation(target_at(BLEND_STAR, f.mjd)).arcsec, 2),
+            "flux_W_mover_mjy": round(float(fl[0]), 4), "flux_W_mover_err": round(float(fle[0]), 4),
+            "flux_W_star_mjy": round(float(fl[1]), 4), "flux_W_star_err": round(float(fle[1]), 4),
+            "flux_D2_mover_mjy": round(float(fd[0]), 4) if g is not None else None,
+            "flux_D2_mover_err": round(float(fde[0]), 4) if g is not None else None,
+            "flux_D2_star_mjy": round(float(fd[1]), 4) if g is not None else None,
+            "flux_D2_star_err": round(float(fde[1]), 4) if g is not None else None,
             "gaia_ref": {k: (round(v, 3) if isinstance(v, float) else v) for k, v in ast.items()} if ast else None,
             "null_n": int(nl.size), "null_median": round(float(np.median(nl)), 2),
             "null_p99_9": round(float(np.percentile(nl, 99.9)), 2), "null_max": round(float(nl.max()), 2),
@@ -147,13 +191,26 @@ def run():
         })
     mot = fit_motion([r["mjd"] for r in rows], [r["ra"] for r in rows], [r["dec"] for r in rows],
                      [r["err_ra_arcsec"] for r in rows], [r["err_dec_arcsec"] for r in rows])
+    w2 = {k: W2_ZP_JY * 10 ** (-0.4 * m) * 1e3 for k, (m, _, _) in W2_MAG.items()}  # mJy
+    fm = np.array([r["flux_W_mover_mjy"] for r in rows]); fme = np.array([r["flux_W_mover_err"] for r in rows])
+    fs = np.array([r["flux_W_star_mjy"] for r in rows]); fse = np.array([r["flux_W_star_err"] for r in rows])
+    wm, ws = 1 / fme ** 2, 1 / fse ** 2
+    flux_check = {
+        "W2_catalog": {k: {"mag": m, "err": e, "source": src, "flux_mjy": round(w2[k], 4)} for k, (m, e, src) in W2_MAG.items()},
+        "W2_ratio_mover_over_star": [round(w2["wise0855"] / w2["star_catwise"], 2), round(w2["wise0855"] / w2["star_allwise"], 2)],
+        "W_mover_mean_mjy": round(float(np.sum(wm * fm) / wm.sum()), 4), "W_mover_chi2": round(float(np.sum(wm * (fm - np.sum(wm * fm) / wm.sum()) ** 2)), 2),
+        "W_star_mean_mjy": round(float(np.sum(ws * fs) / ws.sum()), 4), "W_star_chi2": round(float(np.sum(ws * (fs - np.sum(ws * fs) / ws.sum()) ** 2)), 2),
+        "fwhm_W_arcsec": round(fwhm_px * PIX, 2), "fwhm_D2_arcsec": round(fwhm_d2 * PIX, 2),
+    }
+    flux_check["W_ratio_mover_over_star"] = round(flux_check["W_mover_mean_mjy"] / flux_check["W_star_mean_mjy"], 2)
     dof = max(1, len(rows) - 2)
     for k in ("pmra", "pmdec"):
         mot[k + "_err_scaled"] = mot[k + "_err"] * max(1.0, np.sqrt(mot[k + "_chi2"] / dof))
     res = {"target": KEY, "band_um": BAND_UM, "grid_arcsec": PIX, "psf_fwhm_arcsec": round(fwhm_px * PIX, 2),
            "psf_fwhm_stars_arcsec": [round(v * PIX, 2) for v in fwhms], "n_cutouts": len(cuts), "n_skipped": nskip,
            "epochs": rows, "motion_arcsec_per_yr": {k: round(v, 3) for k, v in mot.items()},
-           "literature_pm_arcsec_per_yr": LIT_PM,
+           "literature_pm_arcsec_per_yr": LIT_PM, "flux_check": flux_check,
+           "spectrum_deblended": spec_summary(cuts, tgt, ep, center),
            "method": __doc__.split("Method (one line each):")[1].strip()}
     OUT.write_text(json.dumps(res, indent=1, ensure_ascii=False), encoding="utf-8")
     return res
@@ -171,6 +228,15 @@ def report(res):
     print(f"SPHEREx motion: pmra {m['pmra']:+.2f} +- {m['pmra_err_scaled']:.2f}  pmdec {m['pmdec']:+.2f} +- {m['pmdec_err_scaled']:.2f} \"/yr "
           f"(formal +- {m['pmra_err']:.2f}, {m['pmdec_err']:.2f}; "
           f"chi2 {m['pmra_chi2']:.1f}, {m['pmdec_chi2']:.1f}; literature {LIT_PM[0]:+.3f}, {LIT_PM[1]:+.3f})")
+    print("fluxes (mJy)   W mover          W star           D2 mover          D2 star")
+    for r in res["epochs"]:
+        print(f"  {r['date']}  {r['flux_W_mover_mjy']:6.3f}+-{r['flux_W_mover_err']:.3f}  {r['flux_W_star_mjy']:6.3f}+-{r['flux_W_star_err']:.3f}  "
+              f"{r['flux_D2_mover_mjy']:7.3f}+-{r['flux_D2_mover_err']:.3f}  {r['flux_D2_star_mjy']:6.3f}+-{r['flux_D2_star_err']:.3f}")
+    fc = res["flux_check"]
+    print(f"W mean: mover {fc['W_mover_mean_mjy']} (chi2 {fc['W_mover_chi2']}), star {fc['W_star_mean_mjy']} (chi2 {fc['W_star_chi2']}); "
+          f"ratio SPHEREx W {fc['W_ratio_mover_over_star']} vs WISE W2 {fc['W2_ratio_mover_over_star']}; W2 fluxes {[(k, v['flux_mjy']) for k, v in fc['W2_catalog'].items()]}")
+    for label, rows in res["spectrum_deblended"].items():
+        print(f"spectrum {label:14s} " + "  ".join(f"{r['um'][0]}-{r['um'][1]}:{r['flux_mjy']:+.3f}" for r in rows) + " mJy")
     print("written", OUT)
 
 
@@ -183,6 +249,14 @@ def test_wise0855_detected():
         assert r["snr_calibrated"] >= 5, r
         assert r["offset_from_prediction_arcsec"] <= SEARCH_ARCSEC, r
         assert r["null_frac_ge_detection"] < 0.001, r
+    fc = res["flux_check"]
+    assert 0.5 < fc["W_ratio_mover_over_star"] / fc["W2_ratio_mover_over_star"][0] < 2.0
+    for r in res["epochs"]:
+        assert abs(r["flux_D2_mover_mjy"]) < 3 * r["flux_D2_mover_err"] + 0.05
+    deb = {tuple(r["um"]): r for r in res["spectrum_deblended"]["psf_deblended"]}
+    assert deb[(4.3, 5.0)]["flux_mjy"] > 5 * deb[(4.3, 5.0)]["err"]
+    for k in ((0.75, 1.1), (1.1, 1.65), (1.65, 2.4)):
+        assert abs(deb[k]["flux_mjy"]) < 0.15 * deb[k]["neighbor_flux_mjy"] + 3 * deb[k]["err"]
     m = res["motion_arcsec_per_yr"]
     assert abs(m["pmra"] - LIT_PM[0]) <= 3 * m["pmra_err_scaled"]
     assert abs(m["pmdec"] - LIT_PM[1]) <= 3 * m["pmdec_err_scaled"]

@@ -11,12 +11,13 @@ import warnings
 
 import numpy as np
 from astropy.coordinates import SkyCoord
+from astropy.time import Time
 from astropy.stats import sigma_clipped_stats
 from astropy.wcs.utils import proj_plane_pixel_area
 from scipy.ndimage import gaussian_filter, maximum_filter
 from scipy.optimize import least_squares
 
-from spx.coadd import BAD_MASK, HARD_MASK, assign_epochs, split_epochs, target_at
+from spx.coadd import BAD_MASK, HARD_MASK, SATURATION_MASK, assign_epochs, split_epochs, target_at
 
 FLUX_UNIT = "mJy"
 
@@ -42,7 +43,8 @@ def _aperture_weights(shape, x, y, r, oversample=5):
 def aperture_flux(cut, x, y, r_ap=2.0, r_in=4.0, r_out=7.0):
     """Background-subtracted aperture flux on one cutout at pixel (x, y).
 
-    Returns (flux_mJy, err_mJy, flagged, n_bad_in_aperture) or None when the aperture is off the cutout.
+    Returns (flux_mJy, err_mJy, flagged, n_bad_in_aperture, saturated) or None when the aperture is off the
+    cutout. saturated = an OVERFLOW/NONLINEAR/BLOOM pixel within the aperture (flux is then a lower limit).
     Pixels with HARD_MASK flags (dead, hot, cold, missing...) are excluded and the flux is scaled
     up by the excluded aperture fraction; any BAD_MASK pixel in the aperture sets flagged=True
     (saturated cores of bright stars are kept but flagged).
@@ -74,38 +76,149 @@ def aperture_flux(cut, x, y, r_ap=2.0, r_in=4.0, r_out=7.0):
     omega_sr = proj_plane_pixel_area(cut.wcs) * (np.pi / 180) ** 2
     to_mjy = 1e6 * omega_sr * 1e3  # MJy/sr * sr -> Jy -> mJy
     n_bad = int(((w > 0) & ((flags & BAD_MASK) != 0)).sum())
-    return float(s * to_mjy), float(np.sqrt(v) * to_mjy), n_bad > 0, n_bad
+    sat = bool(((w > 0) & ((flags & SATURATION_MASK) != 0)).any())
+    return float(s * to_mjy), float(np.sqrt(v) * to_mjy), n_bad > 0, n_bad, sat
+
+
+def _pixel_gauss(shape, x, y, fwhm_px):
+    """Unit-flux Gaussian integrated over each pixel (correct for the undersampled native SPHEREx PSF)."""
+    from scipy.special import erf
+    s = fwhm_px / 2.3548 * np.sqrt(2)
+    ex = 0.5 * (erf((np.arange(shape[1]) + 0.5 - x) / s) - erf((np.arange(shape[1]) - 0.5 - x) / s))
+    ey = 0.5 * (erf((np.arange(shape[0]) + 0.5 - y) / s) - erf((np.arange(shape[0]) - 0.5 - y) / s))
+    return np.outer(ey, ex)
+
+
+def psf_flux(cut, xys, fwhm_px, box_px=6, r_bg=(8.0, 12.0)):
+    """Fixed-position PSF photometry on one native cutout: fluxes (mJy) of sources at xys (first = target).
+
+    Pixel-integrated Gaussian PSF, local background from a clean annulus around the target, BAD_MASK
+    pixels excluded. Returns (flux_mJy array, err_mJy array, flagged, saturated) or None.
+    """
+    img = np.asarray(cut.image, float)
+    flags = np.asarray(cut.flags) if cut.flags is not None else np.zeros(img.shape, np.int32)
+    x0, y0 = xys[0]
+    ny, nx = img.shape
+    if not (box_px <= x0 <= nx - 1 - box_px and box_px <= y0 <= ny - 1 - box_px):
+        return None
+    yy, xx = np.mgrid[0:ny, 0:nx]
+    rr = np.hypot(xx - x0, yy - y0)
+    clean = np.isfinite(img) & ((flags & BAD_MASK) == 0)
+    ann = clean & (rr >= r_bg[0]) & (rr <= r_bg[1])
+    if ann.sum() < 10:
+        return None
+    _, bg, bgsig = sigma_clipped_stats(img[ann], sigma=3.0, maxiters=5, stdfunc="mad_std")
+    box = (np.abs(xx - x0) <= box_px) & (np.abs(yy - y0) <= box_px)
+    use = box & clean
+    near = rr <= 1.5
+    if use[near].sum() < 0.5 * near.sum():
+        return None
+    A = np.column_stack([_pixel_gauss(img.shape, x, y, fwhm_px)[use] for x, y in xys])
+    Z = img[use] - bg
+    var = np.asarray(cut.variance, float)[use] if getattr(cut, "variance", None) is not None else np.full(Z.size, bgsig ** 2)
+    var = np.where(np.isfinite(var) & (var > 0), var, bgsig ** 2)
+    w = 1 / var
+    cov = np.linalg.inv(A.T @ (A * w[:, None]))
+    p = cov @ (A.T @ (w * Z))
+    omega_sr = proj_plane_pixel_area(cut.wcs) * (np.pi / 180) ** 2
+    to_mjy = 1e6 * omega_sr * 1e3
+    flagged = bool(((flags & BAD_MASK) != 0)[near].any())
+    sat = bool(((flags & SATURATION_MASK) != 0)[rr <= 2.0].any())
+    return p * to_mjy, np.sqrt(np.diag(cov)) * to_mjy, flagged, sat
 
 
 def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_in: float = 4.0,
-                    r_out: float = 7.0, max_epoch_days: float | None = 60.0):
+                    r_out: float = 7.0, max_epoch_days: float | None = 60.0, neighbors: SkyCoord | None = None,
+                    blend_radius_arcsec: float = 25.0):
     """One photometric point per exposure at `coord` (propagated per exposure if it has a proper motion).
 
     epochs: the manifest epoch_table (preferred, so ids match the frames); otherwise split_epochs over
     the cutouts. Returns {"meta": {...}, "points": [...]}, points sorted by wavelength.
+    neighbors: known sources (e.g. Gaia DR3 with pm/obstime). If any comes within blend_radius_arcsec of the
+    target in any exposure, EVERY point is measured by fixed-position PSF photometry that fits the target and
+    those neighbours together (deblended); otherwise by aperture photometry. meta["photometry"] says which.
     """
     cuts = [c for c in cutouts if c is not None]
     mjd = np.array([c.mjd for c in cuts])
     ep = assign_epochs(mjd, epochs) if epochs is not None else split_epochs(mjd, max_epoch_days=max_epoch_days)
+    blend = _blended(neighbors, coord, mjd, blend_radius_arcsec) if neighbors is not None and len(cuts) else []
     pts = []
     for c, e in zip(cuts, ep):
         pos = target_at(coord, c.mjd)
         x, y = c.wcs.world_to_pixel(pos)
-        r = aperture_flux(c, float(x), float(y), r_ap, r_in, r_out)
-        if r is None:
-            continue
-        flux, err, flagged, _ = r
+        if blend:
+            nb = _move(neighbors[blend], c.mjd)
+            nxs, nys = c.wcs.world_to_pixel(nb)
+            xys = [(float(x), float(y))] + [(float(a_), float(b_)) for a_, b_ in zip(np.atleast_1d(nxs), np.atleast_1d(nys))]
+            fw = getattr(c, "psf_fwhm_arcsec", float("nan"))
+            fw = (fw if np.isfinite(fw) else 7.5) / 6.15
+            r = psf_flux(c, xys, fw)
+            if r is None:
+                continue
+            flux, err, flagged, sat = float(r[0][0]), float(r[1][0]), r[2], r[3]
+            nbf = float(np.sum(r[0][1:]))
+        else:
+            nbf = None
+            r = aperture_flux(c, float(x), float(y), r_ap, r_in, r_out)
+            if r is None:
+                continue
+            flux, err, flagged, _, sat = r
         pts.append({"wavelength_um": round(float(c.wavelength_um), 5), "bandwidth_um": round(float(c.bandwidth_um), 5),
                     "flux": round(flux, 6), "err": round(err, 6), "mjd": round(float(c.mjd), 5),
-                    "epoch": int(e), "band": f"D{c.detector}", "flagged": bool(flagged), "obs_id": c.obs_id})
+                    "epoch": int(e), "band": f"D{c.detector}", "flagged": bool(flagged), "saturated": sat,
+                    "obs_id": c.obs_id})
+        if nbf is not None:
+            pts[-1]["neighbor_flux"] = round(nbf, 6)
     pts.sort(key=lambda p: (p["wavelength_um"], p["mjd"]))
-    meta = {"flux_unit": FLUX_UNIT, "aperture_radius_px": r_ap, "aperture_radius_arcsec": round(r_ap * 6.15, 2),
+    if blend:
+        meta = {"flux_unit": FLUX_UNIT, "photometry": "psf_deblended", "aperture_radius_px": None,
+                "deblended_neighbors": [{"ra": round(float(neighbors[i].ra.deg), 6), "dec": round(float(neighbors[i].dec.deg), 6)}
+                                        for i in blend],
+                "method": "per-exposure fixed-position PSF photometry (pixel-integrated Gaussian, FWHM = PSF_FWHM of "
+                          "the exposure) fitting the target together with the known neighbours within "
+                          f"{blend_radius_arcsec:g} arcsec, so their light is removed; total flux, no aperture "
+                          "correction; flagged = non-informational FLAGS bit within 1.5 px; saturated = "
+                          "OVERFLOW/NONLINEAR/BLOOM within 2 px; neighbor_flux = fitted flux of the removed "
+                          "neighbours. Systematic: the Gaussian PSF leaves ~5-15% of a neighbour's flux as a "
+                          "residual on the target (measured on WISE 0855 / G=16.3 star at 3-11 arcsec), so treat "
+                          "|flux| < 0.15 x neighbor_flux as consistent with zero",
+                "n_points": len(pts), "n_flagged": int(sum(p["flagged"] for p in pts)),
+                "n_saturated": int(sum(p["saturated"] for p in pts))}
+        return {"meta": meta, "points": pts}
+    meta = {"flux_unit": FLUX_UNIT, "photometry": "aperture", "aperture_radius_px": r_ap,
+            "aperture_radius_arcsec": round(r_ap * 6.15, 2),
             "background_annulus_px": [r_in, r_out], "aperture_corrected": False,
             "method": "per-exposure circular aperture on the L2 image (MJy/sr x pixel solid angle), "
                       "sigma-clipped annulus background; flagged = any non-informational FLAGS bit in the aperture "
-                      "(e.g. saturated core), err from VARIANCE + background error",
-            "n_points": len(pts), "n_flagged": int(sum(p["flagged"] for p in pts))}
+                      "(e.g. saturated core), err from VARIANCE (or annulus scatter) + background error; "
+                      "saturated = OVERFLOW/NONLINEAR/BLOOM in the aperture: the flux is a lower limit, "
+                      "keep flagged points out of light curves",
+            "n_points": len(pts), "n_flagged": int(sum(p["flagged"] for p in pts)),
+            "n_saturated": int(sum(p["saturated"] for p in pts))}
     return {"meta": meta, "points": pts}
+
+
+def _move(c: SkyCoord, mjd: float) -> SkyCoord:
+    """Positions at mjd (proper motion applied when c has pm + obstime)."""
+    try:
+        has_pm = c.obstime is not None and c.pm_ra_cosdec is not None
+    except (AttributeError, TypeError):
+        has_pm = False
+    if not has_pm:
+        return SkyCoord(c.ra, c.dec)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        m = c.apply_space_motion(new_obstime=Time(float(mjd), format="mjd"))
+    return SkyCoord(m.ra, m.dec)
+
+
+def _blended(neighbors: SkyCoord, coord: SkyCoord, mjd, radius_arcsec: float) -> list:
+    """Indices of neighbours that come within radius of the target at the first or last exposure."""
+    out = set()
+    for m in (float(np.min(mjd)), float(np.max(mjd))):
+        sep = _move(neighbors, m).separation(target_at(coord, m)).arcsec
+        out |= set(int(i) for i in np.nonzero((sep < radius_arcsec) & (sep > 0.5))[0])
+    return sorted(out)
 
 
 # --------------------------------------------------------------------------- co-add measurements
@@ -269,3 +382,31 @@ def measure_fwhm(img: np.ndarray, n_stars: int = 12, box_px: int = 6, min_sep_px
         if len(out) >= n_stars:
             break
     return (float(np.median(out)) if out else float("nan")), out
+
+
+def psf_amplitudes(img: np.ndarray, positions, fwhm_px: float, box_px: int = 9, noise: float | None = None):
+    """Linear least-squares amplitudes of Gaussian PSFs at FIXED positions (grid px) + a constant background.
+
+    The box is centred on the mean position. Returns (amps, errs, bg): peak values in the image unit; errors
+    from the normal-equation covariance with the per-pixel `noise` (or the residual rms if None).
+    """
+    pos = np.asarray(positions, float)
+    cx, cy = pos.mean(axis=0)
+    yy, xx = np.mgrid[0:img.shape[0], 0:img.shape[1]]
+    sel = (np.abs(xx - cx) <= box_px) & (np.abs(yy - cy) <= box_px) & np.isfinite(img)
+    X, Y, Z = xx[sel].astype(float), yy[sel].astype(float), img[sel].astype(float)
+    s = fwhm_px / 2.3548
+    A = np.column_stack([_gauss(X, Y, x, y, 1.0, s) for x, y in pos] + [np.ones_like(X)])
+    p, *_ = np.linalg.lstsq(A, Z, rcond=None)
+    resid = Z - A @ p
+    sig2 = noise ** 2 if noise is not None else float(np.sum(resid ** 2) / max(1, Z.size - A.shape[1]))
+    cov = np.linalg.inv(A.T @ A) * sig2
+    err = np.sqrt(np.diag(cov))
+    return p[:-1], err[:-1], float(p[-1])
+
+
+def gauss_flux_mjy(amp, fwhm_px: float, pix_arcsec: float):
+    """Total flux (mJy) of a Gaussian of peak `amp` (MJy/sr) and FWHM fwhm_px on a grid of pix_arcsec pixels."""
+    s = fwhm_px / 2.3548
+    omega = (pix_arcsec / 206264.806) ** 2
+    return np.asarray(amp) * 2 * np.pi * s * s * omega * 1e9

@@ -21,8 +21,12 @@ OUT = ROOT / "handoff" / "results"
 DISPLAY_BAND = {"barnard": "D2", "eps-indi-b": "D2", "wise-0855": "W", "rw-aur": "D3", "r-dra": "D2"}
 
 
-def frames_for(key, fov_arcmin=7.0, band=None, verbose=False):
-    """Fetch (cached) and co-add one target; returns (frames of the display band, target dict)."""
+def frames_for(key, fov_arcmin=7.0, band=None, epochs=None, verbose=False):
+    """Fetch (cached) and co-add one target; returns (frames of the display band, target dict).
+
+    epochs: the field's epoch table from access.epochs_for (the pipeline passes the manifest's); when None it is
+    taken from access.epochs_for here, never rebuilt locally.
+    """
     from spx import access
     from spx.targets import TARGETS, target_coord
     t = TARGETS[key]
@@ -31,7 +35,7 @@ def frames_for(key, fov_arcmin=7.0, band=None, verbose=False):
     refs = access.find_images(center.ra.deg, center.dec.deg)
     if not refs:
         return [], t
-    _, ep = access.epochs_for(refs)  # the contract's single epoch table (same as the manifest)
+    ep = epochs if epochs is not None else access.epochs_for(refs)[1]  # the contract's single epoch table
     cuts, _ = access.fetch_cutouts(refs, center.ra.deg, center.dec.deg, half_px=half_px_for(fov_arcmin))
     band = band or t.get("default_band") or DISPLAY_BAND.get(key, "D2")
     kw = dict(fov_arcmin=fov_arcmin, epochs=ep, center=center, verbose=verbose)

@@ -34,6 +34,14 @@
    "pred_ra": 133.760574,
    "pred_dec": -7.242373,
    "sep_to_blend_star_arcsec": 11.43,
+   "flux_W_mover_mjy": 0.4954,
+   "flux_W_mover_err": 0.0237,
+   "flux_W_star_mjy": 0.2033,
+   "flux_W_star_err": 0.0237,
+   "flux_D2_mover_mjy": -0.0241,
+   "flux_D2_mover_err": 0.0123,
+   "flux_D2_star_mjy": 1.0293,
+   "flux_D2_star_err": 0.0123,
    "gaia_ref": {
     "n": 4,
     "dra": -0.272,
@@ -65,6 +73,14 @@
    "pred_ra": 133.759388,
    "pred_dec": -7.242275,
    "sep_to_blend_star_arcsec": 8.18,
+   "flux_W_mover_mjy": 0.4903,
+   "flux_W_mover_err": 0.0111,
+   "flux_W_star_mjy": 0.1595,
+   "flux_W_star_err": 0.0111,
+   "flux_D2_mover_mjy": 0.0207,
+   "flux_D2_mover_err": 0.0131,
+   "flux_D2_star_mjy": 1.0287,
+   "flux_D2_star_err": 0.0131,
    "gaia_ref": {
     "n": 4,
     "dra": 0.125,
@@ -96,6 +112,14 @@
    "pred_ra": 133.758364,
    "pred_dec": -7.242189,
    "sep_to_blend_star_arcsec": 3.74,
+   "flux_W_mover_mjy": 0.5312,
+   "flux_W_mover_err": 0.0164,
+   "flux_W_star_mjy": 0.105,
+   "flux_W_star_err": 0.0164,
+   "flux_D2_mover_mjy": -0.0078,
+   "flux_D2_mover_err": 0.0337,
+   "flux_D2_star_mjy": 1.0566,
+   "flux_D2_star_err": 0.0337,
    "gaia_ref": {
     "n": 4,
     "dra": -0.064,
@@ -124,5 +148,176 @@
   -8.118,
   0.68
  ],
- "method": "frames   spx.coadd.build_frames, band W = exposures whose LVF wavelength at the target is 4.3-5.0 um,\n           3\" grid, epochs = split_epochs over ALL exposures of the field (max_epoch_days=60).\n  PSF      Gaussian, FWHM measured on the brightest isolated stars of the same W frames (measure_fwhm).\n  S/N      matched filter (convolution with that PSF); noise = robust std of the matched-filtered\n           half-split difference (A-B)/2, A/B = alternate exposures of the epoch in time order, so the\n           noise estimate contains no sky signal; S/N = max of the S/N map within 6\" of the prediction.\n  position PSF fit of the mover + a second PSF at the FIXED Gaia DR3 position of the blended star\n           5756956644387831296 (G=16.3) + constant; 1-sigma errors from the fit Jacobian with the\n           half-split per-pixel noise. Then a weighted linear fit of position vs time.\n  astrom   reference: the same PSF fit on Gaia DR3 stars (G < 15, propagated to the epoch) in the same frames;\n           their median offset is the frame's systematic astrometric error.\n  pm err   formal errors are scaled by sqrt(chi2/dof) when chi2/dof > 1 (dof = n_epochs - 2).\n  null     the same S/N measurement (max within 6\") at 3000 random positions per epoch whose disc avoids\n           any emission above 3 sigma in the matched-filtered frame; plus the S/N AT 3000 random empty\n           positions, whose robust width w0 (1.4826 MAD) calibrates the scale:\n           snr_calibrated = snr / w0. Quote that, or \"x times the highest of 3000 empty positions\"."
+ "flux_check": {
+  "W2_catalog": {
+   "wise0855": {
+    "mag": 13.704,
+    "err": 0.033,
+    "source": "AllWISE J085510.74-071442.5",
+    "flux_mjy": 0.5667
+   },
+   "star_catwise": {
+    "mag": 15.202,
+    "err": 0.032,
+    "source": "CatWISE2020 J085501.95-071428.2",
+    "flux_mjy": 0.1426
+   },
+   "star_allwise": {
+    "mag": 15.051,
+    "err": 0.075,
+    "source": "AllWISE J085501.95-071428.1",
+    "flux_mjy": 0.1639
+   }
+  },
+  "W2_ratio_mover_over_star": [
+   3.97,
+   3.46
+  ],
+  "W_mover_mean_mjy": 0.5021,
+  "W_mover_chi2": 4.36,
+  "W_star_mean_mjy": 0.1503,
+  "W_star_chi2": 13.32,
+  "fwhm_W_arcsec": 9.95,
+  "fwhm_D2_arcsec": 8.99,
+  "W_ratio_mover_over_star": 3.34
+ },
+ "spectrum_deblended": {
+  "aperture": [
+   {
+    "um": [
+     0.75,
+     1.1
+    ],
+    "n": 28,
+    "flux_mjy": 1.0608,
+    "err": 0.0134,
+    "chi2_dof": 2.91,
+    "neighbor_flux_mjy": null
+   },
+   {
+    "um": [
+     1.1,
+     1.65
+    ],
+    "n": 39,
+    "flux_mjy": 0.9457,
+    "err": 0.0102,
+    "chi2_dof": 3.59,
+    "neighbor_flux_mjy": null
+   },
+   {
+    "um": [
+     1.65,
+     2.4
+    ],
+    "n": 37,
+    "flux_mjy": 0.6406,
+    "err": 0.0088,
+    "chi2_dof": 4.77,
+    "neighbor_flux_mjy": null
+   },
+   {
+    "um": [
+     2.4,
+     3.8
+    ],
+    "n": 27,
+    "flux_mjy": 0.2953,
+    "err": 0.0084,
+    "chi2_dof": 3.36,
+    "neighbor_flux_mjy": null
+   },
+   {
+    "um": [
+     3.8,
+     4.3
+    ],
+    "n": 29,
+    "flux_mjy": 0.384,
+    "err": 0.0191,
+    "chi2_dof": 3.57,
+    "neighbor_flux_mjy": null
+   },
+   {
+    "um": [
+     4.3,
+     5.0
+    ],
+    "n": 36,
+    "flux_mjy": 0.5781,
+    "err": 0.0285,
+    "chi2_dof": 2.18,
+    "neighbor_flux_mjy": null
+   }
+  ],
+  "psf_deblended": [
+   {
+    "um": [
+     0.75,
+     1.1
+    ],
+    "n": 32,
+    "flux_mjy": -0.1067,
+    "err": 0.0091,
+    "chi2_dof": 3.15,
+    "neighbor_flux_mjy": 1.3071
+   },
+   {
+    "um": [
+     1.1,
+     1.65
+    ],
+    "n": 48,
+    "flux_mjy": -0.0793,
+    "err": 0.0068,
+    "chi2_dof": 4.52,
+    "neighbor_flux_mjy": 1.1693
+   },
+   {
+    "um": [
+     1.65,
+     2.4
+    ],
+    "n": 39,
+    "flux_mjy": -0.0446,
+    "err": 0.0069,
+    "chi2_dof": 3.12,
+    "neighbor_flux_mjy": 0.7806
+   },
+   {
+    "um": [
+     2.4,
+     3.8
+    ],
+    "n": 32,
+    "flux_mjy": -0.0102,
+    "err": 0.0066,
+    "chi2_dof": 1.33,
+    "neighbor_flux_mjy": 0.3786
+   },
+   {
+    "um": [
+     3.8,
+     4.3
+    ],
+    "n": 35,
+    "flux_mjy": 0.2559,
+    "err": 0.0163,
+    "chi2_dof": 3.44,
+    "neighbor_flux_mjy": 0.188
+   },
+   {
+    "um": [
+     4.3,
+     5.0
+    ],
+    "n": 43,
+    "flux_mjy": 0.5254,
+    "err": 0.0269,
+    "chi2_dof": 1.18,
+    "neighbor_flux_mjy": 0.0912
+   }
+  ]
+ },
+ "method": "frames   spx.coadd.build_frames, band W = exposures whose LVF wavelength at the target is 4.3-5.0 um,\n           3\" grid, epochs = split_epochs over ALL exposures of the field (max_epoch_days=60).\n  PSF      Gaussian, FWHM measured on the brightest isolated stars of the same W frames (measure_fwhm).\n  S/N      matched filter (convolution with that PSF); noise = robust std of the matched-filtered\n           half-split difference (A-B)/2, A/B = alternate exposures of the epoch in time order, so the\n           noise estimate contains no sky signal; S/N = max of the S/N map within 6\" of the prediction.\n  position PSF fit of the mover + a second PSF at the FIXED Gaia DR3 position of the blended star\n           5756956644387831296 (G=16.3) + constant; 1-sigma errors from the fit Jacobian with the\n           half-split per-pixel noise. Then a weighted linear fit of position vs time.\n  astrom   reference: the same PSF fit on Gaia DR3 stars (G < 15, propagated to the epoch) in the same frames;\n           their median offset is the frame's systematic astrometric error.\n  pm err   formal errors are scaled by sqrt(chi2/dof) when chi2/dof > 1 (dof = n_epochs - 2).\n  fluxes   linear two-PSF fit with BOTH positions fixed (mover = its fitted position, star = Gaia) in band W\n           and in D2 (1.1-1.66 um); Gaussian total flux in mJy. Compared with the WISE W2 flux ratio of the\n           same two sources (AllWISE W2 13.704 for WISE 0855 at its 2010 position; CatWISE2020 W2 15.202 /\n           AllWISE 15.051 for the star). In D2 the mover must be consistent with zero.\n  null     the same S/N measurement (max within 6\") at 3000 random positions per epoch whose disc avoids\n           any emission above 3 sigma in the matched-filtered frame; plus the S/N AT 3000 random empty\n           positions, whose robust width w0 (1.4826 MAD) calibrates the scale:\n           snr_calibrated = snr / w0. Quote that, or \"x times the highest of 3000 empty positions\"."
 }
