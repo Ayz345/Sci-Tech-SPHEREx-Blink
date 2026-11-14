@@ -4,6 +4,7 @@
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const API = (params.get("api") || "").replace(/\/$/, "");
+const EMBED = params.get("embed") === "1";
 const DATA = (params.get("data") || "data").replace(/\/$/, "");
 const D2R = Math.PI / 180;
 
@@ -169,7 +170,12 @@ async function loadTarget() {
   if (params.get("name") && !S.m.name?.includes(params.get("name"))) S.m.name = `${params.get("name")} (${S.m.name || S.key})`;
   document.title = `${S.m.name || S.key} · SPHEREx Blink`;
   renderMeta();
-  $("notes").replaceChildren(...(S.m.notes || []).map((n) => Object.assign(document.createElement("li"), { textContent: n })));
+  const items = (S.m.notes || []).map((n) => Object.assign(document.createElement("li"), { textContent: n }));
+  if (EMBED && items.length) { // embedded: notes fold into one line ("2 notes ▸") so the player fits the frame
+    const det = document.createElement("details"), sum = document.createElement("summary"), ul = document.createElement("ul");
+    sum.textContent = `${items.length} note${items.length > 1 ? "s" : ""}`; ul.append(...items); det.append(sum, ul);
+    $("notes").replaceChildren(det);
+  } else $("notes").replaceChildren(...items);
   if (!S.m.epochs?.length) { status(S.m.message || "No epochs for this position.", true); return; }
 
   $("epoch").max = S.m.epochs.length - 1;
@@ -561,16 +567,19 @@ function overlays(ctx, ep) {
   }
   // scale bar (30″) and compass: north up, east left
   const len = (30 / pixArcsec()) * z, H = ctx.canvas.height;
-  ctx.strokeStyle = ctx.fillStyle = "#ddd"; ctx.font = "12px system-ui";
-  ctx.beginPath(); ctx.moveTo(10, H - 12); ctx.lineTo(10 + len, H - 12); ctx.stroke();
-  ctx.fillText(`30″  (grid ${pixArcsec().toFixed(2)}″/px)`, 10, H - 18);
-  ctx.fillText("N ↑  E ←", ctx.canvas.width - 64, 16);
+  ctx.font = "12px system-ui";
+  // dark outline so the labels stay readable on a white (difference) background
+  const label = (t, x, y) => { ctx.lineWidth = 3; ctx.strokeStyle = "#000"; ctx.strokeText(t, x, y); ctx.fillStyle = "#eee"; ctx.fillText(t, x, y); };
+  ctx.lineWidth = 4; ctx.strokeStyle = "#000"; ctx.beginPath(); ctx.moveTo(10, H - 12); ctx.lineTo(10 + len, H - 12); ctx.stroke();
+  ctx.lineWidth = 1.5; ctx.strokeStyle = "#eee"; ctx.beginPath(); ctx.moveTo(10, H - 12); ctx.lineTo(10 + len, H - 12); ctx.stroke();
+  label(`30″  (grid ${pixArcsec().toFixed(2)}″/px)`, 10, H - 18);
+  label("N ↑  E ←", ctx.canvas.width - 64, 16);
 }
 
 // ---------- plots (spectrum + light curve) ----------
 const EPOCH_COLORS = ["#4fd1c5", "#e89a3c", "#c084fc", "#7ee787", "#ff7b72", "#79c0ff"];
 function scatter(svg, pts, xk, yk, xlabel, ylabel) {
-  const W = 460, H = 220, L = 52, B = 30, T = 10, R = 10;
+  const W = 460, H = 220, L = 52, B = 30, T = 24, R = 10; // T leaves a row above the plot for the epoch legend
   if (!pts.length) { svg.innerHTML = `<text x="20" y="30" fill="#888" font-size="13">no data</text>`; return; }
   const xs = pts.map((p) => p[xk]), good = pts.filter((p) => !p.flagged);
   const ys = (good.length ? good : pts).map((p) => p[yk]);
@@ -595,7 +604,9 @@ function scatter(svg, pts, xk, yk, xlabel, ylabel) {
       h += `<circle cx="${cx}" cy="${cy.toFixed(1)}" r="2.2" fill="${c}" opacity="${faint ? 0.2 : 1}"/>`;
     }
   }
-  h += S.m.epochs.map((e, i) => `<text x="${W - R - 4}" y="${T + 12 + i * 13}" fill="${EPOCH_COLORS[e.id % EPOCH_COLORS.length]}" font-size="11" text-anchor="end">${e.date}</text>`).join("");
+  // epoch legend in its own row above the plot, so it never covers data points
+  const step = Math.min(68, (W - L - R) / Math.max(1, S.m.epochs.length));
+  h += S.m.epochs.map((e, i) => `<text x="${(L + i * step).toFixed(0)}" y="12" fill="${EPOCH_COLORS[e.id % EPOCH_COLORS.length]}" font-size="10">${e.date}</text>`).join("");
   svg.innerHTML = h;
 }
 function plots() {
