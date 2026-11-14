@@ -364,22 +364,26 @@ def binned_series(points, kind: str = "flux", nbins: int = 8):
 VARIABILITY_METHOD = (
     "variability(binned_series(points)): per band, the band's wavelength range in 8 equal bins; per bin the epoch "
     "medians of the usable (not flagged) points; max/min over epochs (bins with any value <= 3 err skipped); median "
-    "over bins. Significance: compare with control stars measured the SAME way in the SAME cutouts - Gaia DR3 stars "
-    "(select_controls) within 3.5' of the target, G within +-1.5 mag of the target (or G 10-14 when the target is "
-    "saturated or not in Gaia), no other Gaia G < 17 star within 30\", at least 30\" from the target, up to 20 stars. "
-    "A band is variable when its ratio exceeds the 99th percentile of the controls' ratios in that band AND 1.15.")
+    "over bins. Significance: control stars measured the SAME way in the SAME cutouts (select_controls): Gaia DR3 "
+    "stars 30\" to 4.5' from the target, G within +-1.5 mag of the target (G 10-15 when the target is saturated or "
+    "brighter than G 11.5), with no Gaia neighbour within 20\" brighter than G_control + 2.5 (neighbour light < 10%), "
+    "up to 20 stars. A band is variable when at least 5 controls have a ratio in that band and the target's ratio "
+    "exceeds both 1.15 and the largest control ratio; with fewer than 5 controls the band is reported as undetermined.")
 
 
-def select_controls(gaia_rows, target_radec, target_g=None, n_max=20, radius_arcmin=3.5):
+def select_controls(gaia_rows, target_radec, target_g=None, n_max=20, radius_arcmin=4.5, saturated=False):
     """Control stars for variability() as described in VARIABILITY_METHOD. gaia_rows: dicts with ra, dec, g_mag
-    (gaia.json rows). Returns the selected rows, brightest first."""
+    (gaia.json rows, or any source list covering the cutouts). Returns the selected rows, brightest first."""
     rows = [r for r in gaia_rows if r.get("g_mag") is not None]
     if not rows:
         return []
     ra = np.array([r["ra"] for r in rows]); dec = np.array([r["dec"] for r in rows]); g = np.array([r["g_mag"] for r in rows])
     allc = SkyCoord(ra, dec, unit="deg")
     t = SkyCoord(*target_radec, unit="deg")
-    lo, hi = (target_g - 1.5, target_g + 1.5) if target_g is not None and target_g > 11.5 else (10.0, 14.0)
+    if target_g is None or saturated or target_g < 11.5:
+        lo, hi = 10.0, 15.0
+    else:
+        lo, hi = target_g - 1.5, target_g + 1.5
     out = []
     for i in np.argsort(g):
         if not (lo <= g[i] <= hi):
@@ -388,12 +392,20 @@ def select_controls(gaia_rows, target_radec, target_g=None, n_max=20, radius_arc
         if sep_t < 30 or sep_t > radius_arcmin * 60:
             continue
         sep = allc.separation(allc[i]).arcsec
-        if np.any((sep > 0.5) & (sep < 30) & (g < 17)):
+        if np.any((sep > 0.5) & (sep < 20) & (g < g[i] + 2.5)):
             continue
         out.append(rows[i])
         if len(out) >= n_max:
             break
     return out
+
+
+def is_variable(target_ratio, control_ratios, min_controls: int = 5, floor: float = 1.15):
+    """True / False per VARIABILITY_METHOD, or None (undetermined) with fewer than min_controls controls."""
+    c = [r for r in control_ratios if r is not None and np.isfinite(r)]
+    if len(c) < min_controls or target_ratio is None:
+        return None
+    return bool(target_ratio > floor and target_ratio > max(c))
 
 
 def variability(series, min_epochs: int = 2):
