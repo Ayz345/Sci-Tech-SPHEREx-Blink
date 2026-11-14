@@ -1097,11 +1097,18 @@ async function loadCandidates() {
   const url = USE_API ? `${API}/api/candidates?key=${enc(S.key)}` : `${DATA}/${S.key}/candidates.json`;
   try {
     const r = await fetch(url); // quiet: a missing file only means no candidates for this field
-    if (!r.ok) return;
+    if (r.status === 202) { // the server computes candidates once all bands of the field are built: ask again
+      $("candBox").hidden = false; $("candBox").classList.add("pending");
+      $("ovCand").disabled = true; $("candPending").textContent = "Automatic candidates are being computed…";
+      setTimeout(() => loadCandidates().then(draw), 5000);
+      return;
+    }
+    if (!r.ok) { $("candBox").hidden = true; return; } // 404: no candidates for this field
     S.cands = await r.json();
   } catch { return; }
   const cs = S.cands.candidates || [];
-  $("candBox").hidden = false;
+  $("candBox").hidden = false; $("candBox").classList.remove("pending");
+  $("ovCand").disabled = false; $("candPending").textContent = "";
   $("candList").replaceChildren(...cs.map((c) => {
     const li = document.createElement("li"), b = document.createElement("button");
     const rate = c.rate_arcsec_per_year ? ` · ${Math.hypot(...c.rate_arcsec_per_year).toFixed(1)}″/yr` : "";

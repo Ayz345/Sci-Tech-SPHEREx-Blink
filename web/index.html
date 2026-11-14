@@ -99,6 +99,7 @@
       <label><input type="checkbox" id="ovGaia"> Gaia DR3 (propagated to epoch)</label>
       <div id="candBox" hidden>
         <label><input type="checkbox" id="ovCand"> Automatic candidates</label>
+        <div id="candPending" class="muted"></div>
         <div class="muted">Automatic candidates are places to look at, not detection claims.</div>
         <ul id="candList" class="mono"></ul>
         <details><summary class="muted">How candidates are found</summary><div id="candHow" class="mono"></div></details>
@@ -158,6 +159,7 @@
 <footer class="muted">
   Keys: space play/pause · ←/→ epoch · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · m measure · +/− zoom.
   Pixel scale is read from the manifest grid; SPHEREx native pixel is 6.15″.
+  <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink/blob/dev/handoff/results/methods_v2.md" target="_blank" rel="noopener">Methods</a>
 </footer>
 
 <dialog id="reportDlg">
