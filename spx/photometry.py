@@ -219,7 +219,8 @@ def snr_map(img: np.ndarray, fwhm_px: float, noise_img: np.ndarray | None = None
 
 def null_test(snr: np.ndarray, mask: np.ndarray, n: int = 2000, search_px: float = 2.0, edge_px: int = 10, seed: int = 0):
     """S/N measured the same way as the detection (max within search_px of a position) at n random positions
-    whose search disc avoids `mask` (known emission). Returns the array of those maxima."""
+    whose search disc avoids `mask` (known emission). Returns the array of those maxima.
+    search_px=0 gives the S/N at the position itself (its robust width calibrates the S/N scale)."""
     rng = np.random.default_rng(seed)
     ny, nx = snr.shape
     yy, xx = np.mgrid[0:ny, 0:nx]
@@ -229,6 +230,11 @@ def null_test(snr: np.ndarray, mask: np.ndarray, n: int = 2000, search_px: float
     while len(vals) < n and tries < 50 * n:
         tries += 1
         x, y = rng.uniform(edge_px, nx - edge_px), rng.uniform(edge_px, ny - edge_px)
+        if search_px <= 0:
+            i, j = int(round(y)), int(round(x))
+            if not mask[i, j] and np.isfinite(snr[i, j]):
+                vals.append(float(snr[i, j]))
+            continue
         sl = (slice(max(0, int(y) - disc), int(y) + disc + 2), slice(max(0, int(x) - disc), int(x) + disc + 2))
         d = np.hypot(xx[sl] - x, yy[sl] - y) <= search_px
         if mask[sl][d].any() or not np.isfinite(snr[sl][d]).all():

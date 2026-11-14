@@ -16,8 +16,9 @@ Quality steps, in order (each one is measured in handoff/results/coadd_metrics_v
   5. Per-pixel clipped, weighted mean over all exposures of the epoch in the band. The clip
      threshold has a term proportional to |median|: exposures sample different wavelengths (LVF),
      so real spectral differences are kept; single-exposure hits are rejected.
-  6. Saturated cores (every exposure flagged OVERFLOW/TRANSIENT/BLOOM...) would be empty: they are
-     filled from the soft-masked median and marked in Frame.filled (flag_frac = 1 there).
+  6. Saturated cores (no clean sample; every exposure flagged OVERFLOW/BLOOM/TRANSIENT...) become +inf
+     (contract: drawn at the brightest colour, labelled "saturated"); NaN only ever means "no data".
+     saturated="fill" puts the soft-masked median there instead. Frame.filled marks those pixels.
   7. Display: one asinh scale shared by all epochs of a band (no blink flicker).
 
     frames = build_frames(cutouts, target, fov_arcmin=7)      # per detector D1..D6 by default
@@ -51,6 +52,7 @@ BAD_MASK = sum(1 << b for n, b in FLAG_BITS.items() if n not in INFO_ONLY)
 # pixels that are never usable, not even to fill a saturated core
 HARD_MASK = sum(1 << FLAG_BITS[n] for n in ("NONFUNC", "MISSING_DATA", "HOT", "COLD", "PHANMISS", "DICHROIC"))
 SOURCE_MASK = 1 << FLAG_BITS["SOURCE"]
+SATURATION_MASK = sum(1 << FLAG_BITS[n] for n in ("OVERFLOW", "NONLINEAR", "BLOOM"))
 
 DETECTOR_BANDS_UM = {1: (0.75, 1.11), 2: (1.10, 1.66), 3: (1.63, 2.42), 4: (2.42, 3.83),
                      5: (3.80, 4.43), 6: (4.41, 5.01)}  # measured LVF range at the target pixel
@@ -160,10 +162,10 @@ def select_spread(mjd, n: int) -> np.ndarray:
 # --------------------------------------------------------------------------- per exposure
 
 def prepare(cut, min_good: int = 200):
-    """Mask, subtract local background. Returns (clean, soft, sigma) or None.
+    """Mask, subtract local background. Returns (clean, soft, sigma, satmask) or None.
 
     clean: all BAD_MASK pixels NaN. soft: only HARD_MASK pixels NaN (used only to fill
-    grid pixels where no clean sample exists, i.e. saturated cores).
+    saturated cores when saturated="fill"). satmask: float 1 where a saturation-type flag is set.
     """
     img = np.asarray(cut.image, float)
     zodi = getattr(cut, "zodi", None)
@@ -187,7 +189,8 @@ def prepare(cut, min_good: int = 200):
     d = img - med
     soft = np.where(np.isfinite(img) & ((flags & HARD_MASK) == 0), d, np.nan)
     d[~good] = np.nan
-    return d, soft, float(std)
+    sat = ((flags & SATURATION_MASK) != 0).astype(float)
+    return d, soft, float(std), sat
 
 
 def resample(d: np.ndarray, px: np.ndarray, py: np.ndarray, min_cov: float = 0.4):
@@ -254,7 +257,7 @@ class Frame:
     weight: np.ndarray         # float32 number of exposures that contributed (contract: weight.f32)
     flag_frac: np.ndarray      # float32 0-1, fraction of overlapping exposures masked or clipped
     ivar: np.ndarray           # float32 sum of 1/sigma^2 of accepted samples
-    filled: np.ndarray         # bool, saturated core filled from soft-masked median
+    filled: np.ndarray         # bool, saturated core (+inf, or soft-masked median if saturated="fill")
     grid: Grid
     band: str                  # "D1".."D6" or a custom id
     epoch: int
@@ -278,7 +281,7 @@ def build_frames(cutouts, target: SkyCoord, fov_arcmin: float = 7.0, pix_arcsec:
                  band_um=None, band_id: str | None = None, per_detector: bool = True,
                  epochs=None, epoch_gap_days: float = 30.0, max_epoch_days: float | None = None,
                  max_exposures: int | None = None, clip: float = 3.5, rel_tol: float = 0.5,
-                 min_exposures: int = 3, fill_saturated: bool = True, smooth_fwhm_arcsec: float = 0.0,
+                 min_exposures: int = 3, saturated: str = "inf", smooth_fwhm_arcsec: float = 0.0,
                  center: SkyCoord | None = None, verbose: bool = False) -> list[Frame]:
     """Co-add cutouts into per-epoch, per-band frames on one fixed sky grid.
 
@@ -290,6 +293,9 @@ def build_frames(cutouts, target: SkyCoord, fov_arcmin: float = 7.0, pix_arcsec:
     band_um   (lo, hi): keep exposures whose LVF wavelength at the target falls inside; the frames get
               band = band_id (default "W<lo>-<hi>") and per_detector is ignored.
     max_exposures  cap per (epoch, band), chosen spread in time (dense fields near the poles).
+    saturated "inf" (default, data contract): grid pixels covered by exposures but with no clean sample,
+              where at least one exposure has a saturation-type flag (OVERFLOW/NONLINEAR/BLOOM), become +inf.
+              "fill": soft-masked median instead. "nan": leave NaN.
     smooth_fwhm_arcsec  optional NaN-aware Gaussian (~7" = point-source matched filter, "detection view").
     """
     cuts = [c for c in cutouts if c is not None]
@@ -322,7 +328,7 @@ def build_frames(cutouts, target: SkyCoord, fov_arcmin: float = 7.0, pix_arcsec:
     for (band, e), idx in sorted(groups.items()):
         if max_exposures:
             idx = [idx[j] for j in select_spread(mjd[idx], max_exposures)]
-        vals, softs, ovl, sig, used = [], [], [], [], []
+        vals, softs, sats, ovl, sig, used = [], [], [], [], [], []
         for i in idx:
             p = prepare(cuts[i])
             if p is None:
@@ -332,8 +338,9 @@ def build_frames(cutouts, target: SkyCoord, fov_arcmin: float = 7.0, pix_arcsec:
             if not o.any():
                 continue
             vals.append(v); ovl.append(o); sig.append(p[2]); used.append(i)
-            if fill_saturated:
+            if saturated != "nan":
                 softs.append(resample(p[1], px, py)[0])
+                sats.append(map_coordinates(p[3], [py, px], order=1, cval=0.0, prefilter=False) > 0.25)
         if len(used) < min_exposures:
             continue
         stack = np.stack(vals)
@@ -341,21 +348,23 @@ def build_frames(cutouts, target: SkyCoord, fov_arcmin: float = 7.0, pix_arcsec:
         overlap = np.sum(ovl, axis=0)
         mean, wsum, nkeep = combine(stack, sig, clip=clip, rel_tol=rel_tol)
         filled = np.zeros(grid.shape, bool)
-        if fill_saturated:
-            filled = (nkeep == 0) & (overlap > 0)
+        if saturated != "nan":
+            filled = (nkeep == 0) & (overlap > 0) & np.any(sats, axis=0)
             if filled.any():
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", RuntimeWarning)
-                    soft_med = np.nanmedian(np.stack(softs)[:, filled], axis=0)
-                mean[filled] = soft_med
-                filled &= np.isfinite(mean)
+                if saturated == "fill":
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore", RuntimeWarning)
+                        soft_med = np.nanmedian(np.stack(softs)[:, filled], axis=0)
+                    mean[filled] = np.where(np.isfinite(soft_med), soft_med, np.inf)
+                else:
+                    mean[filled] = np.inf
         if smooth_fwhm_arcsec > 0:
-            mean = nan_smooth(mean, smooth_fwhm_arcsec / pix_arcsec)
+            mean = np.where(filled, mean, nan_smooth(np.where(filled, np.nan, mean), smooth_fwhm_arcsec / pix_arcsec))
         flag_frac = np.where(overlap > 0, 1.0 - nkeep / np.maximum(overlap, 1), np.nan)
         m = float(np.median(mjd[used]))
         tc = target_at(target, m)
         tx, ty = grid.wcs.world_to_pixel(tc)
-        fin = mean[np.isfinite(mean) & ~filled]
+        fin = mean[np.isfinite(mean)]
         noise = float(sigma_clipped_stats(fin, sigma=3, stdfunc="mad_std")[2]) if fin.size > 50 else float("nan")
         wl = np.array([cuts[i].wavelength_um for i in used])
         frames.append(Frame(
@@ -392,8 +401,8 @@ def common_scale(frames, lo_sigma: float = 2.0, hi_pct: float = 99.8, soft_sigma
 
 
 def asinh_stretch(img: np.ndarray, vmin: float, vmax: float, soft: float) -> np.ndarray:
-    """0..1 float; NaN -> 0."""
-    x = np.nan_to_num(img - vmin, nan=0.0)
+    """0..1 float; NaN -> 0, +inf (saturated) -> 1."""
+    x = np.nan_to_num(img - vmin, nan=0.0, posinf=np.inf)
     y = np.arcsinh(np.clip(x, 0, None) / soft) / np.arcsinh((vmax - vmin) / soft)
     return np.clip(y, 0, 1)
 
@@ -420,8 +429,11 @@ def difference(frames):
         if not others:
             out.append(np.full_like(f.image, np.nan))
             continue
-        num = sum(np.nan_to_num(g.image) * g.ivar for g in others)
+        num = sum(np.where(np.isfinite(g.image), g.image, 0.0) * g.ivar for g in others)
         den = sum(np.where(np.isfinite(g.image), g.ivar, 0) for g in others)
-        tmpl = np.where(den > 0, num / np.maximum(den, 1e-30), np.nan)
-        out.append((f.image - tmpl).astype(np.float32))
+        sat = np.any([~np.isfinite(g.image) & ~np.isnan(g.image) for g in others], axis=0)
+        tmpl = np.where((den > 0) & ~sat, num / np.maximum(den, 1e-30), np.nan)
+        d = f.image - tmpl
+        d[~np.isfinite(f.image)] = np.nan  # saturated or empty: no meaningful difference
+        out.append(d.astype(np.float32))
     return out

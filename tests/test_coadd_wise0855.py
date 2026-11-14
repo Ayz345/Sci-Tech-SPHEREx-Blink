@@ -18,7 +18,9 @@ Method (one line each):
            their median offset is the frame's systematic astrometric error.
   pm err   formal errors are scaled by sqrt(chi2/dof) when chi2/dof > 1 (dof = n_epochs - 2).
   null     the same S/N measurement (max within 6") at 3000 random positions per epoch whose disc avoids
-           any emission above 3 sigma in the matched-filtered frame.
+           any emission above 3 sigma in the matched-filtered frame; plus the S/N AT 3000 random empty
+           positions, whose robust width w0 (1.4826 MAD) calibrates the scale:
+           snr_calibrated = snr / w0. Quote that, or "x times the highest of 3000 empty positions".
 """
 from __future__ import annotations
 
@@ -126,10 +128,13 @@ def run():
         mask = source_mask(matched_filter(f.image, fwhm_px))
         nl = null_test(snr, mask, n=3000, search_px=SEARCH_ARCSEC / PIX, seed=f.epoch)
         nulls[f.epoch] = nl
+        pt = null_test(snr, mask, n=3000, search_px=0, seed=100 + f.epoch)
+        w0 = float(1.4826 * np.median(np.abs(pt - np.median(pt))))
         ast = astrometric_offsets(f, stars, fwhm_px)
         rows.append({
             "epoch": f.epoch, "date": f.epoch_label, "mjd": round(f.mjd, 4), "n_exposures": f.n_used,
-            "snr": round(peak_snr, 2), "filtered_noise_mjy_sr": sig,
+            "snr": round(peak_snr, 2), "snr_calibrated": round(peak_snr / w0, 2), "null_point_width": round(w0, 3),
+            "snr_over_null_max": round(peak_snr / float(nl.max()), 2), "filtered_noise_mjy_sr": sig,
             "ra": round(pos.ra.deg, 6), "dec": round(pos.dec.deg, 6),
             "err_ra_arcsec": round(fit["sx"] * PIX, 3), "err_dec_arcsec": round(fit["sy"] * PIX, 3),
             "offset_from_prediction_arcsec": round(pos.separation(pred).arcsec, 2),
@@ -156,9 +161,9 @@ def run():
 
 def report(res):
     print(f"PSF FWHM (co-add, {len(res['psf_fwhm_stars_arcsec'])} stars): {res['psf_fwhm_arcsec']}\"")
-    print("date        N   S/N   offset  err_ra err_dec  sep_star | null: median p99.9  max  frac>=5 | Gaia ref n dRA dDec scatter")
+    print("date        N   S/N  S/Ncal xNullMax  offset  err_ra err_dec  sep_star | null: median p99.9  max  frac>=5 | Gaia ref n dRA dDec scatter")
     for r in res["epochs"]:
-        print(f"{r['date']} {r['n_exposures']:3d} {r['snr']:5.1f}  {r['offset_from_prediction_arcsec']:5.2f}\"  "
+        print(f"{r['date']} {r['n_exposures']:3d} {r['snr']:5.1f} {r['snr_calibrated']:5.1f} {r['snr_over_null_max']:5.1f}  {r['offset_from_prediction_arcsec']:5.2f}\"  "
               f"{r['err_ra_arcsec']:5.2f}  {r['err_dec_arcsec']:5.2f}   {r['sep_to_blend_star_arcsec']:5.2f}\" | "
               f"{r['null_median']:5.2f} {r['null_p99_9']:5.2f} {r['null_max']:5.2f} {r['null_frac_ge_5']:.4f} | "
               + (f"{r['gaia_ref']['n']:2d} {r['gaia_ref']['dra']:+.2f} {r['gaia_ref']['ddec']:+.2f} {r['gaia_ref']['scatter']:.2f}" if r['gaia_ref'] else "-"))
@@ -175,7 +180,7 @@ def test_wise0855_detected():
     good = [r for r in res["epochs"] if r["n_exposures"] >= 10]
     assert len(good) >= 2
     for r in good:
-        assert r["snr"] >= 5, r
+        assert r["snr_calibrated"] >= 5, r
         assert r["offset_from_prediction_arcsec"] <= SEARCH_ARCSEC, r
         assert r["null_frac_ge_detection"] < 0.001, r
     m = res["motion_arcsec_per_yr"]
