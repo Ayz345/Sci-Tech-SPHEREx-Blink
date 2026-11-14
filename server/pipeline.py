@@ -525,6 +525,28 @@ def build_band(f: Field, band_id: str, out_dir: Path, layers=("IMAGE", "FLAGS", 
     return bj, cuts, frames
 
 
+# --------------------------------------------------------------------------- automatic candidates (PLAN 17 F2)
+
+def detect_module():
+    """spx.detect (quality session), or None while it is not there."""
+    try:
+        from spx import detect
+    except ImportError:
+        return None
+    return detect if hasattr(detect, "find_candidates") and hasattr(detect, "load_field") else None
+
+
+def make_candidates(field_dir: Path, key: str) -> dict:
+    """candidates.json content for a built field folder (server cache or web/data/<key>, same layout; gaia.json must
+    be there): spx.detect.find_candidates(spx.detect.load_field(dir)) plus schema and key. Raises RuntimeError
+    when spx.detect is missing."""
+    det = detect_module()
+    if det is None:
+        raise RuntimeError("spx.detect.find_candidates is not available")
+    out = det.find_candidates(det.load_field(Path(field_dir)))
+    return {"schema": SCHEMA, "key": key, **out}
+
+
 # --------------------------------------------------------------------------- gaia, spectrum
 
 GAIA_TAP = "https://gea.esac.esa.int/tap-server/tap/sync"

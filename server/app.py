@@ -100,6 +100,7 @@ class FieldState:
     created: float = dc_field(default_factory=time.time)
     write_lock: threading.Lock = dc_field(default_factory=threading.Lock)  # one manifest writer at a time
     windows: list = dc_field(default_factory=list)    # user windows w<lo>_<hi>, least recently asked first
+    candidates_state: str | None = None                # None | running | ready | error: ...
 
     def status(self) -> dict:
         """Listed bands only (user windows are not in the manifest)."""
@@ -278,6 +279,41 @@ class Registry:
         except OSError as e:
             log.warning("manifest copy for %s not written: %r", f.key, e)
         log.info("built %s %s: %d frames in %.1fs", f.key, band, len(frames), time.time() - job.t_start)
+        self.maybe_candidates(fs)
+
+    def listed_bands_done(self, fs: FieldState) -> bool:
+        return all(j.event.is_set() for b, j in fs.jobs.items() if b not in fs.windows)
+
+    def maybe_candidates(self, fs: FieldState) -> None:
+        """Once every listed band of the field is built: candidates.json, once, in a thread of its own."""
+        path = fs.out / "candidates.json"
+        with self.lock:
+            if fs.candidates_state is not None or path.exists() or not self.listed_bands_done(fs):
+                return
+            if P.detect_module() is None:
+                return
+            fs.candidates_state = "running"
+        threading.Thread(target=self._candidates, args=(fs,), daemon=True, name="candidates").start()
+
+    def _candidates(self, fs: FieldState) -> None:
+        t0 = time.time()
+        try:
+            if not (fs.out / "gaia.json").exists():
+                try:
+                    gaia = P.gaia_sources(fs.field)
+                except Exception as e:  # the detector still runs, without the known-star check
+                    log.warning("gaia for candidates %s failed: %r", fs.field.key, e)
+                    gaia = None
+                if gaia is not None:
+                    P.write_json(fs.out / "gaia.json", gaia, indent=None)
+            out = P.make_candidates(fs.out, fs.field.key)
+            out["seconds"] = round(time.time() - t0, 2)
+            P.write_json(fs.out / "candidates.json", out)
+            fs.candidates_state = "ready"
+            log.info("candidates %s: %d in %.1fs", fs.field.key, len(out.get("candidates", [])), time.time() - t0)
+        except Exception as e:
+            log.exception("candidates %s failed", fs.field.key)
+            fs.candidates_state = f"error: {type(e).__name__}: {e}"[:300]
 
     def _cutout_set(self, key: str) -> dict:
         with self.lock:
@@ -543,6 +579,30 @@ async def api_frame(key: str, epoch: int, band: str, kind: str | None = None):
         raise ApiError(404, f"no frame for epoch {epoch} in band {band}")
     return Response(path.read_bytes(), media_type="application/octet-stream",
                     headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/api/candidates")
+async def api_candidates(key: str):
+    """Automatic candidates (spx.detect, PLAN 17 F2), made once all listed bands of the field are built.
+    202 {"status": "pending"} until then; 503 when the detector is missing or failed."""
+    fs = await _field(key)
+    path = fs.out / "candidates.json"
+    if path.exists():
+        return Response(path.read_bytes(), media_type="application/json")
+    if P.detect_module() is None:
+        raise ApiError(503, "the candidate finder (spx.detect) is not installed on this server")
+    st = fs.candidates_state
+    if st and st.startswith("error"):
+        raise ApiError(503, f"candidate search failed: {st[7:]}")
+    reg = registry()
+    if st is None:
+        reg.maybe_candidates(fs)
+    pending = [b for b, j in fs.jobs.items() if b not in fs.windows and not j.event.is_set()]
+    for b in pending:                  # the page waits for these: build them next
+        reg.enqueue(fs.field.key, b, urgent=False)
+    reg.touch(fs.field.key)
+    return jresp({"schema": P.SCHEMA, "key": fs.field.key, "status": "pending", "bands_pending": pending,
+                  "message": "candidates are searched once every band of the field is built"}, status=202)
 
 
 @app.get("/api/gaia")

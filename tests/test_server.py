@@ -549,3 +549,54 @@ def test_rounding_boundary_reuses_the_open_field(client):
     assert d["key"] == "r288p7705_dp3p0591_f0p050"
     assert A.REG.near_key("r288p7705_dp3p0590_f0p050", 288.770496, 3.059049) == d["key"]   # same fov: found
     assert A.REG.near_key("r288p7705_dp3p0591_f0p117_pm1p00_0p00_e2000p000", 288.7705, 3.05905) is None
+
+
+# --------------------------------------------------------------------------- automatic candidates (F2)
+
+class _FakeDetect:
+    """Stands in for spx.detect (quality session): records what the server hands over."""
+    def __init__(self):
+        self.seen = []
+
+    def load_field(self, path):
+        from pathlib import Path
+        path = Path(path)
+        return {"path": path, "manifest": json.loads((path / "manifest.json").read_text()),
+                "gaia": json.loads((path / "gaia.json").read_text()) if (path / "gaia.json").exists() else None,
+                "bands": sorted(p.stem for p in path.glob("D*.json"))}
+
+    def find_candidates(self, field, bands=None, params=None):
+        self.seen.append(field)
+        return {"method": "fake", "params": {}, "bands_searched": field["bands"], "candidates": [],
+                "rejected": {}, "validation": ["fake detector"]}
+
+
+def test_candidates_after_all_bands(client, monkeypatch):
+    from server import pipeline as P
+    fake = _FakeDetect()
+    monkeypatch.setattr(P, "detect_module", lambda: fake)
+    m = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}))
+    r = client.get("/api/candidates", params={"key": m["key"]})
+    if r.status_code == 202:                       # bands still building: pending, with what is missing
+        assert r.json()["status"] == "pending" and isinstance(r.json()["bands_pending"], list)
+    _wait_idle()
+    import time
+    for _ in range(100):
+        r = client.get("/api/candidates", params={"key": m["key"]})
+        if r.status_code == 200:
+            break
+        time.sleep(0.05)
+    c = _strict(r)
+    assert c["schema"] == 1 and c["key"] == m["key"] and c["method"] == "fake"
+    assert c["bands_searched"] == ["D1", "D2", "D3", "D4", "D5", "D6"] and "seconds" in c
+    assert len(fake.seen) == 1 and fake.seen[0]["gaia"] and fake.seen[0]["manifest"]["key"] == m["key"]
+    client.get("/api/candidates", params={"key": m["key"]})
+    assert len(fake.seen) == 1                     # made once, then served from the file
+
+
+def test_candidates_without_detector_is_503(client, monkeypatch):
+    from server import pipeline as P
+    monkeypatch.setattr(P, "detect_module", lambda: None)
+    key = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}))["key"]
+    r = client.get("/api/candidates", params={"key": key})
+    assert r.status_code == 503 and "spx.detect" in r.json()["message"]
