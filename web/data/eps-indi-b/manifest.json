@@ -1,0 +1,195 @@
+{
+ "schema": 1,
+ "key": "eps-indi-b",
+ "name": "Epsilon Indi B",
+ "query": {
+  "ra": 331.07645259656397,
+  "dec": -56.79381206688221,
+  "fov_deg": 0.11666666666666667
+ },
+ "collections": [
+  "spherex_dr1",
+  "spherex_qr3"
+ ],
+ "max_fov_deg": 0.11666666666666667,
+ "data_range": {
+  "mjd_min": 60789.855522,
+  "mjd_max": 61315.479408
+ },
+ "grid": {
+  "ctype": [
+   "RA---TAN",
+   "DEC--TAN"
+  ],
+  "crval": [
+   331.0962163123053,
+   -56.800514562697835
+  ],
+  "crpix": [
+   70.5,
+   70.5
+  ],
+  "cdelt": [
+   -0.0008333333333333334,
+   0.0008333333333333334
+  ],
+  "shape": [
+   140,
+   140
+  ]
+ },
+ "epochs": [
+  {
+   "id": 0,
+   "date": "2025-04-30",
+   "mjd_mid": 60795.084848,
+   "mjd_min": 60789.856188,
+   "mjd_max": 60836.190478
+  },
+  {
+   "id": 1,
+   "date": "2025-10-06",
+   "mjd_mid": 60954.333593749994,
+   "mjd_min": 60946.964777500005,
+   "mjd_max": 60991.858236500004
+  },
+  {
+   "id": 2,
+   "date": "2026-04-25",
+   "mjd_mid": 61155.092016,
+   "mjd_min": 61148.845456,
+   "mjd_max": 61164.117616
+  },
+  {
+   "id": 3,
+   "date": "2026-09-27",
+   "mjd_mid": 61310.726203,
+   "mjd_min": 61305.227572,
+   "mjd_max": 61315.478742
+  }
+ ],
+ "bands": [
+  {
+   "id": "D1",
+   "label": "0.75–1.09 µm",
+   "wave_um": [
+    0.75,
+    1.09
+   ],
+   "n_exposures": [
+    4,
+    24,
+    19,
+    0
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D2",
+   "label": "1.10–1.62 µm",
+   "wave_um": [
+    1.1,
+    1.62
+   ],
+   "n_exposures": [
+    32,
+    30,
+    7,
+    24
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D3",
+   "label": "1.63–2.41 µm",
+   "wave_um": [
+    1.63,
+    2.41
+   ],
+   "n_exposures": [
+    25,
+    23,
+    12,
+    36
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D4",
+   "label": "2.42–3.82 µm",
+   "wave_um": [
+    2.42,
+    3.82
+   ],
+   "n_exposures": [
+    4,
+    23,
+    19,
+    0
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D5",
+   "label": "3.83–4.41 µm",
+   "wave_um": [
+    3.83,
+    4.41
+   ],
+   "n_exposures": [
+    30,
+    24,
+    6,
+    24
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D6",
+   "label": "4.42–5.00 µm",
+   "wave_um": [
+    4.42,
+    5.0
+   ],
+   "n_exposures": [
+    24,
+    22,
+    11,
+    36
+   ],
+   "status": "ready"
+  }
+ ],
+ "target_track": [
+  {
+   "epoch": 0,
+   "ra": 331.09529313873213,
+   "dec": -56.8002016084699
+  },
+  {
+   "epoch": 1,
+   "ra": 331.0961740406346,
+   "dec": -56.80050023293838
+  },
+  {
+   "epoch": 2,
+   "ra": 331.097284577856,
+   "dec": -56.8008766878261
+  },
+  {
+   "epoch": 3,
+   "ra": 331.09814551626886,
+   "dec": -56.80116852060194
+  }
+ ],
+ "target_source": "Gaia DR3 6412596012146801152 (Ba+Bb, G = 18.0)",
+ "default_band": "D3",
+ "notes": [
+  "Epsilon Indi B moves 4.7″/yr (Gaia DR3 proper motion).",
+  "The bright star Epsilon Indi A (Gaia DR3 6412595290592307840, G = 4.3) lies 402″ west of B, outside this field; its halo raises the background along the west edge."
+ ],
+ "processing": "spx 0.1: FLAGS mask, local background, clipped inverse-variance mean per epoch and band, fixed 3 arcsec TAN grid (north up); data spherex_dr1, spherex_qr3",
+ "acknowledgement": "This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration.",
+ "n_images": 459,
+ "mjd_median": 60961.975369
+}

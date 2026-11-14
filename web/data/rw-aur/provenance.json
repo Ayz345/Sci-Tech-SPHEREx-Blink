@@ -1,0 +1,235 @@
+{
+ "schema": 1,
+ "key": "rw-aur",
+ "generated_utc": "2026-11-14T09:52:24+00:00",
+ "spx_version": "0.1",
+ "spx_commit": "b6b039d",
+ "spx_uncommitted_code": [],
+ "collections": [
+  "spherex_dr1",
+  "spherex_qr3"
+ ],
+ "n_images_sia2": 335,
+ "n_images_per_detector": {
+  "D1": 56,
+  "D2": 55,
+  "D3": 56,
+  "D4": 56,
+  "D5": 56,
+  "D6": 56
+ },
+ "n_cutouts_used_per_detector": {
+  "D1": 56,
+  "D2": 55,
+  "D3": 56,
+  "D4": 56,
+  "D5": 56,
+  "D6": 56
+ },
+ "fetch": {
+  "layers": [
+   "IMAGE",
+   "FLAGS",
+   "VARIANCE"
+  ],
+  "half_px": 53,
+  "cap_per_epoch_detector": 60,
+  "source": "S3 range reads, s3://nasa-irsa-spherex"
+ },
+ "grid_center": [
+  76.95608984627972,
+  30.401127184775884
+ ],
+ "fov_deg": 0.11666666666666667,
+ "build_frames": {
+  "pix_arcsec": 3.0,
+  "min_exposures": 3,
+  "max_exposures": 60,
+  "per_detector": true,
+  "epoch_rule": "split_epochs(gap_days=30, max_epoch_days=60) on all exposures"
+ },
+ "bands": {
+  "D1": {
+   "n_cutouts": 56,
+   "frames": [
+    [
+     0,
+     19
+    ],
+    [
+     1,
+     19
+    ],
+    [
+     2,
+     18
+    ]
+   ],
+   "t_coadd": 3.3,
+   "fetch": {
+    "D1": {
+     "n_refs": 56,
+     "n_ok": 56,
+     "n_skipped": 0,
+     "n_from_cache": 56,
+     "bytes": 0,
+     "seconds": 1.6188745498657227
+    }
+   }
+  },
+  "D2": {
+   "n_cutouts": 55,
+   "frames": [
+    [
+     0,
+     18
+    ],
+    [
+     1,
+     19
+    ],
+    [
+     2,
+     18
+    ]
+   ],
+   "t_coadd": 3.1,
+   "fetch": {
+    "D2": {
+     "n_refs": 55,
+     "n_ok": 55,
+     "n_skipped": 0,
+     "n_from_cache": 55,
+     "bytes": 0,
+     "seconds": 1.4860780239105225
+    }
+   }
+  },
+  "D3": {
+   "n_cutouts": 56,
+   "frames": [
+    [
+     0,
+     19
+    ],
+    [
+     1,
+     19
+    ],
+    [
+     2,
+     18
+    ]
+   ],
+   "t_coadd": 3.5,
+   "fetch": {
+    "D3": {
+     "n_refs": 56,
+     "n_ok": 56,
+     "n_skipped": 0,
+     "n_from_cache": 56,
+     "bytes": 0,
+     "seconds": 1.4631726741790771
+    }
+   }
+  },
+  "D4": {
+   "n_cutouts": 56,
+   "frames": [
+    [
+     0,
+     19
+    ],
+    [
+     1,
+     19
+    ],
+    [
+     2,
+     18
+    ]
+   ],
+   "t_coadd": 3.6,
+   "fetch": {
+    "D4": {
+     "n_refs": 56,
+     "n_ok": 56,
+     "n_skipped": 0,
+     "n_from_cache": 56,
+     "bytes": 0,
+     "seconds": 1.7549571990966797
+    }
+   }
+  },
+  "D5": {
+   "n_cutouts": 56,
+   "frames": [
+    [
+     0,
+     18
+    ],
+    [
+     1,
+     19
+    ],
+    [
+     2,
+     19
+    ]
+   ],
+   "t_coadd": 3.6,
+   "fetch": {
+    "D5": {
+     "n_refs": 56,
+     "n_ok": 56,
+     "n_skipped": 0,
+     "n_from_cache": 56,
+     "bytes": 0,
+     "seconds": 1.6384069919586182
+    }
+   }
+  },
+  "D6": {
+   "n_cutouts": 56,
+   "frames": [
+    [
+     0,
+     19
+    ],
+    [
+     1,
+     19
+    ],
+    [
+     2,
+     18
+    ]
+   ],
+   "t_coadd": 3.1,
+   "fetch": {
+    "D6": {
+     "n_refs": 56,
+     "n_ok": 56,
+     "n_skipped": 0,
+     "n_from_cache": 56,
+     "bytes": 0,
+     "seconds": 1.3802704811096191
+    }
+   }
+  }
+ },
+ "gaia": {
+  "catalog": "gaiadr3.gaia_source via https://gea.esac.esa.int/tap-server/tap/sync",
+  "g_max": 19.0,
+  "n": 674
+ },
+ "spectrum": {
+  "n_points": 333
+ },
+ "software": {
+  "python": "3.13.7",
+  "numpy": "2.3.3",
+  "astropy": "7.1.0"
+ },
+ "seconds": 81.2
+}

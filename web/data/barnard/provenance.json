@@ -1,14 +1,10 @@
 {
  "schema": 1,
  "key": "barnard",
- "generated_utc": "2026-11-14T07:25:18+00:00",
+ "generated_utc": "2026-11-14T09:49:39+00:00",
  "spx_version": "0.1",
- "spx_commit": "04e77d6",
- "spx_uncommitted_code": [
-  "spx/coadd.py",
-  "spx/display.py",
-  "spx/photometry.py"
- ],
+ "spx_commit": "b6b039d",
+ "spx_uncommitted_code": [],
  "collections": [
   "spherex_dr1",
   "spherex_qr3"
@@ -69,7 +65,7 @@
      18
     ]
    ],
-   "t_coadd": 4.4,
+   "t_coadd": 0.9,
    "fetch": {
     "D1": {
      "n_refs": 60,
@@ -77,7 +73,7 @@
      "n_skipped": 0,
      "n_from_cache": 60,
      "bytes": 0,
-     "seconds": 2.2518327236175537
+     "seconds": 0.4124433994293213
     }
    }
   },
@@ -97,7 +93,7 @@
      25
     ]
    ],
-   "t_coadd": 4.6,
+   "t_coadd": 4.2,
    "fetch": {
     "D2": {
      "n_refs": 61,
@@ -105,7 +101,7 @@
      "n_skipped": 0,
      "n_from_cache": 61,
      "bytes": 0,
-     "seconds": 2.143319845199585
+     "seconds": 0.46618103981018066
     }
    }
   },
@@ -125,7 +121,7 @@
      17
     ]
    ],
-   "t_coadd": 3.7,
+   "t_coadd": 3.8,
    "fetch": {
     "D3": {
      "n_refs": 59,
@@ -133,7 +129,7 @@
      "n_skipped": 0,
      "n_from_cache": 59,
      "bytes": 0,
-     "seconds": 1.9371905326843262
+     "seconds": 1.8734478950500488
     }
    }
   },
@@ -153,7 +149,7 @@
      18
     ]
    ],
-   "t_coadd": 4.0,
+   "t_coadd": 3.8,
    "fetch": {
     "D4": {
      "n_refs": 59,
@@ -161,7 +157,7 @@
      "n_skipped": 0,
      "n_from_cache": 59,
      "bytes": 0,
-     "seconds": 1.9316816329956055
+     "seconds": 1.9882893562316895
     }
    }
   },
@@ -181,7 +177,7 @@
      24
     ]
    ],
-   "t_coadd": 3.8,
+   "t_coadd": 4.1,
    "fetch": {
     "D5": {
      "n_refs": 61,
@@ -189,7 +185,7 @@
      "n_skipped": 0,
      "n_from_cache": 61,
      "bytes": 0,
-     "seconds": 2.1716196537017822
+     "seconds": 1.958770513534546
     }
    }
   },
@@ -209,7 +205,7 @@
      17
     ]
    ],
-   "t_coadd": 4.4,
+   "t_coadd": 3.8,
    "fetch": {
     "D6": {
      "n_refs": 58,
@@ -217,7 +213,7 @@
      "n_skipped": 0,
      "n_from_cache": 58,
      "bytes": 0,
-     "seconds": 2.312075138092041
+     "seconds": 1.9727098941802979
     }
    }
   }
@@ -235,5 +231,5 @@
   "numpy": "2.3.3",
   "astropy": "7.1.0"
  },
- "seconds": 46.9
+ "seconds": 47.1
 }

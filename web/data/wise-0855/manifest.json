@@ -181,8 +181,10 @@
  "target_source": "CatWISE2020 + Luhman & Esplin 2016; verified in SPHEREx DR1 (3 epochs)",
  "default_band": "W",
  "notes": [
-  "At short wavelengths (1.0–2.5 µm) the source next to the marker is NOT WISE 0855: it is a fixed background star, Gaia DR3 5756956644387831296 (G = 16.3, RA 133.75818, Dec −7.24116). WISE 0855 moves towards it (10.5″ → 7.0″ → 3.1″ over the three epochs).",
-  "WISE 0855 itself is seen only at long wavelengths (band W, 4.3–5.0 µm)."
+  "At short wavelengths (1.0–2.5 µm) the source next to the marker is NOT WISE 0855: it is a fixed background star, Gaia DR3 5756956644387831296 (G = 16.3, RA 133.75818, Dec −7.24116). WISE 0855 moves towards it.",
+  "WISE 0855 itself is seen only at long wavelengths (band W, 4.3–5.0 µm).",
+  "Measured separation between WISE 0855 and that star (two-source PSF fit, co-add session): 11.4″ → 8.2″ → 3.7″ over the three epochs.",
+  "Epoch 0 (2025-05-06) has only 3–8 exposures per band (the other epochs 14–25), so its frames are noisier."
  ],
  "processing": "spx 0.1: FLAGS mask, local background, clipped inverse-variance mean per epoch and band, fixed 3 arcsec TAN grid (north up); data spherex_dr1, spherex_qr3",
  "acknowledgement": "This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration.",

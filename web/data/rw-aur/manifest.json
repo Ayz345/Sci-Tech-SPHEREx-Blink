@@ -1,0 +1,177 @@
+{
+ "schema": 1,
+ "key": "rw-aur",
+ "name": "RW Aurigae",
+ "query": {
+  "ra": 76.95608119552952,
+  "dec": 30.401204589097233,
+  "fov_deg": 0.11666666666666667
+ },
+ "collections": [
+  "spherex_dr1",
+  "spherex_qr3"
+ ],
+ "max_fov_deg": 0.11666666666666667,
+ "data_range": {
+  "mjd_min": 60919.419647,
+  "mjd_max": 61299.897229
+ },
+ "grid": {
+  "ctype": [
+   "RA---TAN",
+   "DEC--TAN"
+  ],
+  "crval": [
+   76.95608984627972,
+   30.401127184775884
+  ],
+  "crpix": [
+   70.5,
+   70.5
+  ],
+  "cdelt": [
+   -0.0008333333333333334,
+   0.0008333333333333334
+  ],
+  "shape": [
+   140,
+   140
+  ]
+ },
+ "epochs": [
+  {
+   "id": 0,
+   "date": "2025-09-09",
+   "mjd_mid": 60927.84142575,
+   "mjd_min": 60919.420313,
+   "mjd_max": 60938.232724
+  },
+  {
+   "id": 1,
+   "date": "2026-03-04",
+   "mjd_mid": 61103.331765,
+   "mjd_min": 61091.720282,
+   "mjd_max": 61111.002753
+  },
+  {
+   "id": 2,
+   "date": "2026-09-12",
+   "mjd_mid": 61295.963459,
+   "mjd_min": 61285.0978355,
+   "mjd_max": 61299.896563
+  }
+ ],
+ "bands": [
+  {
+   "id": "D1",
+   "label": "0.75–1.09 µm",
+   "wave_um": [
+    0.75,
+    1.09
+   ],
+   "n_exposures": [
+    19,
+    19,
+    18
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D2",
+   "label": "1.10–1.62 µm",
+   "wave_um": [
+    1.1,
+    1.62
+   ],
+   "n_exposures": [
+    18,
+    19,
+    18
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D3",
+   "label": "1.63–2.41 µm",
+   "wave_um": [
+    1.63,
+    2.41
+   ],
+   "n_exposures": [
+    19,
+    19,
+    18
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D4",
+   "label": "2.42–3.82 µm",
+   "wave_um": [
+    2.42,
+    3.82
+   ],
+   "n_exposures": [
+    19,
+    19,
+    18
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D5",
+   "label": "3.83–4.41 µm",
+   "wave_um": [
+    3.83,
+    4.41
+   ],
+   "n_exposures": [
+    18,
+    19,
+    19
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D6",
+   "label": "4.42–5.00 µm",
+   "wave_um": [
+    4.42,
+    5.0
+   ],
+   "n_exposures": [
+    19,
+    19,
+    18
+   ],
+   "status": "ready"
+  }
+ ],
+ "target_track": [
+  {
+   "epoch": 0,
+   "ra": 76.95608943761806,
+   "dec": 30.401130841360775
+  },
+  {
+   "epoch": 1,
+   "ra": 76.9560898462832,
+   "dec": 30.401127184744798
+  },
+  {
+   "epoch": 2,
+   "ra": 76.95609029486545,
+   "dec": 30.40112317096186
+  }
+ ],
+ "target_source": "Gaia DR3 156430822114424576",
+ "default_band": "D1",
+ "notes": [
+  "Its brightest pixels overflow; their flux is recovered from the reads before the overflow (median ratio 1.04 to clean pixels over 10 pairs, range 1.00–1.51; co-add session, methods_v2.md).",
+  "By the control-star test RW Aurigae changes between epochs in 6 of 6 bands: D1 ×1.40 (controls up to ×1.03, 5 stars), D2 ×1.37 (controls up to ×1.06, 5 stars), D3 ×1.46 (controls up to ×1.05, 5 stars), D4 ×1.17 (controls up to ×1.06, 5 stars), D5 ×1.94 (controls up to ×1.06, 5 stars), D6 ×1.64 (controls up to ×1.11, 5 stars). Most robust in D1, D2, D5, D6 (several wavelength bins); D3, D4 rest on a single wavelength bin."
+ ],
+ "processing": "spx 0.1: FLAGS mask, local background, clipped inverse-variance mean per epoch and band, fixed 3 arcsec TAN grid (north up); data spherex_dr1, spherex_qr3",
+ "acknowledgement": "This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration.",
+ "n_images": 335,
+ "mjd_median": 61103.330273
+}

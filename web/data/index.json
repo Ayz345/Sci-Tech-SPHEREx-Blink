@@ -6,8 +6,20 @@
    "name": "Barnard's Star"
   },
   {
+   "key": "eps-indi-b",
+   "name": "Epsilon Indi B"
+  },
+  {
    "key": "wise-0855",
    "name": "WISE 0855"
+  },
+  {
+   "key": "rw-aur",
+   "name": "RW Aurigae"
+  },
+  {
+   "key": "r-dra",
+   "name": "R Draconis"
   }
  ]
 }

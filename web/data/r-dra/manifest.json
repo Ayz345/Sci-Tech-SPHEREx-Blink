@@ -1,0 +1,231 @@
+{
+ "schema": 1,
+ "key": "r-dra",
+ "name": "R Draconis",
+ "query": {
+  "ra": 248.1673783672889,
+  "dec": 66.75500674547219,
+  "fov_deg": 0.11666666666666667
+ },
+ "collections": [
+  "spherex_dr1",
+  "spherex_qr3"
+ ],
+ "max_fov_deg": 0.11666666666666667,
+ "data_range": {
+  "mjd_min": 60811.955829,
+  "mjd_max": 61237.874566
+ },
+ "grid": {
+  "ctype": [
+   "RA---TAN",
+   "DEC--TAN"
+  ],
+  "crval": [
+   248.16723425820098,
+   66.75502368682564
+  ],
+  "crpix": [
+   70.5,
+   70.5
+  ],
+  "cdelt": [
+   -0.0008333333333333334,
+   0.0008333333333333334
+  ],
+  "shape": [
+   140,
+   140
+  ]
+ },
+ "epochs": [
+  {
+   "id": 0,
+   "date": "2025-06-09",
+   "mjd_mid": 60835.535787,
+   "mjd_min": 60811.956495499995,
+   "mjd_max": 60841.451009
+  },
+  {
+   "id": 1,
+   "date": "2025-07-04",
+   "mjd_mid": 60860.540859500004,
+   "mjd_min": 60848.649213,
+   "mjd_max": 60878.6088855
+  },
+  {
+   "id": 2,
+   "date": "2025-11-05",
+   "mjd_mid": 60984.83770975,
+   "mjd_min": 60965.615174,
+   "mjd_max": 61009.48539
+  },
+  {
+   "id": 3,
+   "date": "2025-12-13",
+   "mjd_mid": 61022.78996075,
+   "mjd_min": 61010.023259,
+   "mjd_max": 61053.415292
+  },
+  {
+   "id": 4,
+   "date": "2026-05-10",
+   "mjd_mid": 61170.9395125,
+   "mjd_min": 61152.331718,
+   "mjd_max": 61183.495648
+  },
+  {
+   "id": 5,
+   "date": "2026-06-23",
+   "mjd_mid": 61214.451358,
+   "mjd_min": 61198.973796,
+   "mjd_max": 61237.8739
+  }
+ ],
+ "bands": [
+  {
+   "id": "D1",
+   "label": "0.75–1.09 µm",
+   "wave_um": [
+    0.75,
+    1.09
+   ],
+   "n_exposures": [
+    4,
+    18,
+    45,
+    0,
+    0,
+    24
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D2",
+   "label": "1.10–1.62 µm",
+   "wave_um": [
+    1.1,
+    1.62
+   ],
+   "n_exposures": [
+    16,
+    17,
+    9,
+    28,
+    0,
+    19
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D3",
+   "label": "1.63–2.41 µm",
+   "wave_um": [
+    1.63,
+    2.41
+   ],
+   "n_exposures": [
+    23,
+    0,
+    0,
+    24,
+    35,
+    9
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D4",
+   "label": "2.42–3.82 µm",
+   "wave_um": [
+    2.42,
+    3.82
+   ],
+   "n_exposures": [
+    4,
+    17,
+    44,
+    0,
+    0,
+    23
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D5",
+   "label": "3.83–4.41 µm",
+   "wave_um": [
+    3.83,
+    4.41
+   ],
+   "n_exposures": [
+    16,
+    16,
+    10,
+    28,
+    0,
+    19
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D6",
+   "label": "4.42–5.00 µm",
+   "wave_um": [
+    4.42,
+    5.0
+   ],
+   "n_exposures": [
+    22,
+    0,
+    0,
+    24,
+    36,
+    9
+   ],
+   "status": "ready"
+  }
+ ],
+ "target_track": [
+  {
+   "epoch": 0,
+   "ra": 248.16724124778668,
+   "dec": 66.7550228651389
+  },
+  {
+   "epoch": 1,
+   "ra": 248.16724025311044,
+   "dec": 66.75502298207178
+  },
+  {
+   "epoch": 2,
+   "ra": 248.16723530870863,
+   "dec": 66.75502356332932
+  },
+  {
+   "epoch": 3,
+   "ra": 248.1672337990068,
+   "dec": 66.75502374080791
+  },
+  {
+   "epoch": 4,
+   "ra": 248.16722790576847,
+   "dec": 66.75502443360915
+  },
+  {
+   "epoch": 5,
+   "ra": 248.1672261749115,
+   "dec": 66.75502463708634
+  }
+ ],
+ "target_source": "Gaia DR3 1648328016354496384",
+ "default_band": "D5",
+ "notes": [
+  "R Draconis is saturated in 412 of 413 exposures, so its own flux cannot be measured; its change shows in the brightness of the halo (common scale across epochs) and in the PSF-wing series.",
+  "PSF-wing brightness between epochs is indicative, not a formal detection. Against the scatter of bright control stars in other fields (×1.47, 90th percentile): D2 ×2.42 and D6 ×1.77 exceed it; D3 ×1.49 is just above it; D1 ×1.31 does not exceed it. The 4 fainter control stars in this field (G 12.5–14.2) vary more in the same measurement (×1.63–3.15), so the formal variability test is undetermined."
+ ],
+ "processing": "spx 0.1: FLAGS mask, local background, clipped inverse-variance mean per epoch and band, fixed 3 arcsec TAN grid (north up); data spherex_dr1, spherex_qr3",
+ "acknowledgement": "This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration.",
+ "n_images": 539,
+ "mjd_median": 61011.246322
+}

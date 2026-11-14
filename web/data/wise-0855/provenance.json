@@ -1,14 +1,10 @@
 {
  "schema": 1,
  "key": "wise-0855",
- "generated_utc": "2026-11-14T07:24:31+00:00",
+ "generated_utc": "2026-11-14T09:51:02+00:00",
  "spx_version": "0.1",
- "spx_commit": "04e77d6",
- "spx_uncommitted_code": [
-  "spx/coadd.py",
-  "spx/display.py",
-  "spx/photometry.py"
- ],
+ "spx_commit": "b6b039d",
+ "spx_uncommitted_code": [],
  "collections": [
   "spherex_dr1",
   "spherex_qr3"
@@ -69,7 +65,7 @@
      23
     ]
    ],
-   "t_coadd": 0.5,
+   "t_coadd": 3.8,
    "fetch": {
     "D5": {
      "n_refs": 48,
@@ -77,7 +73,7 @@
      "n_skipped": 0,
      "n_from_cache": 48,
      "bytes": 0,
-     "seconds": 0.23841595649719238
+     "seconds": 1.7936549186706543
     },
     "D6": {
      "n_refs": 45,
@@ -85,7 +81,7 @@
      "n_skipped": 0,
      "n_from_cache": 45,
      "bytes": 0,
-     "seconds": 0.23206543922424316
+     "seconds": 1.734377384185791
     }
    }
   },
@@ -105,7 +101,7 @@
      14
     ]
    ],
-   "t_coadd": 0.4,
+   "t_coadd": 1.0,
    "fetch": {
     "D1": {
      "n_refs": 36,
@@ -113,7 +109,7 @@
      "n_skipped": 0,
      "n_from_cache": 36,
      "bytes": 0,
-     "seconds": 0.1949472427368164
+     "seconds": 0.6369547843933105
     }
    }
   },
@@ -141,7 +137,7 @@
      "n_skipped": 0,
      "n_from_cache": 48,
      "bytes": 0,
-     "seconds": 0.26609015464782715
+     "seconds": 0.6735532283782959
     }
    }
   },
@@ -161,7 +157,7 @@
      21
     ]
    ],
-   "t_coadd": 3.2,
+   "t_coadd": 1.9,
    "fetch": {
     "D3": {
      "n_refs": 45,
@@ -169,7 +165,7 @@
      "n_skipped": 0,
      "n_from_cache": 45,
      "bytes": 0,
-     "seconds": 1.5905961990356445
+     "seconds": 0.9109539985656738
     }
    }
   },
@@ -189,7 +185,7 @@
      14
     ]
    ],
-   "t_coadd": 2.2,
+   "t_coadd": 1.5,
    "fetch": {
     "D4": {
      "n_refs": 36,
@@ -197,7 +193,7 @@
      "n_skipped": 0,
      "n_from_cache": 36,
      "bytes": 0,
-     "seconds": 1.2719404697418213
+     "seconds": 0.6725616455078125
     }
    }
   },
@@ -217,7 +213,7 @@
      15
     ]
    ],
-   "t_coadd": 3.1,
+   "t_coadd": 2.0,
    "fetch": {}
   },
   "D6": {
@@ -236,7 +232,7 @@
      21
     ]
    ],
-   "t_coadd": 3.1,
+   "t_coadd": 1.9,
    "fetch": {}
   }
  },
@@ -253,5 +249,5 @@
   "numpy": "2.3.3",
   "astropy": "7.1.0"
  },
- "seconds": 24.9
+ "seconds": 31.4
 }

@@ -165,6 +165,10 @@
   }
  ],
  "target_source": "Gaia DR3 4472832130942575872",
+ "default_band": "D1",
+ "notes": [
+  "Barnard's Star is saturated at its core (drawn at the brightest colour). It moves 10.4″/yr, almost due north (Gaia DR3 proper motion)."
+ ],
  "processing": "spx 0.1: FLAGS mask, local background, clipped inverse-variance mean per epoch and band, fixed 3 arcsec TAN grid (north up); data spherex_dr1, spherex_qr3",
  "acknowledgement": "This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration.",
  "n_images": 358,
