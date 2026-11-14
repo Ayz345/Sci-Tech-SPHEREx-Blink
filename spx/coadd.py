@@ -77,8 +77,10 @@ def usable_pixels(flags) -> np.ndarray:
     ovf = ((f & _OVF) != 0) & ((f & _SUR) == 0) & ((f & BAD_MASK & ~_OVF_COMPANIONS) == 0)
     return clean | ovf
 
-DETECTOR_BANDS_UM = {1: (0.75, 1.11), 2: (1.10, 1.66), 3: (1.63, 2.42), 4: (2.42, 3.83),
-                     5: (3.80, 4.43), 6: (4.41, 5.01)}  # measured LVF range at the target pixel
+# Measured LVF range of the wavelength AT THE TARGET PIXEL over all DR1 exposures of the test fields
+# (WCS-WAVE). For exposure selection only; band LABELS come from spx.access.DETECTOR_BANDS_UM (IRSA nominal).
+DETECTOR_LVF_RANGE_UM = {1: (0.75, 1.11), 2: (1.10, 1.66), 3: (1.63, 2.42), 4: (2.42, 3.83),
+                     5: (3.80, 4.43), 6: (4.41, 5.01)}
 
 
 # --------------------------------------------------------------------------- grid / target / epochs
