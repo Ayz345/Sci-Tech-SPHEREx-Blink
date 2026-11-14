@@ -187,7 +187,10 @@ class Field:
         if band_id.startswith("D") and band_id[1:].isdigit():
             return [int(band_id[1:])]
         lo, hi = b["wave_um"]
-        return [d for d, (dlo, dhi) in access.DETECTOR_BANDS_UM.items() if dlo < hi and dhi > lo]
+        # exposure selection: the measured LVF ends when the co-add module has them, else the nominal ranges
+        from spx import coadd
+        ranges = getattr(coadd, "DETECTOR_LVF_RANGE_UM", None) or access.DETECTOR_BANDS_UM
+        return [d for d, (dlo, dhi) in sorted(ranges.items()) if dlo < hi and dhi > lo]
 
 
 def open_field(target: str | None = None, ra: float | None = None, dec: float | None = None,

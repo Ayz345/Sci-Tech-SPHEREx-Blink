@@ -194,6 +194,15 @@ def _quiet_wcs(*args, **kw) -> WCS:
 # --------------------------------------------------------------------------- HTTP
 
 _s3_slots = threading.BoundedSemaphore(S3_MAX_CONCURRENCY)
+
+#: Process-wide network counters (read by /api/health and scripts/acceptance.py).
+TOTALS = {"s3_requests": 0, "s3_bytes": 0, "sia_queries": 0}
+_totals_lock = threading.Lock()
+
+
+def _count(key: str, n: int = 1) -> None:
+    with _totals_lock:
+        TOTALS[key] += n
 _sess_lock = threading.Lock()
 _sess: requests.Session | None = None
 
@@ -248,6 +257,8 @@ def _get_range(url: str, start: int | None, length: int, retries: int = 4, timeo
                             raise FetchError(f"short body {len(body)} for {cr}")
                         if len(body) < length and b != total - 1:
                             raise FetchError(f"truncated range {cr} for {rng}")
+                        _count("s3_requests")
+                        _count("s3_bytes", len(body))
                         return a, body, total
                     if r.status_code in _RETRY_STATUS:
                         last = FetchError(f"HTTP {r.status_code} for {rng}")
@@ -312,6 +323,7 @@ def _sia_query(ra: float, dec: float, collection: str, radius_deg: float, retrie
         if attempt:
             time.sleep(2.0 * attempt)
         try:
+            _count("sia_queries")
             r = requests.get(SIA_URL, params=params, timeout=90)
         except (requests.ConnectionError, requests.Timeout) as e:
             last = e

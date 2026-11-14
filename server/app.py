@@ -539,7 +539,9 @@ async def api_health():
     with reg.lock:
         fields = len(reg.fields)
         queued = {"urgent": len(reg.urgent), "background": len(reg.background)}
+        running = sum(j.state == "running" for fs in reg.fields.values() for j in fs.jobs.values())
     return jresp({"schema": P.SCHEMA, "ok": True, "version": spx.__version__, "commit": P.spx_commit().get("commit"),
                   "collections": list(access.COLLECTIONS), "max_fov_deg": P.MAX_FOV_DEG,
-                  "live_layers": list(LIVE_LAYERS), "fields_in_memory": fields, "bands_queued": queued,
-                  "s3_max_concurrency": access.S3_MAX_CONCURRENCY})
+                  "live_layers": list(LIVE_LAYERS), "fields_in_memory": fields, "bands_queued": queued, "bands_running": running,
+                  "s3_max_concurrency": access.S3_MAX_CONCURRENCY,
+                  "network_totals": dict(access.TOTALS)})
