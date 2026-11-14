@@ -106,6 +106,60 @@ def _mas(v):
     return None if v is None else round(v * 1000.0, 2)
 
 
+EMPTY_MIN_ANSWERS = 10
+CONTROL_OFFSET_DEG = 0.3
+
+
+def confirm_empty(key: str, data: Path) -> bool:
+    """A field the catalogue leaves empty (R Dra on 14 Nov: 141 + 16 answers 'OK, 0 rows', none with rows, while
+    a cone 0.3 deg north returned 340). Believed when >= EMPTY_MIN_ANSWERS successful answers are all empty and a
+    control cone CONTROL_OFFSET_DEG north (radius 0.05 deg) has rows; then saved like a fetched answer."""
+    m = json.loads((data / key / "manifest.json").read_text(encoding="utf-8"))
+    ra, dec, r = cone(m)
+    n_ok = n_empty = n_tries = 0
+    last = b""
+    while n_ok < EMPTY_MIN_ANSWERS and n_tries < MAX_ATTEMPTS:
+        n_tries += 1
+        try:
+            resp = requests.get(SCS_URL, params={"table": TABLE, "RA": ra, "DEC": dec, "SR": r}, timeout=(15, 90))
+        except requests.RequestException:
+            time.sleep(1)
+            continue
+        if resp.status_code == 200:
+            n = n_rows(resp.content)
+            if n is None:
+                continue
+            n_ok += 1
+            if n:
+                print(key, "has rows after all; use --fetch")
+                return False
+            n_empty += 1
+            last = resp.content
+        time.sleep(0.7)
+    ctrl = None
+    cdec = dec + CONTROL_OFFSET_DEG if dec + CONTROL_OFFSET_DEG < 90 else dec - CONTROL_OFFSET_DEG
+    for _ in range(MAX_ATTEMPTS):
+        try:
+            resp = requests.get(SCS_URL, params={"table": TABLE, "RA": ra, "DEC": cdec, "SR": 0.05}, timeout=(15, 90))
+            if resp.status_code == 200 and n_rows(resp.content):
+                ctrl = n_rows(resp.content)
+                break
+        except requests.RequestException:
+            pass
+        time.sleep(0.7)
+    print(key, {"answers_ok": n_ok, "empty": n_empty, "tries": n_tries, "control_rows": ctrl})
+    if n_ok < EMPTY_MIN_ANSWERS or not ctrl:
+        return False
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    (RAW_DIR / f"{key}_scs.xml").write_bytes(last)
+    meta = {"key": key, "ra": ra, "dec": dec, "radius_deg": r, "retrieved_utc":
+            dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "rows": 0, "attempts": n_tries,
+            "empty_confirmed": {"answers_ok_all_empty": n_ok, "control_cone": {"ra": ra, "dec": cdec,
+                                "radius_deg": 0.05, "rows": ctrl}}}
+    (RAW_DIR / f"{key}_scs.json").write_text(json.dumps(meta, indent=1))
+    return True
+
+
 def read_rows(key: str) -> tuple[list[dict], dict]:
     """Contract fields from the cached answer: source_name, ra, dec (ra_pm, dec_pm at MJD 57170), pmra, pmdec
     (catalogue PMRA, PMDec converted from arcsec/yr to mas/yr, like gaia.json), w1mag, w2mag, ref_mjd."""
@@ -270,11 +324,19 @@ def write(key: str, data: Path) -> int:
                 r["same_object_as"] = tgt_rows[0]["source_name"]
         for r in rows:
             r.pop("_target_sep", None)
+    empty = meta.get("empty_confirmed")
+    if empty:
+        conv = conv + " (no rows in this field)"
     out = {"schema": 1, "key": key, "catalog": "CatWISE2020",
            "meta": {"source": SOURCE, "retrieved_utc": meta["retrieved_utc"], "radius_deg": meta["radius_deg"],
                     "centre": [meta["ra"], meta["dec"]], "ref_mjd": REF_MJD, "position_columns": "ra_pm, dec_pm",
                     "pm_unit": "mas/yr", "pm_convention": conv, "note": SYSTEMATIC_NOTE, "fast_note": FAST_NOTE,
-                    "n": len(rows), "n_pm_unreliable": sum(1 for r in rows if r.get("pm_reliable") is False)},
+                    "n": len(rows), "n_pm_unreliable": sum(1 for r in rows if r.get("pm_reliable") is False),
+                    **({"empty_note": (f"CatWISE2020 has no sources in this field: {empty['answers_ok_all_empty']} "
+                                       f"successful answers were all empty, while a cone {CONTROL_OFFSET_DEG} deg away "
+                                       f"returned {empty['control_cone']['rows']}. Probably the area around this very "
+                                       "bright star is not catalogued (not confirmed from the catalogue documents).")}
+                       if empty else {})},
            "sources": rows}
     from server import pipeline as P
     P.write_json(data / key / "catwise.json", out, indent=None)
@@ -287,6 +349,9 @@ def main(argv=None) -> int:
     ap.add_argument("keys", nargs="*")
     ap.add_argument("--data", default=str(ROOT / "web" / "data"))
     ap.add_argument("--fetch", action="store_true", help="download the raw answers first")
+    ap.add_argument("--confirm-empty", action="store_true",
+                    help="believe 'OK, 0 rows' for these fields after repeated empty answers and a non-empty control "
+                         "cone, and save it as their answer")
     ap.add_argument("--pm-check", action="store_true",
                     help="write tests/data/catwise_pm_check.json (Gaia-matched stars) from the cached answers")
     a = ap.parse_args(argv)
@@ -307,6 +372,10 @@ def main(argv=None) -> int:
         if not all(ok.values()):
             return 1
         return 0
+    if a.confirm_empty:
+        ok = {k: confirm_empty(k, data) for k in keys}
+        print("confirmed empty:", ok)
+        return 0 if all(ok.values()) else 1
     if a.pm_check:
         write_pm_check(keys, data)
         return 0
