@@ -894,23 +894,31 @@ function pointTip(p, yk) {
   ];
   if (p.saturated) lines.push("saturated (lower limit)"); else if (p.overflow) lines.push("recovered from overflow");
   if (p.flagged) lines.push("flagged");
-  if (Array.isArray(p.flags)) lines.push(p.flags.length ? `flags: ${p.flags.join(", ")}` : "flags: none");
+  if (Array.isArray(p.flags)) lines.push(p.flags.length ? `flags: ${sortFlags(p.flags).join(", ")}` : "flags: none");
   return lines.join("\n");
 }
+// Informational bits, as named in the server's meta.flags_region text ("informational bits (SOURCE,
+// FULLSAMPLE) included"); SOURCE is set on nearly every point at a star. They are listed last and dimmed.
+const INFO_FLAGS = new Set(["SOURCE", "FULLSAMPLE"]);
+const sortFlags = (fs) => [...fs].sort((a, b) => INFO_FLAGS.has(a) - INFO_FLAGS.has(b));
 // meta.flag_legend {name: one-line meaning}, shown as it is in a closed "Flags" section; names seen in this
-// spectrum first
+// spectrum first (by count), informational ones last; source and region text from meta
 function renderFlagLegend(pts, meta) {
   const leg = meta?.flag_legend, box = $("flagBox");
   box.hidden = !leg || !Object.keys(leg).length;
   if (box.hidden) return;
   const seen = new Map();
   for (const p of pts) for (const f of p.flags || []) seen.set(f, (seen.get(f) || 0) + 1);
-  const names = [...Object.keys(leg)].sort((a, b) => (seen.get(b) || 0) - (seen.get(a) || 0) || a.localeCompare(b));
+  const names = [...new Set([...Object.keys(leg), ...seen.keys()])].sort((a, b) =>
+    INFO_FLAGS.has(a) - INFO_FLAGS.has(b) || (seen.get(b) || 0) - (seen.get(a) || 0) || a.localeCompare(b));
   $("flagSummary").textContent = `Flags (${seen.size} kinds in this spectrum)`;
+  $("flagSource").textContent = [meta.flags_region, meta.flag_legend_source && `Meanings: ${meta.flag_legend_source}`]
+    .filter(Boolean).map((t) => t.trim().replace(/([^.])$/, "$1.")).join(" ");
   $("flagList").replaceChildren(...names.map((n) => {
-    const dt = Object.assign(document.createElement("dt"), { textContent: `${n}${seen.get(n) ? ` — ${seen.get(n)} points` : ""}` });
-    const dd = Object.assign(document.createElement("dd"), { textContent: leg[n] });
-    if (!seen.get(n)) dt.className = dd.className = "muted";
+    const info = INFO_FLAGS.has(n) ? " (informational)" : "";
+    const dt = Object.assign(document.createElement("dt"), { textContent: `${n}${seen.get(n) ? ` — ${seen.get(n)} points` : ""}${info}` });
+    const dd = Object.assign(document.createElement("dd"), { textContent: leg[n] ?? "no meaning given" });
+    if (!seen.get(n) || info) dt.className = dd.className = "muted";
     return [dt, dd];
   }).flat());
 }
