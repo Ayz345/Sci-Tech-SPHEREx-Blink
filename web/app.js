@@ -924,6 +924,8 @@ function pointTip(p, yk) {
   ];
   if (p.saturated) lines.push("saturated (lower limit)"); else if (p.overflow) lines.push("recovered from overflow");
   if (p.flagged) lines.push("flagged");
+  // aperture photometry: masked share of the aperture weight; PSF photometry: of the pixels within 1.5 px
+  if (p.masked_fraction != null && Number.isFinite(+p.masked_fraction)) lines.push(`masked ${Math.round(+p.masked_fraction * 100)}% of the measurement region`);
   if (Array.isArray(p.flags)) lines.push(p.flags.length ? `flags: ${sortFlags(p.flags).join(", ")}` : "flags: none");
   return lines.join("\n");
 }
@@ -1019,6 +1021,7 @@ function plots() {
     meta.aperture_radius_px != null && `aperture ${meta.aperture_radius_px} px` +
       (meta.background_annulus_px ? `, background annulus ${[].concat(meta.background_annulus_px).join("–")} px` : ""),
     meta.aperture_corrected === false && "fluxes are NOT aperture-corrected",
+    meta.err_note, // the error-bar caveat from the empty-sky test (co-add session), shown as it is
     `${pts.length} points, ${nf} flagged (faint in the spectrum, left out of the light curve)`,
   ].filter(Boolean).join(" · ");
 }
@@ -1263,7 +1266,7 @@ S.cands = null;
 const CAND_COLOR = "#ffd84f";
 // "known" = motion explained by a Gaia DR3 proper motion; near_gaia alone (a star nearby) is only in the tooltip
 function candLabel(c) {
-  if (c.known) return `known: Gaia ${String(c.near_gaia?.source_id ?? "").slice(-6)}`.trim();
+  if (c.known) return `known: Gaia DR3 ${c.near_gaia?.source_id ?? ""}`.trim();
   return c.kind || "candidate";
 }
 async function loadCandidates() {
@@ -1299,12 +1302,16 @@ async function loadCandidates() {
     li.append(b); return li;
   }));
   const rej = Object.entries(S.cands.rejected || {}).map(([k, v]) => `  ${v} × ${k}`).join("\n");
+  // the first two validation lines are the user-facing limits: always shown under the toggle;
+  // the rest stays in the closed "How candidates are found" section
+  const val = [].concat(S.cands.validation || []);
+  $("candLimits").textContent = val.slice(0, 2).join(" ");
   $("candHow").textContent = [
     S.cands.method && `method: ${S.cands.method}`,
     S.cands.params && `parameters: ${Object.entries(S.cands.params).map(([k, v]) => `${k} ${v}`).join(", ")}`,
     S.cands.bands_searched && `bands searched: ${S.cands.bands_searched.join(", ")}`,
     `${cs.length} candidates shown`, rej && `rejected:\n${rej}`,
-    ...[].concat(S.cands.validation || []),
+    ...val.slice(2),
   ].filter(Boolean).join("\n");
 }
 // a candidate's positions become marks in the measure tool (then refine/report as usual)

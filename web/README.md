@@ -133,8 +133,9 @@ note "Automatic candidates are places to look at, not detection claims." Each ca
 position in the current epoch (faint at the nearest epoch when it has none there) with a short label (`mover`,
 `variable`, or `known: Gaia …` when `known` is true; a nearby Gaia star alone is only in the tooltip). The list shows id, label, bands, S/N and rate; clicking
 one loads its positions as marks in the measure tool (and switches to its first band), from where refine and
-report work as usual. A closed "How candidates are found" section shows `method`, `params`, `bands_searched`,
-the `rejected` counts and the `validation` lines as given. When the live server answers 202 (candidates not computed yet) the toggle is shown faint with "Automatic candidates are being computed…" and the `bands_pending` list; 503 says they are not available right now with the server's message; and the page asks again every 5 s; 404 or no static file: the control is not shown.
+report work as usual. The first two `validation` lines (the user-facing limits) are shown under the toggle; a closed "How candidates
+are found" section shows `method`, `params`, `bands_searched`, the `rejected` counts and the other
+`validation` lines as given. A candidate is labelled "known: Gaia DR3 <id>" only when `known` is true. When the live server answers 202 (candidates not computed yet) the toggle is shown faint with "Automatic candidates are being computed…" and the `bands_pending` list; 503 says they are not available right now with the server's message; and the page asks again every 5 s; 404 or no static file: the control is not shown.
 
 ## Flag names on spectrum points (F3)
 
@@ -142,6 +143,9 @@ Pointing at a spectrum point shows its wavelength, flux ± error, MJD, band, sat
 when the spectrum carries them, `flags` (names of the FLAGS bits set in its aperture, "none" for `[]`). A closed
 "Flags" section lists `meta.flag_legend` as given by the data (names seen in this spectrum first, with counts;
 the others faint). Without `flag_legend` the section is hidden. The fixtures' legend texts are placeholders.
+
+Spectrum points with `masked_fraction` show "masked N% of the measurement region" in the hover text, and
+`meta.err_note` (the error-bar caveat from the empty-sky test) is shown with the aperture notes.
 
 ## Sky context panel (F5, Aladin Lite)
 
