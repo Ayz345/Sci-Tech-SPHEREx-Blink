@@ -117,12 +117,56 @@ def build_target(key: str, out_root: Path, bands=None) -> dict:
         "seconds": round(time.time() - t0, 1),
     }
     P.write_json(tmp / "provenance.json", prov)
-    _swap(tmp, out_root / key)
+    report["regenerate"] = _swap(tmp, out_root / key)
     report["seconds"] = prov["seconds"]
     return report
 
 
-def _swap(tmp: Path, dest: Path) -> None:
+#: Files other scripts add to a target folder (make_wise_images, make_catwise, make_candidates). A rebuild keeps
+#: them; the 14 Nov --final build would otherwise have deleted them with the old folder.
+COMPANIONS = ("wise.json", "wise_W1.f32", "wise_W2.f32", "catwise.json", "candidates.json")
+CATWISE_MARGIN_ARCSEC = 10.0   # scripts/make_catwise.py MARGIN_DEG: the cone reaches this far past the corners
+
+
+def carry_companions(old: Path, new: Path) -> list[str]:
+    """Copy COMPANIONS from the old folder into the new one (when the new one has none) and say what must be
+    regenerated: WISE images when the grid changed, CatWISE when the centre moved past the cone margin, candidates
+    always (they are computed from the frames, which this build has just remade)."""
+    import json
+    import math
+    if not old.exists():
+        return []
+    carried = []
+    for name in COMPANIONS:
+        if (old / name).exists() and not (new / name).exists():
+            shutil.copy2(old / name, new / name)
+            carried.append(name)
+    if not carried:
+        return []
+    warn = []
+    try:
+        g0 = json.loads((old / "manifest.json").read_text(encoding="utf-8"))["grid"]
+        g1 = json.loads((new / "manifest.json").read_text(encoding="utf-8"))["grid"]
+    except (OSError, ValueError, KeyError):
+        g0 = g1 = None
+    key = old.name
+    if g0 != g1 and any(n.startswith("wise") for n in carried):
+        warn.append(f"{key}: grid changed: run scripts/make_wise_images.py {key}")
+    if g0 and g1 and "catwise.json" in carried:
+        (ra0, de0), (ra1, de1) = g0["crval"], g1["crval"]
+        moved = math.hypot((ra1 - ra0) * math.cos(math.radians(de0)), de1 - de0) * 3600
+        if moved > CATWISE_MARGIN_ARCSEC:
+            warn.append(f"{key}: centre moved {moved:.1f} arcsec: run scripts/make_catwise.py --fetch {key}")
+    if "candidates.json" in carried:
+        warn.append(f"{key}: frames rebuilt: run scripts/make_candidates.py {key}")
+    for w in warn:
+        print("  WARNING", w, flush=True)
+    return warn
+
+
+def _swap(tmp: Path, dest: Path) -> list[str]:
+    """Replace dest by tmp; companions of the old folder move along (carry_companions). Returns the warnings."""
+    warn = carry_companions(dest, tmp)
     old = dest.with_name(f".{dest.name}.old")
     if old.exists():
         shutil.rmtree(old)
@@ -131,6 +175,7 @@ def _swap(tmp: Path, dest: Path) -> None:
     tmp.rename(dest)
     if old.exists():
         shutil.rmtree(old, ignore_errors=True)
+    return warn
 
 
 def write_index(out_root: Path) -> dict:
