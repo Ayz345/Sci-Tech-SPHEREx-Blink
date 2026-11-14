@@ -1,0 +1,6 @@
+# Test-only dependencies: python -m pip install -r requirements-test.txt ; python -m pytest -q tests
+-r requirements.txt
+pytest==9.2.0
+httpx==0.28.1
+# Official IAU ADES tools (psvtoxml, valsubmit) for tests/test_mpc.py
+iau-ades==0.1.3

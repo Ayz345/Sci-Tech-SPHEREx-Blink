@@ -176,7 +176,7 @@ def _comment_lines(context: dict) -> list[str]:
         "checked against the header ground-track longitude)",
         f"Astrometric reference: {ASTROMETRY_REFERENCE};",
         "astCat code not verified against the MPC list",
-        "Checked with an in-house reader of adesmaster.xml; not validated with the official ADES tools",
+        "Writer output passes the official ADES submit check (iau-ades) in tests; this file is not checked.",
     ]
     v = validation_summary()
     if v is None:
@@ -462,8 +462,9 @@ def validate_psv(text: str) -> list[str]:
     (the schema's optical sequence), required optical fields (trkSub, mode, stn, obsTime, ra, dec, astCat and,
     for a space station, the Location group) and every value against its simple type.
 
-    This is NOT the IAU's official validator (iau-ades: psvtoxml + valsubmit); it is used while that package
-    cannot be installed here. Returns a list of error strings ([] = passed)."""
+    A quick in-house check that needs only lxml. The official checks (iau-ades psvtoxml + valsubmit, and the
+    submit.xsd made from adesmaster.xml with the ADES XSLT) run in tests/test_mpc.py.
+    Returns a list of error strings ([] = passed)."""
     root = _master()
     check, elems, _ = _type_checker(root)
     order, _required = _optical_sequence(root)

@@ -73,7 +73,7 @@ def test_real_telescope_context_and_finast():
     assert mpc.validate_psv(txt) == []
     for line in ("! design reflector", "! aperture 0.20", "! detector HgCdTe", "! fRatio 3",
                  "! line Telescope: SPHEREx Explanatory Supplement v2.1, Sec. 1.3 and Table 2",
-                 "! line Checked with an in-house reader of adesmaster.xml; not validated with the official ADES tools"):
+                 "! line Writer output passes the official ADES submit check (iau-ades) in tests; this file is not checked."):
         assert line in txt.splitlines()
     assert "Gaia DR3" in txt and "unverified: mode, astCat" in txt and "astCat code not verified" in txt
     assert "unverified: spacecraft position axes" not in txt
@@ -191,3 +191,43 @@ def test_ades_selection_rules_and_validation_lines(tmp_path, monkeypatch):
     assert "against JPL Horizons: median offset -0.12, -0.05 arcsec;" in txt
     assert "Along-track residual on (433) Eros: -0.15 arcsec (382 exposures)." in txt
     assert mpc.validate_psv(txt) == []
+
+
+# ---------------------------------------------------------------- official checks
+SUBMIT_XSD = mpc.MASTER.parent / "xslt" / "submit.xsd"   # made from adesmaster.xml with the ADES submitxsd.xslt
+
+
+@pytest.mark.skipif(not SUBMIT_XSD.exists(), reason="cache/ades/xslt/submit.xsd not generated")
+def test_xml_passes_the_official_submit_schema():
+    from lxml import etree
+    schema = etree.XMLSchema(etree.parse(str(SUBMIT_XSD)))
+    good = mpc.write_ades_xml(_dets(), {"submitter": "A. Tester", "tool_version": "0.1", "code_hash": "x"})
+    assert schema.validate(etree.fromstring(good.encode())), [str(e) for e in schema.error_log]
+    bad = good.replace('version="2022"', 'version="2017"')
+    assert not schema.validate(etree.fromstring(bad.encode()))
+
+
+def _official(psv_text, tmp_path):
+    """IAU tools: psvtoxml then valsubmit (iau-ades); returns (ok, message)."""
+    import subprocess
+    import sys
+    (tmp_path / "in.psv").write_text(psv_text, encoding="utf-8", newline="\n")
+    r1 = subprocess.run([sys.executable, "-m", "ades.psvtoxml", "in.psv", "in.xml"], cwd=tmp_path,
+                        capture_output=True, text=True, timeout=120)
+    if r1.returncode != 0 or not (tmp_path / "in.xml").exists():
+        return False, "psvtoxml: " + (r1.stderr or r1.stdout)[-300:]
+    r2 = subprocess.run([sys.executable, "-m", "ades.valsubmit", "in.xml"], cwd=tmp_path, capture_output=True,
+                        text=True, timeout=120)
+    msg = (tmp_path / "valsubmit.file").read_text() if (tmp_path / "valsubmit.file").exists() else r2.stdout
+    return r2.returncode == 0 and "submit is OK" in msg, msg.strip()[:300]
+
+
+def test_psv_passes_the_official_ades_tools(tmp_path):
+    pytest.importorskip("ades", reason="iau-ades not installed (pip install -r requirements-test.txt)")
+    good = mpc.write_ades_psv(_dets(), {"submitter": "A. Tester", "tool_version": "0.1", "code_hash": "x"})
+    ok, msg = _official(good, tmp_path)
+    assert ok, msg
+    bad_dir = tmp_path / "bad"
+    bad_dir.mkdir()
+    ok, msg = _official(good.replace("ICRF_KM", "ICRF_XX"), bad_dir)
+    assert not ok
