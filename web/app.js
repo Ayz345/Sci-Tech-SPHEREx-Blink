@@ -256,6 +256,9 @@ async function loadTarget() {
 }
 
 function loadSpectrum(ra, dec, where) {
+  // the target: no ra/dec, so the server follows it to each exposure with its proper motion
+  // (a fixed point would miss a fast target in the earlier epochs); ra/dec only for other places
+  if (where === "target") ra = dec = null;
   return fetchLogged(src.spectrum(S.key, ra, dec)).then((s) => { S.spectrum = s; S.specAt = where; plots(); }).catch(() => plots());
 }
 
@@ -1014,6 +1017,7 @@ function plots() {
     : n.source_id != null ? `Gaia DR3 ${n.source_id}${n.g_mag != null ? ` (G = ${(+n.g_mag).toFixed(1)})` : ""}`
     : `Gaia DR3 star at RA ${(+n.ra).toFixed(5)}, Dec ${(+n.dec).toFixed(5)}`);
   $("specNote").textContent = [
+    meta.position && `position: ${meta.position}`, // "target, moved to each exposure …" or "fixed point …"
     meta.photometry && `photometry: ${meta.photometry}`,
     meta.photometry === "psf_deblended" && `neighbour removed by PSF fit${nb.length ? ": " + nb.join(", ") : ""}`,
     nEmpty && `${nEmpty} point${nEmpty === 1 ? "" : "s"} without usable pixels left out`,

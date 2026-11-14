@@ -145,7 +145,7 @@ when the spectrum carries them, `flags` (names of the FLAGS bits set in its aper
 "Flags" section lists `meta.flag_legend` as given by the data (names seen in this spectrum first, with counts;
 the others faint). Without `flag_legend` the section is hidden. The fixtures' legend texts are placeholders.
 
-Points with `masked_fraction` ≥ 0.999 (no usable pixel) are not drawn and not in the light curve; the note says "N points without usable pixels left out". Other spectrum points with `masked_fraction` show "masked N% of the measurement region" in the hover text, and
+From the live server the target's spectrum is asked for without ra/dec, so the server follows the target to each exposure with its proper motion; ra/dec are sent only for a click elsewhere, and `meta.position` (which of the two) heads the note. Points with `masked_fraction` ≥ 0.999 (no usable pixel) are not drawn and not in the light curve; the note says "N points without usable pixels left out". Other spectrum points with `masked_fraction` show "masked N% of the measurement region" in the hover text, and
 `meta.err_note` (the error-bar caveat from the empty-sky test) is shown with the aperture notes.
 
 ## Sky context panel (F5, Aladin Lite)
