@@ -29,13 +29,14 @@ the spectrum. The tool does not claim any discovery. It makes looking easier.
 | Five test targets | Prebuilt gallery (Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae, R Draconis) and the live path |
 | Coordinates in the URL, embedding | `?ra=&dec=&fov=` or `?target=`; the URL carries the whole view; `?embed=1` and "copy embed code" |
 | Easy update with new data releases | The list of collections is one setting (`SPX_COLLECTIONS`); `scripts/precompute.py` rebuilds the gallery |
-| Co-add per detector | One frame per visit and detector band (D1 to D6), plus custom wavelength windows |
+| Co-add per detector | One frame per visit and detector band (D1 to D6) |
+| Use the 102 bands | Your own wavelength window: drag a range on the spectrum and blink only the exposures taken at those wavelengths (50 nm or wider, live server) |
 | Add or subtract images from different times | Blink, difference (one visit minus the mean of the others) and sum |
 | Field of view | 3′ and 7′ on the live server |
-| Other telescopes | Gaia DR3 stars moved to each visit's date with their proper motion; link to WiseView |
-| Metadata, contamination flags | Exposure count and dates per frame, coverage map, map of the masked fraction |
+| Other telescopes | Gaia DR3 stars moved to each visit's date with their proper motion; a "Sky context" panel (Aladin Lite) showing AllWISE, 2MASS or DSS2 at the same place; link to WiseView |
+| Metadata, contamination flags | Exposure count and dates per frame, coverage map, map of the masked fraction; for a clicked point, the names of the FLAGS bits set in each exposure, with their meaning from the SPHEREx Explanatory Supplement |
 | Spectrum | Click a point: flux against wavelength from the single exposures, and against time |
-| All 102 bands | False colour from three bands, spectrum, light curve |
+| False colour | Three bands as red, green and blue |
 
 Also in the tool:
 
@@ -185,8 +186,16 @@ Every source used is listed here, as the Space Apps rules ask.
 | FastAPI, pytest | MIT |
 | iau-ades (tests only) | see the package |
 | Matplotlib, Pillow (optional, figures only) | Matplotlib licence, MIT-CMU |
+| Aladin Lite 3.8.2 (loaded on demand by the page) | LGPL v3 (see below) |
 
-The page uses no third-party JavaScript, fonts or images.
+The page itself contains no third-party JavaScript, fonts or images. One library is loaded from a CDN, and only
+when the "Sky context" panel is opened:
+
+- Aladin Lite 3.8.2 by the CDS, Strasbourg (<https://aladin.cds.unistra.fr/>,
+  <https://github.com/cds-astro/aladin-lite>), from `cdn.jsdelivr.net/npm/aladin-lite@3.8.2`, not modified and not
+  stored in this repository. The package's LICENSE file is the GNU LGPL v3 (its `package.json` says "GPL-3").
+- The panel shows other surveys through their public HiPS services (hosted by IRSA, ESA, MAST or the CDS):
+  AllWISE, 2MASS and DSS2. These images are not part of this repository.
 
 ## Use of AI tools
 
