@@ -1,0 +1,1285 @@
+{
+ "started_utc": "2026-11-14T09:55:22+00:00",
+ "profile": "local",
+ "api": "http://127.0.0.1:8000",
+ "seed": 1794650122,
+ "summary": {
+  "PASS": 99,
+  "FAIL": 4,
+  "PENDING": 0,
+  "INFO": 31
+ },
+ "thresholds": {
+  "MIN_EPOCHS": 3,
+  "DETECT_SNR": 5.0,
+  "POS_TOL_PX": 2.0,
+  "MOTION_REL_TOL": 0.2,
+  "MOTION_ABS_TOL": 1.5,
+  "STATIC_MAX": 1.5,
+  "profile": {
+   "manifest": 5.0,
+   "first_band": 30.0,
+   "cached": 3.0,
+   "six_bands": null
+  }
+ },
+ "wording_thresholds": {
+  "note": "used only to word the page notes (server.pipeline.measured_notes); they never decide PASS/FAIL",
+  "SMALL_MARGIN": 1.2,
+  "CLEARLY_ABOVE": 1.1
+ },
+ "items": [
+  {
+   "section": "static",
+   "item": "index.json lists the five targets",
+   "status": "PASS",
+   "measured": [
+    "barnard",
+    "eps-indi-b",
+    "wise-0855",
+    "rw-aur",
+    "r-dra"
+   ],
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:barnard",
+   "item": "manifest schema 1, key matches",
+   "status": "PASS",
+   "measured": null,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:barnard",
+   "item": "every frame file present with 4*ny*nx bytes; none for n_used 0",
+   "status": "PASS",
+   "measured": 54,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:barnard",
+   "item": "epochs in manifest",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 3",
+   "detail": ""
+  },
+  {
+   "section": "static:barnard",
+   "item": "frames in the fullest band",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 3",
+   "detail": ""
+  },
+  {
+   "section": "static:barnard",
+   "item": "target_track inside the grid (min distance to edge, px)",
+   "status": "PASS",
+   "measured": 67.6,
+   "threshold": ">= 5",
+   "detail": ""
+  },
+  {
+   "section": "static:barnard",
+   "item": "gaia.json: list with contract fields",
+   "status": "PASS",
+   "measured": 1091,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:barnard",
+   "item": "spectrum.json: {meta, points} with contract fields",
+   "status": "PASS",
+   "measured": 355,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:barnard",
+   "item": "spectrum points per image at the target",
+   "status": "PASS",
+   "measured": 0.99,
+   "threshold": ">= 0.5",
+   "detail": "points lost for saturated targets are counted here"
+  },
+  {
+   "section": "static:barnard",
+   "item": "provenance.json present",
+   "status": "PASS",
+   "measured": null,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:eps-indi-b",
+   "item": "manifest schema 1, key matches",
+   "status": "PASS",
+   "measured": null,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:eps-indi-b",
+   "item": "every frame file present with 4*ny*nx bytes; none for n_used 0",
+   "status": "PASS",
+   "measured": 66,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:eps-indi-b",
+   "item": "epochs in manifest",
+   "status": "PASS",
+   "measured": 4,
+   "threshold": ">= 3",
+   "detail": ""
+  },
+  {
+   "section": "static:eps-indi-b",
+   "item": "frames in the fullest band",
+   "status": "PASS",
+   "measured": 4,
+   "threshold": ">= 3",
+   "detail": ""
+  },
+  {
+   "section": "static:eps-indi-b",
+   "item": "target_track inside the grid (min distance to edge, px)",
+   "status": "PASS",
+   "measured": 68.2,
+   "threshold": ">= 5",
+   "detail": ""
+  },
+  {
+   "section": "static:eps-indi-b",
+   "item": "gaia.json: list with contract fields",
+   "status": "PASS",
+   "measured": 109,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:eps-indi-b",
+   "item": "spectrum.json: {meta, points} with contract fields",
+   "status": "PASS",
+   "measured": 455,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:eps-indi-b",
+   "item": "spectrum points per image at the target",
+   "status": "PASS",
+   "measured": 0.99,
+   "threshold": ">= 0.5",
+   "detail": "points lost for saturated targets are counted here"
+  },
+  {
+   "section": "static:eps-indi-b",
+   "item": "provenance.json present",
+   "status": "PASS",
+   "measured": null,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:wise-0855",
+   "item": "manifest schema 1, key matches",
+   "status": "PASS",
+   "measured": null,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:wise-0855",
+   "item": "every frame file present with 4*ny*nx bytes; none for n_used 0",
+   "status": "PASS",
+   "measured": 63,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:wise-0855",
+   "item": "epochs in manifest",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 3",
+   "detail": ""
+  },
+  {
+   "section": "static:wise-0855",
+   "item": "frames in the fullest band",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 3",
+   "detail": ""
+  },
+  {
+   "section": "static:wise-0855",
+   "item": "target_track inside the grid (min distance to edge, px)",
+   "status": "PASS",
+   "measured": 68.1,
+   "threshold": ">= 5",
+   "detail": ""
+  },
+  {
+   "section": "static:wise-0855",
+   "item": "gaia.json: list with contract fields",
+   "status": "PASS",
+   "measured": 151,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:wise-0855",
+   "item": "spectrum.json: {meta, points} with contract fields",
+   "status": "PASS",
+   "measured": 256,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:wise-0855",
+   "item": "spectrum points per image at the target",
+   "status": "PASS",
+   "measured": 0.99,
+   "threshold": ">= 0.5",
+   "detail": "points lost for saturated targets are counted here"
+  },
+  {
+   "section": "static:wise-0855",
+   "item": "provenance.json present",
+   "status": "PASS",
+   "measured": null,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:rw-aur",
+   "item": "manifest schema 1, key matches",
+   "status": "PASS",
+   "measured": null,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:rw-aur",
+   "item": "every frame file present with 4*ny*nx bytes; none for n_used 0",
+   "status": "PASS",
+   "measured": 54,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:rw-aur",
+   "item": "epochs in manifest",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 3",
+   "detail": ""
+  },
+  {
+   "section": "static:rw-aur",
+   "item": "frames in the fullest band",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 3",
+   "detail": ""
+  },
+  {
+   "section": "static:rw-aur",
+   "item": "target_track inside the grid (min distance to edge, px)",
+   "status": "PASS",
+   "measured": 69.5,
+   "threshold": ">= 5",
+   "detail": ""
+  },
+  {
+   "section": "static:rw-aur",
+   "item": "gaia.json: list with contract fields",
+   "status": "PASS",
+   "measured": 674,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:rw-aur",
+   "item": "spectrum.json: {meta, points} with contract fields",
+   "status": "PASS",
+   "measured": 333,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:rw-aur",
+   "item": "spectrum points per image at the target",
+   "status": "PASS",
+   "measured": 0.99,
+   "threshold": ">= 0.5",
+   "detail": "points lost for saturated targets are counted here"
+  },
+  {
+   "section": "static:rw-aur",
+   "item": "provenance.json present",
+   "status": "PASS",
+   "measured": null,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:r-dra",
+   "item": "manifest schema 1, key matches",
+   "status": "PASS",
+   "measured": null,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:r-dra",
+   "item": "every frame file present with 4*ny*nx bytes; none for n_used 0",
+   "status": "PASS",
+   "measured": 78,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:r-dra",
+   "item": "epochs in manifest",
+   "status": "PASS",
+   "measured": 6,
+   "threshold": ">= 3",
+   "detail": ""
+  },
+  {
+   "section": "static:r-dra",
+   "item": "frames in the fullest band",
+   "status": "PASS",
+   "measured": 5,
+   "threshold": ">= 3",
+   "detail": ""
+  },
+  {
+   "section": "static:r-dra",
+   "item": "target_track inside the grid (min distance to edge, px)",
+   "status": "PASS",
+   "measured": 69.5,
+   "threshold": ">= 5",
+   "detail": ""
+  },
+  {
+   "section": "static:r-dra",
+   "item": "gaia.json: list with contract fields",
+   "status": "PASS",
+   "measured": 101,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:r-dra",
+   "item": "spectrum.json: {meta, points} with contract fields",
+   "status": "PASS",
+   "measured": 413,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:r-dra",
+   "item": "spectrum points per image at the target",
+   "status": "PASS",
+   "measured": 0.77,
+   "threshold": ">= 0.5",
+   "detail": "points lost for saturated targets are counted here"
+  },
+  {
+   "section": "static:r-dra",
+   "item": "provenance.json present",
+   "status": "PASS",
+   "measured": null,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:barnard",
+   "item": "band.json quality = low exactly when n_used < 5",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:barnard",
+   "item": "frames marked quality=low",
+   "status": "INFO",
+   "measured": [],
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:barnard",
+   "item": "no NaN holes within 36 arcsec of the track (weight > 0 or filled neighbours)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
+   "detail": "{\"0_D1\": {\"nan_holes\": 0, \"inf\": 75}, \"1_D1\": {\"nan_holes\": 0, \"inf\": 73}, \"2_D1\": {\"nan_holes\": 0, \"inf\": 75}, \"0_D2\": {\"nan_holes\": 0, \"inf\": 77}, \"1_D2\": {\"nan_holes\": 0, \"inf\": 82}, \"2_D2\": {\"nan_holes\": 0, \"inf\": 108}, \"0_D3\": {\"nan_holes\": 0, \"inf\": 88}, \"1_D3\": {\"nan_holes\": 0, \"inf\": 77}, \"2_D3\": {\"nan_holes\": 0, \"inf\": 111}, \"0_D4\": {\"nan_holes\": 0, \"inf\": 157}, \"1_D4\": {\"nan_holes\": 0, \"inf\": 124}, \"2_D4\": {\"nan_holes\": 0, \"inf\": 204}, \"0_D5\": {\"nan_holes\": 0, \"inf\": 5}, \"1_D5\": {\"nan_holes\": 0, \"inf\": 7}}"
+  },
+  {
+   "section": "target:barnard",
+   "item": "of which in frames marked quality=low (n_used < 5)",
+   "status": "INFO",
+   "measured": {
+    "nan_holes": 0,
+    "inf_near_track": 0
+   },
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:barnard",
+   "item": "saturated core is +Inf (pixels near the track, all frames)",
+   "status": "PASS",
+   "measured": 1263,
+   "threshold": "> 0",
+   "detail": ""
+  },
+  {
+   "section": "target:barnard",
+   "item": "no +Inf on empty sky (+Inf map dilated by 1 px, 8-connected groups not touching the track or a Gaia G < 12 star within 12 arcsec)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
+   "detail": "{}"
+  },
+  {
+   "section": "target:barnard",
+   "item": "same count without the dilation step",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": "{}"
+  },
+  {
+   "section": "target:barnard",
+   "item": "of which in frames marked quality=low",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:eps-indi-b",
+   "item": "band.json quality = low exactly when n_used < 5",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:eps-indi-b",
+   "item": "frames marked quality=low",
+   "status": "INFO",
+   "measured": [
+    "0_D1 (n=4)",
+    "0_D4 (n=4)"
+   ],
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:eps-indi-b",
+   "item": "no NaN holes within 36 arcsec of the track (weight > 0 or filled neighbours)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
+   "detail": "{}"
+  },
+  {
+   "section": "target:eps-indi-b",
+   "item": "of which in frames marked quality=low (n_used < 5)",
+   "status": "INFO",
+   "measured": {
+    "nan_holes": 0,
+    "inf_near_track": 0
+   },
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:eps-indi-b",
+   "item": "no +Inf on empty sky (+Inf map dilated by 1 px, 8-connected groups not touching the track or a Gaia G < 12 star within 12 arcsec)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
+   "detail": "{}"
+  },
+  {
+   "section": "target:eps-indi-b",
+   "item": "same count without the dilation step",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": "{}"
+  },
+  {
+   "section": "target:eps-indi-b",
+   "item": "of which in frames marked quality=low",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:wise-0855",
+   "item": "band.json quality = low exactly when n_used < 5",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:wise-0855",
+   "item": "frames marked quality=low",
+   "status": "INFO",
+   "measured": [
+    "0_D1 (n=4)",
+    "0_D3 (n=3)",
+    "0_D4 (n=4)",
+    "0_D6 (n=3)"
+   ],
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:wise-0855",
+   "item": "no NaN holes within 36 arcsec of the track (weight > 0 or filled neighbours)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
+   "detail": "{}"
+  },
+  {
+   "section": "target:wise-0855",
+   "item": "of which in frames marked quality=low (n_used < 5)",
+   "status": "INFO",
+   "measured": {
+    "nan_holes": 0,
+    "inf_near_track": 0
+   },
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:wise-0855",
+   "item": "no +Inf on empty sky (+Inf map dilated by 1 px, 8-connected groups not touching the track or a Gaia G < 12 star within 12 arcsec)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
+   "detail": "{}"
+  },
+  {
+   "section": "target:wise-0855",
+   "item": "same count without the dilation step",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": "{}"
+  },
+  {
+   "section": "target:wise-0855",
+   "item": "of which in frames marked quality=low",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:rw-aur",
+   "item": "band.json quality = low exactly when n_used < 5",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:rw-aur",
+   "item": "frames marked quality=low",
+   "status": "INFO",
+   "measured": [],
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:rw-aur",
+   "item": "no NaN holes within 36 arcsec of the track (weight > 0 or filled neighbours)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
+   "detail": "{\"1_D4\": {\"nan_holes\": 0, \"inf\": 14}}"
+  },
+  {
+   "section": "target:rw-aur",
+   "item": "of which in frames marked quality=low (n_used < 5)",
+   "status": "INFO",
+   "measured": {
+    "nan_holes": 0,
+    "inf_near_track": 0
+   },
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:rw-aur",
+   "item": "core finite, or truly saturated there (> 15% of exposures, saturation_check_v2.json)",
+   "status": "PASS",
+   "measured": {
+    "nonfinite_core_px": 1,
+    "excused": {
+     "1_D4": {
+      "nonfinite_core_px": 1,
+      "sat_fraction_at_target": 0.158
+     }
+    },
+    "not_excused": {}
+   },
+   "threshold": "every non-finite core pixel has sat_fraction_at_target > 0.15",
+   "detail": ""
+  },
+  {
+   "section": "target:rw-aur",
+   "item": "no +Inf on empty sky (+Inf map dilated by 1 px, 8-connected groups not touching the track or a Gaia G < 12 star within 12 arcsec)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
+   "detail": "{}"
+  },
+  {
+   "section": "target:rw-aur",
+   "item": "same count without the dilation step",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": "{}"
+  },
+  {
+   "section": "target:rw-aur",
+   "item": "of which in frames marked quality=low",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:r-dra",
+   "item": "band.json quality = low exactly when n_used < 5",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "static:r-dra",
+   "item": "frames marked quality=low",
+   "status": "INFO",
+   "measured": [
+    "0_D1 (n=4)",
+    "0_D4 (n=4)"
+   ],
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:r-dra",
+   "item": "no NaN holes within 36 arcsec of the track (weight > 0 or filled neighbours)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
+   "detail": "{\"0_D1\": {\"nan_holes\": 0, \"inf\": 329, \"quality\": \"low\"}, \"1_D1\": {\"nan_holes\": 0, \"inf\": 116}, \"2_D1\": {\"nan_holes\": 0, \"inf\": 83}, \"5_D1\": {\"nan_holes\": 0, \"inf\": 83}, \"0_D2\": {\"nan_holes\": 0, \"inf\": 190}, \"1_D2\": {\"nan_holes\": 0, \"inf\": 309}, \"2_D2\": {\"nan_holes\": 0, \"inf\": 171}, \"3_D2\": {\"nan_holes\": 0, \"inf\": 125}, \"5_D2\": {\"nan_holes\": 0, \"inf\": 131}, \"0_D3\": {\"nan_holes\": 0, \"inf\": 273}, \"3_D3\": {\"nan_holes\": 0, \"inf\": 235}, \"4_D3\": {\"nan_holes\": 0, \"inf\": 194}, \"5_D3\": {\"nan_holes\": 0, \"inf\": 96}, \"0_D4\": {\"nan_holes\": 0, \"inf\": 408, \"quality\": \"low\"}, \"1_D4\": {\"nan_holes\": 0, \"inf\": 42"
+  },
+  {
+   "section": "target:r-dra",
+   "item": "of which in frames marked quality=low (n_used < 5)",
+   "status": "INFO",
+   "measured": {
+    "nan_holes": 0,
+    "inf_near_track": 737
+   },
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:r-dra",
+   "item": "saturated core is +Inf (pixels near the track, all frames)",
+   "status": "PASS",
+   "measured": 6666,
+   "threshold": "> 0",
+   "detail": ""
+  },
+  {
+   "section": "target:r-dra",
+   "item": "no +Inf on empty sky (+Inf map dilated by 1 px, 8-connected groups not touching the track or a Gaia G < 12 star within 12 arcsec)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
+   "detail": "{}"
+  },
+  {
+   "section": "target:r-dra",
+   "item": "same count without the dilation step",
+   "status": "INFO",
+   "measured": 7,
+   "threshold": null,
+   "detail": "{\"1_D1\": 7}"
+  },
+  {
+   "section": "target:r-dra",
+   "item": "of which in frames marked quality=low",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:barnard",
+   "item": "source at the track in every epoch (D1, min S/N)",
+   "status": "PASS",
+   "measured": Infinity,
+   "threshold": ">= 5.0",
+   "detail": "[{\"epoch\": 0, \"x\": 69.52, \"y\": 67.48, \"ra\": 269.44620659913437, \"dec\": 4.767117426773482, \"dist_px\": 0.2, \"snr\": Infinity, \"mjd\": 60914.3823365}, {\"epoch\": 1, \"x\": 69.51, \"y\": 69.49, \"ra\": 269.44621051811123, \"dec\": 4.76879408006662, \"dist_px\": 0.02, \"snr\": Infinity, \"mjd\": 61116.683802}, {\"epoch\": 2, \"x\": 69.57, \"y\": 71.31, \"ra\": 269.44616657278044, \"dec\": 4.770307049353422, \"dist_px\": 0.33, \"snr\": Infinity, \"mjd\": 61273.6514765}]"
+  },
+  {
+   "section": "target:barnard",
+   "item": "centroid on the track every epoch (D1, max distance px)",
+   "status": "PASS",
+   "measured": 0.33,
+   "threshold": "<= 2.0",
+   "detail": ""
+  },
+  {
+   "section": "target:barnard",
+   "item": "motion vector vs proper motion (D1); measured |v| and |v - pm| in arcsec/yr",
+   "status": "PASS",
+   "measured": {
+    "v": [
+     -0.14,
+     11.64
+    ],
+    "|v|": 11.64,
+    "expected": [
+     -0.8,
+     10.36
+    ],
+    "|v-pm|": 1.44
+   },
+   "threshold": "|v-pm| <= 2.08",
+   "detail": ""
+  },
+  {
+   "section": "target:eps-indi-b",
+   "item": "source at the track in every epoch (D5, min S/N)",
+   "status": "PASS",
+   "measured": 2002.6,
+   "threshold": ">= 5.0",
+   "detail": "[{\"epoch\": 0, \"x\": 69.86, \"y\": 69.72, \"ra\": 331.0956756595185, \"dec\": -56.800334211166444, \"dist_px\": 0.3, \"snr\": 2921.5, \"mjd\": 60795.084848}, {\"epoch\": 1, \"x\": 69.53, \"y\": 69.24, \"ra\": 331.09617693588723, \"dec\": -56.80072977579983, \"dist_px\": 0.28, \"snr\": 2002.6, \"mjd\": 60954.333593749994}, {\"epoch\": 2, \"x\": 68.59, \"y\": 69.02, \"ra\": 331.097596795682, \"dec\": -56.800911885345414, \"dist_px\": 0.21, \"snr\": 2335.4, \"mjd\": 61155.092016}, {\"epoch\": 3, \"x\": 68.26, \"y\": 68.41, \"ra\": 331.09810951496985, \"dec\": -56.80142227113405, \"dist_px\": 0.31, \"snr\": 2371.0, \"mjd\": 61310.726203}]"
+  },
+  {
+   "section": "target:eps-indi-b",
+   "item": "centroid on the track every epoch (D5, max distance px)",
+   "status": "PASS",
+   "measured": 0.31,
+   "threshold": "<= 2.0",
+   "detail": ""
+  },
+  {
+   "section": "target:eps-indi-b",
+   "item": "motion vector vs proper motion (D5); measured |v| and |v - pm| in arcsec/yr",
+   "status": "PASS",
+   "measured": {
+    "v": [
+     3.62,
+     -2.57
+    ],
+    "|v|": 4.44,
+    "expected": [
+     3.98,
+     -2.47
+    ],
+    "|v-pm|": 0.37
+   },
+   "threshold": "|v-pm| <= 1.50",
+   "detail": ""
+  },
+  {
+   "section": "target:wise-0855",
+   "item": "source at the track in every epoch (W, min S/N)",
+   "status": "PASS",
+   "measured": 23.4,
+   "threshold": ">= 5.0",
+   "detail": "[{\"epoch\": 0, \"x\": 68.14, \"y\": 69.77, \"ra\": 133.7605223661754, \"dec\": -7.24204891763867, \"dist_px\": 0.39, \"snr\": 23.4, \"mjd\": 60801.446306}, {\"epoch\": 1, \"x\": 69.1, \"y\": 69.72, \"ra\": 133.75971342524434, \"dec\": -7.2420875124576, \"dist_px\": 0.42, \"snr\": 29.7, \"mjd\": 60986.9226565}, {\"epoch\": 2, \"x\": 70.24, \"y\": 70.01, \"ra\": 133.75875265493193, \"dec\": -7.241847635857286, \"dist_px\": 0.65, \"snr\": 40.1, \"mjd\": 61162.402944}]"
+  },
+  {
+   "section": "target:wise-0855",
+   "item": "centroid on the track every epoch (W, max distance px)",
+   "status": "PASS",
+   "measured": 0.65,
+   "threshold": "<= 2.0",
+   "detail": ""
+  },
+  {
+   "section": "target:wise-0855",
+   "item": "raw centroid motion (W), arcsec/yr",
+   "status": "INFO",
+   "measured": {
+    "v": [
+     -6.39,
+     0.72
+    ],
+    "|v|": 6.43,
+    "expected": [
+     -8.12,
+     0.68
+    ],
+    "|v-pm|": 1.73
+   },
+   "threshold": null,
+   "detail": "centroid of object + fixed star; see the deblended item; expected diluted motion = f_obj/(f_obj+f_star) x pm = 0.77 x 8.15 = 6.27 arcsec/yr (W fluxes 0.502, 0.150 mJy)"
+  },
+  {
+   "section": "target:wise-0855",
+   "item": "deblended motion vs literature (two-PSF positions, scaled errors)",
+   "status": "PASS",
+   "measured": {
+    "pmra": "-8.82 +- 1.23",
+    "pmdec": "1.54 +- 1.17",
+    "literature": [
+     -8.118,
+     0.68
+    ],
+    "z": [
+     -0.57,
+     0.73
+    ]
+   },
+   "threshold": "|z| <= 2.0 per component",
+   "detail": "source handoff\\results\\wise0855_detection_v2.json"
+  },
+  {
+   "section": "target:wise-0855",
+   "item": "D2: the source near the track does not move (background star)",
+   "status": "PASS",
+   "measured": 0.21,
+   "threshold": "<= 1.5 arcsec/yr",
+   "detail": "[{\"epoch\": 0, \"x\": 71.01, \"y\": 70.84, \"ra\": 133.75810466087964, \"dec\": -7.241158739332977, \"dist_px\": 3.28, \"snr\": 11.1, \"mjd\": 60801.446306}, {\"epoch\": 1, \"x\": 70.96, \"y\": 70.78, \"ra\": 133.75814746530077, \"dec\": -7.241207648744747, \"dist_px\": 1.98, \"snr\": 71.2, \"mjd\": 60986.9226565}, {\"epoch\": 2, \"x\": 71.02, \"y\": 70.77, \"ra\": 133.75810192497585, \"dec\": -7.241215087820376, \"dist_px\": 1.2, \"snr\": 154.1, \"mjd\": 61162.402944}]"
+  },
+  {
+   "section": "target:rw-aur",
+   "item": "per band: target ratio, largest control, controls",
+   "status": "INFO",
+   "measured": {
+    "D1": [
+     1.4,
+     1.031,
+     5
+    ],
+    "D2": [
+     1.373,
+     1.061,
+     5
+    ],
+    "D3": [
+     1.463,
+     1.051,
+     5
+    ],
+    "D4": [
+     1.172,
+     1.058,
+     5
+    ],
+    "D5": [
+     1.942,
+     1.063,
+     5
+    ],
+    "D6": [
+     1.641,
+     1.111,
+     5
+    ]
+   },
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:rw-aur",
+   "item": "bands where is_variable is true",
+   "status": "INFO",
+   "measured": [
+    "D1",
+    "D2",
+    "D3",
+    "D4",
+    "D5",
+    "D6"
+   ],
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:rw-aur",
+   "item": "brightness change at the target (flux series; >= 3 bands variable)",
+   "status": "PASS",
+   "measured": {
+    "variable": [
+     "D1",
+     "D2",
+     "D3",
+     "D4",
+     "D5",
+     "D6"
+    ],
+    "not_variable": [],
+    "undetermined": []
+   },
+   "threshold": "spx.photometry.is_variable: >= 5 controls, ratio > 1.15 and > every control",
+   "detail": "target G 12.184072, saturated=False; 5 control stars"
+  },
+  {
+   "section": "target:r-dra",
+   "item": "per band: target ratio, largest control, controls",
+   "status": "INFO",
+   "measured": {
+    "D1": [
+     1.312,
+     2.246,
+     4
+    ],
+    "D2": [
+     2.415,
+     2.784,
+     3
+    ],
+    "D3": [
+     1.487,
+     3.15,
+     3
+    ],
+    "D6": [
+     1.767,
+     2.196,
+     3
+    ]
+   },
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:r-dra",
+   "item": "bands where is_variable is true",
+   "status": "INFO",
+   "measured": [],
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:r-dra",
+   "item": "brightness change at the target (wing series; >= 1 bands variable)",
+   "status": "INFO",
+   "measured": {
+    "variable": [],
+    "not_variable": [],
+    "undetermined": [
+     "D1",
+     "D2",
+     "D3",
+     "D6"
+    ]
+   },
+   "threshold": "spx.photometry.is_variable: >= 5 controls, ratio > 1.15 and > every control",
+   "detail": "target G 6.374379, saturated=True; 4 control stars; undetermined = fewer than 5 controls, not counted as a pass"
+  },
+  {
+   "section": "final",
+   "item": "gallery built from committed code (spx_uncommitted_code empty, one commit)",
+   "status": "PASS",
+   "measured": {
+    "commits": [
+     "b6b039d"
+    ],
+    "dirty": {}
+   },
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "robustness",
+   "item": "API down, gallery served as static files (targets readable)",
+   "status": "PASS",
+   "measured": "5/5",
+   "threshold": "all of ['barnard', 'eps-indi-b', 'r-dra', 'rw-aur', 'wise-0855']",
+   "detail": ""
+  },
+  {
+   "section": "server",
+   "item": "health ok",
+   "status": "PASS",
+   "measured": "79abd08",
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "server",
+   "item": "Access-Control-Allow-Origin: * without an Origin header",
+   "status": "PASS",
+   "measured": null,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "server:random",
+   "item": "waited for the server to be idle (s)",
+   "status": "INFO",
+   "measured": 0.1,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "server:random",
+   "item": "manifest seconds, median of 3 cold (343.7276, 7.183)",
+   "status": "PASS",
+   "measured": 4.3,
+   "threshold": "<= 5.0",
+   "detail": "each: 4.3, 13.5, 3.9"
+  },
+  {
+   "section": "server:random",
+   "item": "epochs",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 1",
+   "detail": ""
+  },
+  {
+   "section": "server:random",
+   "item": "first band D1 seconds (cold)",
+   "status": "PASS",
+   "measured": 6.7,
+   "threshold": "<= 30.0",
+   "detail": ""
+  },
+  {
+   "section": "server:random",
+   "item": "frames in the first band",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 1",
+   "detail": ""
+  },
+  {
+   "section": "server:random",
+   "item": "same request again: seconds (manifest + band)",
+   "status": "PASS",
+   "measured": 0.01,
+   "threshold": "<= 3.0",
+   "detail": ""
+  },
+  {
+   "section": "server:random",
+   "item": "same request again downloads nothing (S3 bytes, SIA2 queries)",
+   "status": "PASS",
+   "measured": {
+    "before": {
+     "s3_requests": 2292,
+     "s3_bytes": 565903825,
+     "sia_queries": 6
+    },
+    "after": {
+     "s3_requests": 2292,
+     "s3_bytes": 565903825,
+     "sia_queries": 6
+    }
+   },
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "server:random",
+   "item": "all six bands ready (seconds from the first request)",
+   "status": "INFO",
+   "measured": 174.6,
+   "threshold": null,
+   "detail": "no threshold in the local profile"
+  },
+  {
+   "section": "server:ra0",
+   "item": "manifest seconds, median of 3 cold (0.0003, 55.0049)",
+   "status": "FAIL",
+   "measured": 7.6,
+   "threshold": "<= 5.0",
+   "detail": "each: 7.6, 10.1, 4.9"
+  },
+  {
+   "section": "server:ra0",
+   "item": "epochs",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 1",
+   "detail": ""
+  },
+  {
+   "section": "server:ra0",
+   "item": "first band D2 seconds (cold)",
+   "status": "FAIL",
+   "measured": 44.2,
+   "threshold": "<= 30.0",
+   "detail": ""
+  },
+  {
+   "section": "server:ra0",
+   "item": "frames in the first band",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 1",
+   "detail": ""
+  },
+  {
+   "section": "server:ra360",
+   "item": "waited for the server to be idle (s)",
+   "status": "INFO",
+   "measured": 141.7,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "server:ra360",
+   "item": "manifest seconds, median of 3 cold (359.9999, 55.0049)",
+   "status": "PASS",
+   "measured": 4.3,
+   "threshold": "<= 5.0",
+   "detail": "each: 4.3, 7.8, 4.3"
+  },
+  {
+   "section": "server:ra360",
+   "item": "epochs",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 1",
+   "detail": ""
+  },
+  {
+   "section": "server:ra360",
+   "item": "first band D2 seconds (cold)",
+   "status": "PASS",
+   "measured": 12.8,
+   "threshold": "<= 30.0",
+   "detail": ""
+  },
+  {
+   "section": "server:ra360",
+   "item": "frames in the first band",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 1",
+   "detail": ""
+  },
+  {
+   "section": "server:ra0/360",
+   "item": "both sides of RA 0 see the same images (relative difference)",
+   "status": "PASS",
+   "measured": 0.0,
+   "threshold": "<= 0.01",
+   "detail": "434 vs 434"
+  },
+  {
+   "section": "server:dec>85N",
+   "item": "waited for the server to be idle (s)",
+   "status": "INFO",
+   "measured": 64.1,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "server:dec>85N",
+   "item": "manifest seconds, median of 3 cold (147.6674, 87.8667)",
+   "status": "PASS",
+   "measured": 5.0,
+   "threshold": "<= 5.0",
+   "detail": "each: 5.0, 9.9, 4.3"
+  },
+  {
+   "section": "server:dec>85N",
+   "item": "epochs",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 1",
+   "detail": ""
+  },
+  {
+   "section": "server:dec>85N",
+   "item": "first band D2 seconds (cold)",
+   "status": "FAIL",
+   "measured": 42.6,
+   "threshold": "<= 30.0",
+   "detail": ""
+  },
+  {
+   "section": "server:dec>85N",
+   "item": "frames in the first band",
+   "status": "PASS",
+   "measured": 3,
+   "threshold": ">= 1",
+   "detail": ""
+  },
+  {
+   "section": "server:dec>85S",
+   "item": "waited for the server to be idle (s)",
+   "status": "INFO",
+   "measured": 117.7,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "server:dec>85S",
+   "item": "manifest seconds, median of 3 cold (324.2531, -89.7394)",
+   "status": "FAIL",
+   "measured": 12.2,
+   "threshold": "<= 5.0",
+   "detail": "each: 3.7, 12.2, 12.4"
+  },
+  {
+   "section": "server:dec>85S",
+   "item": "epochs",
+   "status": "PASS",
+   "measured": 5,
+   "threshold": ">= 1",
+   "detail": ""
+  },
+  {
+   "section": "server:dec>85S",
+   "item": "first band D3 seconds (cold)",
+   "status": "PASS",
+   "measured": 28.2,
+   "threshold": "<= 30.0",
+   "detail": ""
+  },
+  {
+   "section": "server:dec>85S",
+   "item": "frames in the first band",
+   "status": "PASS",
+   "measured": 5,
+   "threshold": ">= 1",
+   "detail": ""
+  },
+  {
+   "section": "server:no-coverage",
+   "item": "200, epochs [], bands [], message",
+   "status": "PASS",
+   "measured": 200,
+   "threshold": null,
+   "detail": "No SPHEREx images cover this position in spherex_qr3."
+  }
+ ]
+}
