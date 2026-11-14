@@ -129,7 +129,7 @@ def psf_flux(cut, xys, fwhm_px, box_px=6, r_bg=(8.0, 12.0)):
 
 def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_in: float = 4.0,
                     r_out: float = 7.0, max_epoch_days: float | None = 60.0, neighbors: SkyCoord | None = None,
-                    blend_radius_arcsec: float = 25.0):
+                    blend_radius_arcsec: float = 25.0, neighbor_info: list | None = None):
     """One photometric point per exposure at `coord` (propagated per exposure if it has a proper motion).
 
     epochs: the manifest epoch_table (preferred, so ids match the frames); otherwise split_epochs over
@@ -137,6 +137,8 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
     neighbors: known sources (e.g. Gaia DR3 with pm/obstime). If any comes within blend_radius_arcsec of the
     target in any exposure, EVERY point is measured by fixed-position PSF photometry that fits the target and
     those neighbours together (deblended); otherwise by aperture photometry. meta["photometry"] says which.
+    neighbor_info: optional list of dicts aligned with `neighbors` (e.g. gaia.json rows); their source_id and
+    g_mag are copied into meta["deblended_neighbors"] = [{source_id, g_mag, ra, dec}] (missing keys -> null).
     """
     cuts = [c for c in cutouts if c is not None]
     mjd = np.array([c.mjd for c in cuts])
@@ -172,7 +174,9 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
     pts.sort(key=lambda p: (p["wavelength_um"], p["mjd"]))
     if blend:
         meta = {"flux_unit": FLUX_UNIT, "photometry": "psf_deblended", "aperture_radius_px": None,
-                "deblended_neighbors": [{"ra": round(float(neighbors[i].ra.deg), 6), "dec": round(float(neighbors[i].dec.deg), 6)}
+                "deblended_neighbors": [{"source_id": _info(neighbor_info, i, "source_id"),
+                                         "g_mag": _info(neighbor_info, i, "g_mag"),
+                                         "ra": round(float(neighbors[i].ra.deg), 6), "dec": round(float(neighbors[i].dec.deg), 6)}
                                         for i in blend],
                 "method": "per-exposure fixed-position PSF photometry (pixel-integrated Gaussian, FWHM = PSF_FWHM of "
                           "the exposure) fitting the target together with the known neighbours within "
@@ -210,6 +214,15 @@ def _move(c: SkyCoord, mjd: float) -> SkyCoord:
         warnings.simplefilter("ignore")
         m = c.apply_space_motion(new_obstime=Time(float(mjd), format="mjd"))
     return SkyCoord(m.ra, m.dec)
+
+
+def _info(info, i, key):
+    if not info or i >= len(info) or info[i] is None:
+        return None
+    v = info[i].get(key)
+    if v is None:
+        return None
+    return str(v) if key == "source_id" else round(float(v), 3)
 
 
 def _blended(neighbors: SkyCoord, coord: SkyCoord, mjd, radius_arcsec: float) -> list:
