@@ -1181,6 +1181,7 @@ function normCatwise(j) {
     pmra: s.pmra == null ? null : +s.pmra, pmdec: s.pmdec == null ? null : +s.pmdec,
     w1: s.w1mag ?? null, w2: s.w2mag ?? null, reliable: s.pm_reliable !== false, pmCheck: s.pm_check ?? null,
     sameAs: s.same_object_as ?? null, // another row of the same object: not drawn, named in that row's readout
+    target: s.target ?? null, // the row that is the field's named target
     refMjd: s.ref_mjd != null ? +s.ref_mjd : mjdOfYear(s.ref_epoch ?? CAT_EPOCH) }));
 }
 async function loadCatwise() {
@@ -1195,7 +1196,7 @@ async function loadCatwise() {
   if (r.status === 503) { box.hidden = false; $("ovCat").disabled = true; note.textContent = "WISE catalogue is not available right now."; return; }
   if (!r.ok) { box.hidden = true; return; } // no layer for this field (e.g. R Dra in the gallery): no button
   let j;
-  try { j = await r.json(); S.catwise = normCatwise(j); } catch { box.hidden = true; return; }
+  try { j = await r.json(); S.catwise = normCatwise(j); S.catBright = null; } catch { box.hidden = true; return; }
   box.hidden = false; $("ovCat").disabled = false;
   const moved = S.catwise.some((s) => s.pmra != null && s.pmdec != null && s.reliable), fast = S.catwise.filter((s) => !s.reliable).length;
   const m = j?.meta || {};
@@ -1204,6 +1205,18 @@ async function loadCatwise() {
     fast && `${fast} with an unreliable catalogue motion are drawn dashed at the catalogue position, not moved`,
     m.pm_convention, m.fast_note].filter(Boolean).map((t) => String(t).trim().replace(/([^.])$/, "$1.")).join(" ");
 }
+// which rows are drawn: by default the 150 brightest in W2, plus rows with a pm_check and rows within 30″ of the
+// target (at this epoch); "show all" draws every row. Duplicate rows (same_object_as) are never drawn.
+const CAT_BRIGHT = 150, CAT_NEAR_ARCSEC = 30;
+function catVisible(mjd) {
+  const all = S.catwise.filter((s) => !s.sameAs);
+  if ($("catAll").checked) return all;
+  if (!S.catBright) S.catBright = new Set([...all].filter((s) => s.w2 != null).sort((a, b) => a.w2 - b.w2).slice(0, CAT_BRIGHT));
+  const ep = S.m.epochs.find((e) => e.mjd_mid === mjd);
+  const t = (ep && S.m.target_track?.find((p) => p.epoch === ep.id)) || S.m.target_track?.at(-1) || S.m.query;
+  return all.filter((s) => S.catBright.has(s) || s.pmCheck != null ||
+    (t && angSep(+t.ra, +t.dec, ...catPos(s, mjd)) * 3600 <= CAT_NEAR_ARCSEC));
+}
 function catPos(s, mjd) {
   // unreliable motions (pm_reliable false: CatWISE fits of fast movers) stay at the catalogue position
   if (!s.reliable || s.pmra == null || s.pmdec == null || mjd == null) return [s.ra, s.dec];
@@ -1211,11 +1224,13 @@ function catPos(s, mjd) {
   return [s.ra + (s.pmra * dt) / 3.6e6 / Math.cos(s.dec * D2R), s.dec + (s.pmdec * dt) / 3.6e6];
 }
 function drawCatwise(ctx, mjd) {
-  if (!S.catwise || !$("ovCat").checked) return;
+  if (!S.catwise || !$("ovCat").checked) { $("catCount").textContent = ""; return; }
   const a = Math.max(6, 2.5 * S.zoom);
   ctx.save(); ctx.strokeStyle = CAT_COLOR; ctx.lineWidth = 1.5;
-  for (const s of S.catwise) {
-    if (s.sameAs) continue; // duplicate entry of an object drawn by its main row
+  const vis = catVisible(mjd);
+  $("catCount").textContent = $("catAll").checked ? `all ${vis.length}` : `${vis.length} of ${S.catwise.filter((s) => !s.sameAs).length}: ` +
+    `the ${CAT_BRIGHT} brightest in W2, plus checked rows and rows within ${CAT_NEAR_ARCSEC}″ of the target`;
+  for (const s of vis) {
     const [x, y] = toScreen(...catPos(s, mjd));
     ctx.setLineDash(s.reliable ? [] : [3, 3]); // unreliable motion: dashed square at the catalogue position
     ctx.strokeRect(x - a / 2, y - a / 2, a, a);
@@ -1226,11 +1241,13 @@ function drawCatwise(ctx, mjd) {
 function catwiseAt(sx, sy, mjd) {
   if (!S.catwise || !$("ovCat").checked) return null;
   let best = null, bd = Math.max(8, 3 * S.zoom);
-  for (const s of S.catwise) {
-    if (s.sameAs) continue;
+  for (const s of catVisible(mjd)) {
     const [x, y] = toScreen(...catPos(s, mjd)), dd = Math.hypot(x - sx, y - sy); if (dd < bd) { bd = dd; best = s; }
   }
-  if (best) { const dup = S.catwise.filter((s) => s.sameAs === best.name).map((s) => s.name); if (dup.length) best = { ...best, name: `${best.name} (also listed as ${dup.join(", ")})` }; }
+  if (best) {
+    const dup = S.catwise.filter((s) => s.sameAs === best.name).map((s) => s.name);
+    if (dup.length) best = { ...best, name: `${best.name} (${dup.length + 1} catalogue entries for this object: also ${dup.join(", ")})` };
+  }
   return best;
 }
 
@@ -1550,7 +1567,7 @@ function wire() {
     S.userScale = { vmin: +$("vmin").value, vmax: +$("vmax").value, soft: +$("soft").value }; draw();
   };
   $("autoScale").onclick = () => { S.userScale = null; draw(); };
-  for (const id of ["ovQuery", "ovTrack", "ovGaia", "ovCand", "ovCat"]) $(id).onchange = draw;
+  for (const id of ["ovQuery", "ovTrack", "ovGaia", "ovCand", "ovCat", "catAll"]) $(id).onchange = draw;
 
   const cv = $("canvas");
   const gridAt = (ev) => {
@@ -1568,7 +1585,7 @@ function wire() {
     const cw = catwiseAt((ev.clientX - cr.left) * ck, (ev.clientY - cr.top) * ck, S.m.epochs[S.epoch]?.mjd_mid);
     const pmc = cw?.pmCheck == null ? "" : `  check: ${typeof cw.pmCheck === "object" ? JSON.stringify(cw.pmCheck) : cw.pmCheck}`;
     const mag = (v) => (v == null || !Number.isFinite(+v) ? "—" : (+v).toFixed(2));
-    const catTxt = cw ? `   CatWISE ${cw.name}  W1 ${mag(cw.w1)}  W2 ${mag(cw.w2)}${cw.reliable ? "" : " (catalogue motion not reliable)"}${pmc}` : "";
+    const catTxt = cw ? `   CatWISE ${cw.name}${cw.target ? " (the target)" : ""}  W1 ${mag(cw.w1)}  W2 ${mag(cw.w2)}${cw.reliable ? "" : " (catalogue motion not reliable)"}${pmc}` : "";
     const head = `x ${xi}  y ${yi}   RA ${ra.toFixed(5)}  Dec ${dec.toFixed(5)}${catTxt}\n`;
     if (S.onWise && wiseActive()) { // the WISE frame's own value
       const a = S.wise.frames[S.wiseBand], v = inside ? a[yi * nx + xi] : NaN;
