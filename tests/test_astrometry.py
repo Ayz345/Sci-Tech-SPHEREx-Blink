@@ -40,7 +40,7 @@ from astropy.io import ascii, fits
 from astropy.time import Time
 
 import spx
-from resultio import write_json
+from resultio import out_path, write_json
 from spx import access
 from spx.astrometry import MOVER_ALLOWED_BITS, TRAIL_LIMIT_ARCSEC, WCS_ERR_ARCSEC, fit_position, measure_track
 from spx.coadd import assign_epochs, half_px_for, target_at
@@ -298,7 +298,10 @@ def test_astrometry():
 def second_object(number="31", name="(31) Euphrosyne", n=350):
     """Same validation on a second asteroid with a different motion direction and speed; merged into the JSON."""
     sec = {**eros_test(n=n, number=number, name=name), "code_hash": spx.code_hash(), "frame_code_hash": spx.frame_code_hash()}
-    write_json(OUT_NAME, {"second_object": sec}, default=float)  # merged: the other sections are kept
+    prev = out_path(OUT_NAME)
+    timing = json.loads(prev.read_text(encoding="utf-8")).get("timing", {}) if prev.exists() else {}
+    timing["second_object_time_offset_s"] = sec.get("time_offset_if_all_along_track_s")  # read by spx/mpc.py
+    write_json(OUT_NAME, {"second_object": sec, "timing": timing}, default=float)  # other sections kept
     return sec
 
 

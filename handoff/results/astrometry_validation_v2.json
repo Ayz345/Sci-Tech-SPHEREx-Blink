@@ -1,6 +1,6 @@
 {
- "frame_code_hash": "afe71dca5ee1",
- "code_hash": "55495c66fa2a",
+ "frame_code_hash": "b30148dea725",
+ "code_hash": "36676d234290",
  "object": "(433) Eros",
  "wcs_floor_arcsec": 0.23,
  "trail_limit_arcsec": 6.15,
@@ -119,6 +119,14 @@
  },
  "eros": {
   "object": "(433) Eros",
+  "speed_range_arcsec_per_s": [
+   0.016698730222288183,
+   0.04317898581855379
+  ],
+  "time_offset_if_all_along_track_s": [
+   -3.7047516003412824,
+   0.27329824224415045
+  ],
   "prediction": "JPL Horizons geocentric astrometric RA/Dec + range, moved to the spacecraft position X_SC (ICRF); exposures from IRSA MOST (catalog=spherex)",
   "n_total": 450,
   "n_finast0": 450,
@@ -554,6 +562,8 @@
   "trail_range_arcsec": [
    0.24020334051090508,
    1.097132410120938
-  ]
+  ],
+  "code_hash": "f8a2cf695d87",
+  "frame_code_hash": "b30148dea725"
  }
 }
