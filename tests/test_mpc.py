@@ -20,7 +20,7 @@ def _dets(n=3):
         out.append({"obs_time": f"2025-11-09T23:5{i}:58.863", "ra": 133.7605 + 0.001 * i, "dec": -7.2420 - 0.0002 * i,
                     "rms_ra": 0.36, "rms_dec": 0.41, "sc_pos_km": (3821.1041018897895, -4262.409661218919, -4079.7242300254366),
                     "sc_vel_kms": (-3.8325864583196534, 2.3358846931402435, -6.045714827964446), "exp_s": 113.5826,
-                    "snr": 12.5, "obs_id": f"2025W45_2A_0746_{i}", "band": "D6", "wavelength_um": 4.805})
+                    "snr_calibrated": 12.5, "finast": 0, "obs_id": f"2025W45_2A_0746_{i}", "band": "D6", "wavelength_um": 4.805})
     return out
 
 
@@ -62,9 +62,40 @@ def test_trksub_and_required_inputs(telescope):
     assert "K25ab-1" in txt and mpc.validate_psv(txt) == []
 
 
-def test_no_ades_without_verified_telescope():
+def test_no_ades_without_verified_telescope(monkeypatch):
+    monkeypatch.setattr(mpc, "TELESCOPE", {**mpc.TELESCOPE, "aperture": None})
     with pytest.raises(ValueError, match="telescope context not verified"):
         mpc.write_ades_psv(_dets(), {"submitter": "X"})
+
+
+def test_real_telescope_context_and_finast():
+    txt = mpc.write_ades_psv(_dets(), {"submitter": "A. Tester"})
+    assert mpc.validate_psv(txt) == []
+    for line in ("! design reflector", "! aperture 0.20", "! detector HgCdTe", "! fRatio 3",
+                 "! line Telescope: SPHEREx Explanatory Supplement v2.1, Sec. 1.3 and Table 2",
+                 "! line Checked with an in-house reader of adesmaster.xml; not validated with the official ADES tools"):
+        assert line in txt.splitlines()
+    assert "Gaia DR3" in txt and "unverified: mode, astCat" in txt and "astCat code not verified" in txt
+    assert "unverified: spacecraft position axes" not in txt
+    assert all(len(ln) - len("! line ") <= 100 for ln in txt.splitlines() if ln.startswith("! line "))
+    d = _dets(4)
+    d[1]["finast"] = 1                      # left out of ADES, kept in the CSV with the reason
+    rows = _psv_parse(mpc.write_ades_psv(d, {"submitter": "X"}))[1]
+    assert len(rows) == 3 and all("_1 " not in r.get("remarks", "") + " " for r in rows)
+    csv_txt = mpc.write_csv(d, {})
+    assert "FINAST=1" in csv_txt and csv_txt.count("False") == 1
+    d[2]["finast"] = 2
+    with pytest.raises(ValueError, match="at least"):
+        mpc.write_ades_psv(d, {"submitter": "X"})
+
+
+def test_logsnr_only_from_calibrated_snr():
+    d = _dets()
+    for x in d:
+        x.pop("snr_calibrated", None)
+        x["snr_fit"] = 20.0
+    txt = mpc.write_ades_psv(d, {"submitter": "X"})
+    assert "logSNR" not in txt
 
 
 def test_validator_catches_errors(telescope):
@@ -86,7 +117,7 @@ def test_uncertainty_digits():
 def test_csv_always_available():
     txt = mpc.write_csv(_dets(2), {"note": "Barnard's Star: not for the MPC (a star)."})
     assert txt.startswith("# Measurements on single SPHEREx exposures")
-    assert "trk_sub,obs_time_utc_mid,ra_deg" in txt and txt.count("\n") == 5
+    assert "trk_sub,obs_time_utc_mid,ra_deg" in txt and txt.count("\n") == 5 and "in_ades,reason" in txt
 
 
 def _psv_parse(txt):

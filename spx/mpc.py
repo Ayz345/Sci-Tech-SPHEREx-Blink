@@ -13,7 +13,9 @@ detections: one dict per single exposure (never a co-added frame):
     sc_pos_km  (x, y, z) km, geocentric spacecraft position at mid-exposure (header X_SC, Y_SC, Z_SC)
     sc_vel_kms (vx, vy, vz) km/s, optional (header VX_SC ...)
     exp_s      exposure time [s] (header XPOSURE), optional
-    snr        signal-to-noise of the measurement, optional (written as logSNR)
+    snr_calibrated  calibrated signal-to-noise (empty-position calibration), optional; the only S/N written
+               (as logSNR). A fit's S/N (snr_fit) is never written.
+    finast     FINAST of the exposure; only 0 is accepted for ADES
     obs_id, band, wavelength_um   optional, go into remarks
 context:
     submitter (required; no file without it), trk_sub (optional, else generated), measurers (default [submitter]),
@@ -28,6 +30,9 @@ DP = ceil(1 - log10(sigma)) for measured values; uncertainties with at most two 
 
 Values NOT verified yet (the MPC keeps the lists; its web pages refuse automated reads) live in ONE place below,
 and every file says so in a comment line until they are confirmed.
+
+Why pos1..3 are required, not decoration: for an object at 1 au the direction seen from the spacecraft differs from
+the geocentric one by up to ~10 arcsec (co-add session's parallax estimate), far above the measurement error.
 """
 from __future__ import annotations
 
@@ -52,10 +57,22 @@ UNVERIFIED = {
     "astCat": "UNK",         # reference catalogue of SPHEREx astrometry, MPC catalogue code: NOT VERIFIED
 }
 VERIFIED = {"mode": False, "astCat": False}
-#: Telescope context (required by ADES). None = not verified from a document yet -> no ADES file is written.
-TELESCOPE = {"design": None, "aperture": None, "detector": None}
+#: Telescope context (required: design, aperture [m], detector; ADES Table 18). Source: SPHEREx Explanatory
+#: Supplement v2.1, sec. 1.3 p. 5 ("20-cm effective aperture ... Three Mirror Anastigmat"), Table 2 p. 6 (f/3;
+#: Hawaii-2RG), p. 6 ("Teledyne H2RG HgCdTe 2k x 2k"); read by the co-add session, 14 Nov 2026.
+#: None in a required field = not verified -> no ADES file is written.
+TELESCOPE = {"design": "reflector", "aperture": "0.20", "detector": "HgCdTe", "fRatio": "3"}
+TELESCOPE_REQUIRED = ("design", "aperture", "detector")
+#: Reference catalogue of SPHEREx astrometry (Explanatory Supplement v2.1, sec. 3.2.8 p. 35: Gaia DR3, propagated
+#: to the observation epoch); its MPC astCat code is still unverified (UNVERIFIED["astCat"]).
+ASTROMETRY_REFERENCE = "Gaia DR3 (SPHEREx Explanatory Supplement v2.1, Sec. 3.2.8)"
+#: Spacecraft position frame: header XYZ_SC_SYSTEM = GEOCENTER; axes ICRF/J2000 equatorial, checked by the co-add
+#: session against the header ground track (0.06 deg; Earth-fixed axes would be ~95 deg off).
 #: Other facts not verified yet, listed in the file's comment.
-UNVERIFIED_FACTS = ["spacecraft position axes (header XYZ_SC_SYSTEM = GEOCENTER; ICRF equatorial assumed)"]
+UNVERIFIED_FACTS: list = []
+#: Only exposures with a good fine-astrometric solution go into an ADES draft (Explanatory Supplement v2.1:
+#: FINAST 0 good, 1 partly good, higher not to be used); the others stay in the CSV with the reason.
+GOOD_FINAST = (0,)
 #: Minimum accepted single-exposure detections for an ADES draft. MPC rule not found in our sources.
 MIN_DETECTIONS = 3
 MIN_DETECTIONS_VERIFIED = False
@@ -146,6 +163,12 @@ def _comment_lines(context: dict) -> list[str]:
         f"Made with {tool}" + (f", code {code}" if code else "") + ".",
         "Data: NASA/IPAC IRSA SPHEREx archive (DR1/QR3 Level 2 images).",
         "Positions measured on single exposures; obsTime is mid-exposure (UTC).",
+        "Telescope: SPHEREx Explanatory Supplement v2.1, Sec. 1.3 and Table 2",
+        "Spacecraft position: header X_SC, Y_SC, Z_SC (geocentric, ICRF equatorial;",
+        "checked against the header ground-track longitude)",
+        f"Astrometric reference: {ASTROMETRY_REFERENCE};",
+        "astCat code not verified against the MPC list",
+        "Checked with an in-house reader of adesmaster.xml; not validated with the official ADES tools",
     ]
     unver = [k for k, ok in VERIFIED.items() if not ok]
     if unver:
@@ -180,8 +203,8 @@ def ades_rows(detections, trk_sub: str) -> list[dict]:
         r["rmsRA"] = _sig2(float(d["rms_ra"]))
         r["rmsDec"] = _sig2(float(d["rms_dec"]))
         r["astCat"] = UNVERIFIED["astCat"]
-        if d.get("snr") and d["snr"] > 0:
-            r["logSNR"] = f"{math.log10(d['snr']):.2f}"
+        if d.get("snr_calibrated") and d["snr_calibrated"] > 0:  # only a calibrated S/N; never the fit's S/N
+            r["logSNR"] = f"{math.log10(d['snr_calibrated']):.2f}"
         if d.get("exp_s"):
             r["exp"] = f"{float(d['exp_s']):.2f}"[:6].rstrip(".")
         rem = []
@@ -197,16 +220,28 @@ def ades_rows(detections, trk_sub: str) -> list[dict]:
     return rows
 
 
+def ades_reason(d) -> str | None:
+    """Why a detection stays out of an ADES draft (None = it goes in)."""
+    if d.get("accepted") is False:
+        return d.get("reason") or "not accepted by the measurement"
+    if d.get("finast") is not None and int(d["finast"]) not in GOOD_FINAST:
+        return f"FINAST={d['finast']} (only {', '.join(map(str, GOOD_FINAST))} used for ADES)"
+    if d.get("sc_pos_km") is None:
+        return "no spacecraft position"
+    return None
+
+
 def build_ades(detections, context: dict):
     """Validated content shared by the PSV and XML writers: (context records, fields, rows).
-    context records: [(record, [(child, value), ...]), ...] in the PSV order."""
-    detections = list(detections)
+    context records: [(record, [(child, value), ...]), ...] in the PSV order.
+    Detections with a reason (ades_reason) are left out; they remain in the CSV."""
+    detections = [d for d in detections if ades_reason(d) is None]
     sub = _clean_text(context.get("submitter") or "", 100)
     if not sub:
         raise ValueError("submitter name is required (no file is produced without it)")
     if len(detections) < MIN_DETECTIONS:
         raise ValueError(f"at least {MIN_DETECTIONS} single-exposure detections are needed, got {len(detections)}")
-    missing = [k for k, v in TELESCOPE.items() if v in (None, "")]
+    missing = [k for k in TELESCOPE_REQUIRED if TELESCOPE.get(k) in (None, "")]
     if missing:
         raise ValueError("telescope context not verified yet: " + ", ".join(missing))
     trk = check_trksub(context.get("trk_sub") or make_trksub(detections))
@@ -214,8 +249,8 @@ def build_ades(detections, context: dict):
     ctx = [("observatory", [("mpcCode", STATION), ("name", STATION_NAME)]),
            ("submitter", [("name", sub)]),
            ("measurers", [("name", m) for m in measurers]),
-           ("telescope", [("design", str(TELESCOPE["design"])), ("aperture", str(TELESCOPE["aperture"])),
-                          ("detector", str(TELESCOPE["detector"]))]),
+           ("telescope", [(k, str(TELESCOPE[k])) for k in ("design", "aperture", "detector", "fRatio")
+                          if TELESCOPE.get(k) not in (None, "")]),
            ("software", [("astrometry", _clean_text(f"SPHEREx Blink {context.get('tool_version', '')} "
                                                     f"{context.get('code_hash', '')}", 100))]),
            ("comment", [("line", x) for x in _comment_lines(context)])]
@@ -259,9 +294,9 @@ def write_ades_xml(detections, context: dict) -> str:
     return "\n".join(x) + "\n"
 
 
-CSV_FIELDS = ["trk_sub", "obs_time_utc_mid", "ra_deg", "dec_deg", "rms_ra_arcsec", "rms_dec_arcsec", "snr",
-              "exp_s", "sc_x_km", "sc_y_km", "sc_z_km", "sc_vx_kms", "sc_vy_kms", "sc_vz_kms", "obs_id", "band",
-              "wavelength_um"]
+CSV_FIELDS = ["trk_sub", "obs_time_utc_mid", "ra_deg", "dec_deg", "rms_ra_arcsec", "rms_dec_arcsec",
+              "snr_calibrated", "snr_fit", "exp_s", "sc_x_km", "sc_y_km", "sc_z_km", "sc_vx_kms", "sc_vy_kms",
+              "sc_vz_kms", "obs_id", "band", "wavelength_um", "finast", "in_ades", "reason"]
 
 
 def write_csv(detections, context: dict) -> str:
@@ -278,8 +313,10 @@ def write_csv(detections, context: dict) -> str:
     for d in detections:
         p = d.get("sc_pos_km") or (None, None, None)
         v = d.get("sc_vel_kms") or (None, None, None)
+        why = ades_reason(d)
         w.writerow([trk, d.get("obs_time"), d.get("ra"), d.get("dec"), d.get("rms_ra"), d.get("rms_dec"),
-                    d.get("snr"), d.get("exp_s"), *p, *v, d.get("obs_id"), d.get("band"), d.get("wavelength_um")])
+                    d.get("snr_calibrated"), d.get("snr_fit"), d.get("exp_s"), *p, *v, d.get("obs_id"), d.get("band"),
+                    d.get("wavelength_um"), d.get("finast"), why is None, why or ""])
     return buf.getvalue()
 
 
@@ -426,7 +463,10 @@ def validate_psv(text: str) -> list[str]:
             errs.append(f"bad comment line: {k} {v!r}")
     ctx_types = {("observatory", "mpcCode"): "StationType", ("submitter", "name"): "StringTypeW100",
                  ("measurers", "name"): "StringTypeW100", ("telescope", "design"): "StringTypeW35",
-                 ("telescope", "aperture"): "PosDecimalTypeW6", ("telescope", "detector"): "StringTypeW25"}
+                 ("telescope", "aperture"): "PosDecimalTypeW6", ("telescope", "detector"): "StringTypeW25",
+                 ("telescope", "name"): "StringTypeW100", ("telescope", "fRatio"): "PosDecimalTypeW6",
+                 ("telescope", "arraySize"): "StringTypeW25", ("telescope", "pixelScale"): "PosDecimalTypeW6",
+                 ("observatory", "name"): "StringTypeW100", ("software", "astrometry"): "StringTypeW100"}
     for (rec, child), t in ctx_types.items():
         for k, v in ctx.get(rec, []):
             if k == child:
