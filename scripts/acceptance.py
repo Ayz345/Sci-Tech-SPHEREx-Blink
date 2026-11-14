@@ -589,6 +589,39 @@ def check_variable(rep: Report, s: Static, key: str):
 
 # --------------------------------------------------------------------------- server
 
+class OwnServer:
+    """A server of its own for the acceptance run: free port, separate SPX_CACHE, stopped (and its cache removed)
+    at the end, so other pages on the shared server cannot reorder its queue (14 Nov: 300 s wait at dec>85N)."""
+
+    def __init__(self, cache_dir: Path):
+        self.cache = Path(cache_dir)
+        self.port = free_port()
+        self.api = f"http://127.0.0.1:{self.port}"
+        self.proc = None
+
+    def __enter__(self):
+        self.cache.mkdir(parents=True, exist_ok=True)
+        env = dict(os.environ, SPX_CACHE=str(self.cache))
+        self.proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "server.app:app", "--host", "127.0.0.1",
+                                      "--port", str(self.port), "--log-level", "warning"], cwd=ROOT, env=env,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if not wait_http(f"{self.api}/api/health", timeout=90):
+            self.__exit__(None, None, None)
+            raise RuntimeError(f"own server did not start on {self.api}")
+        return self
+
+    def __exit__(self, *exc):
+        import shutil
+        if self.proc is not None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(15)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+        shutil.rmtree(self.cache, ignore_errors=True)
+        return False
+
+
 def free_port():
     with socket.socket() as so:
         so.bind(("127.0.0.1", 0))
@@ -668,6 +701,32 @@ def free_field(rep: Report, sess, api, prof, ra, dec, label, need_epochs=1):
 
 
 def check_server(rep: Report, api: str, prof: dict, seed: int):
+    """The server checks, then one INFO line on IRSA: SIA2 retries / queries made by the server meanwhile
+    (a retry follows a 429/5xx answer or a timeout; on 14 Nov IRSA answered 502 to ~2 of 3 queries)."""
+    import requests
+
+    def totals():
+        try:
+            return strict_json(requests.get(f"{api}/api/health", timeout=10).content).get("network_totals") or {}
+        except Exception:
+            return {}
+    before = totals()
+    try:
+        _check_server(rep, api, prof, seed)
+    finally:
+        after = totals()
+        if "sia_retries" in after and "sia_queries" in after:
+            q = after["sia_queries"] - before.get("sia_queries", 0)
+            rr = after["sia_retries"] - before.get("sia_retries", 0)
+            rep.add("server", "IRSA SIA2 retries during the server checks (retries / queries)", INFO,
+                    measured={"queries": q, "retries": rr, "ratio": round(rr / q, 3) if q else None},
+                    detail="a retry follows an IRSA 429/5xx answer or a timeout; cold timings above include them")
+        else:
+            rep.add("server", "IRSA SIA2 retries during the server checks (retries / queries)", INFO, measured=None,
+                    detail="server has no sia_retries counter (before e8ab6dc)")
+
+
+def _check_server(rep: Report, api: str, prof: dict, seed: int):
     import requests
     sess = requests.Session()
     try:
@@ -809,6 +868,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", default=str(ROOT / "web" / "data"))
     ap.add_argument("--api", default="http://127.0.0.1:8000")
+    ap.add_argument("--own-server", action="store_true",
+                    help="start a server of its own (free port, separate SPX_CACHE) for the server checks and stop "
+                         "it at the end, instead of --api")
     ap.add_argument("--profile", choices=list(PROFILES), default="local")
     ap.add_argument("--static-only", action="store_true")
     ap.add_argument("--seed", type=int, default=None, help="random positions (default: time-based, so caches are cold)")
@@ -863,7 +925,16 @@ def main():
         print("\n== robustness")
         check_static_without_server(rep, root.parent)
         print("\n== server")
-        check_server(rep, a.api.rstrip("/"), PROFILES[a.profile], seed)
+        if a.own_server:
+            try:
+                with OwnServer(tmp / f"own_server_cache_{started.strftime('%Y%m%dT%H%M%SZ')}") as srv:
+                    print(f"own server {srv.api}")
+                    a.api = srv.api
+                    check_server(rep, srv.api, PROFILES[a.profile], seed)
+            except RuntimeError as e:
+                rep.add("server", "own server started", FAIL, detail=str(e))
+        else:
+            check_server(rep, a.api.rstrip("/"), PROFILES[a.profile], seed)
         check_no_coverage(rep, tmp)
 
     counts = {s: sum(i["status"] == s for i in rep.items) for s in (PASS, FAIL, PENDING, INFO)}
