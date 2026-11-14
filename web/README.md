@@ -60,6 +60,9 @@ position without coverage.
   the slider and the arrow keys, and left out of sum, difference and the saturation union; the markers under the
   slider show them faint. "show low-coverage frames" (`?low=1`) shows them with a "low coverage: N exposures"
   label. When a band has fewer than 2 good frames the option switches on by itself, with a message.
+- Epochs with no data in the band (0 exposures): always skipped by playback and the arrow keys, whatever the
+  low option. The slider can still reach them (dashed marker, "no data in this band") and shows a "no data" frame,
+  so the epoch is seen to exist.
 - PSF-wing plot: `meta.wing` (control-star systematics) is shown verbatim under it.
 - API mode survives a server restart: "server not reachable, retrying…" and it carries on when the server is back.
 - Spectrum: `overflow: true` = recovered from overflow (valid, reduced accuracy): filled diamond, kept in the

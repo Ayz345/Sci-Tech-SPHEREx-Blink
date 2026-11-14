@@ -256,6 +256,9 @@ function bandEpoch(band, i) {
 }
 const isLow = (band, i) => bandEpoch(band, i)?.quality === "low";
 const allowed = (band, i) => S.showLow || !isLow(band, i);
+// playback and arrow keys also skip epochs with no data in this band (0 exposures), whatever the low option;
+// the slider can still reach them and shows "no data", so the epoch is seen to exist
+const playable = (band, i) => allowed(band, i) && !emptyEpoch(band, i);
 // keep the current epoch on a frame that is shown; switch low frames on when fewer than 2 good frames remain
 function fixEpoch() {
   if (!S.m?.epochs?.length || !S.band) return;
@@ -266,8 +269,8 @@ function fixEpoch() {
     status(`${S.band}: fewer than 2 frames with 5 or more exposures, so low-coverage frames are shown.`);
     syncUrl();
   }
-  if (!allowed(S.band, S.epoch)) {
-    const ok = idx.filter((i) => allowed(S.band, i));
+  if (!playable(S.band, S.epoch)) {
+    const ok = idx.filter((i) => playable(S.band, i));
     S.epoch = ok.find((i) => i > S.epoch) ?? ok[0] ?? S.epoch;
   }
 }
@@ -275,10 +278,12 @@ function fixEpoch() {
 function renderEpochMarks() {
   if (!S.m?.epochs) return;
   $("epochMarks").replaceChildren(...S.m.epochs.map((e, i) => {
-    const s = document.createElement("span"), low = isLow(S.band, i), n = bandEpoch(S.band, i)?.n_used;
+    const s = document.createElement("span"), low = isLow(S.band, i), empty = emptyEpoch(S.band, i);
+    const n = bandEpoch(S.band, i)?.n_used;
     s.textContent = e.date.slice(2, 7);
-    s.className = (low ? "low" : "") + (i === S.epoch ? " cur" : "");
-    s.title = low ? `low coverage: ${n ?? "?"} exposures — ${S.showLow ? "shown" : "skipped"}` : e.date;
+    s.className = (empty ? "empty" : low ? "low" : "") + (i === S.epoch ? " cur" : "");
+    s.title = empty ? `${e.date}: no data in this band (skipped in playback)`
+      : low ? `low coverage: ${n ?? "?"} exposures — ${S.showLow ? "shown" : "skipped"}` : e.date;
     return s;
   }));
 }
@@ -782,7 +787,7 @@ function step(d) {
   if (!S.m?.epochs?.length) return;
   const n = S.m.epochs.length;
   let e = S.epoch;
-  for (let k = 0; k < n; k++) { e = (e + d + n) % n; if (allowed(S.band, e)) break; } // skip low-coverage frames
+  for (let k = 0; k < n; k++) { e = (e + d + n) % n; if (playable(S.band, e)) break; } // skip low-coverage and empty frames
   S.epoch = e;
   draw(); syncUrl();
 }
