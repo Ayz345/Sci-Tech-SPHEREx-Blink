@@ -87,6 +87,16 @@ position without coverage.
 - Spectrum: `overflow: true` = recovered from overflow (valid, reduced accuracy): filled diamond, kept in the
   light curve; `saturated: true` stays a lower limit and is left out.
 
+## Your own wavelength window (F1)
+
+Drag across the spectrum (or type two wavelengths in µm) and press "Blink this window". The band id is
+`w<lo>_<hi>` in nm (e.g. `w4300_5000`, 0.75–5.00 µm); `/api/band` and `/api/frame` build it on request on the
+live server, also for a gallery target opened from static files. The window gets its own removable band button
+(×), the address carries `band=w4300_5000` and reopening it opens the same window. The band file's `label`,
+`wave_um`, `n_exposures` and `note` (the selection rule: an exposure is used when the wavelength at the field
+centre falls in the window) are shown. Without the live server the page says so. Developer: `?winmock=1` serves
+any window as the target's `W` band, to try the interface before the server builds windows.
+
 ## Measure / mark (key `m`)
 
 Turn measuring on, click the moving object in one frame, step to another frame and click it again (any number

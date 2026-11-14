@@ -26,6 +26,13 @@ const EMBED = params.get("embed") === "1";
 const DATA = (params.get("data") || "data").replace(/\/$/, "");
 const D2R = Math.PI / 180;
 
+// ---------- user wavelength windows (F1): band id w<lo>_<hi> in nm, built by the live server on request ----------
+const isCustom = (id) => /^w\d+_\d+$/.test(id || "");
+// ?winmock=1 (developer, until the server builds windows): a window is served as the target's "W" band
+const WINMOCK = params.get("winmock") === "1";
+const bandPath = (band) => (WINMOCK && isCustom(band) ? "W" : band);
+const viaApi = (band) => (USE_API || isCustom(band)) && !!API && !(WINMOCK && !USE_API);
+
 // ---------- data source: one code path for static files and API (USE_API decides per target) ----------
 const src = {
   index: () => `${DATA}/index.json`,
@@ -34,10 +41,11 @@ const src = {
       Object.entries({ ra: q.ra, dec: q.dec, fov: q.fov, pmra: q.pmra, pmdec: q.pmdec, ref_epoch: q.ref_epoch, name: q.name })
         .filter(([, v]) => v != null && v !== ""))) // optional pm/name: the server then builds target_track
     : q.key || q.target ? `${DATA}/${q.key || q.target}/manifest.json` : null,
-  band: (key, band) => USE_API ? `${API}/api/band?key=${enc(key)}&band=${enc(band)}` : `${DATA}/${key}/${band}.json`,
-  frame: (key, epoch, band, kind) => USE_API
-    ? `${API}/api/frame?key=${enc(key)}&epoch=${epoch}&band=${enc(band)}` + (kind === "image" ? "" : `&kind=${kind}`)
-    : `${DATA}/${key}/${epoch}_${band}${kind === "image" ? "" : "_" + kind}.f32`,
+  // a user window always comes from the live server, also for a gallery target opened from static files
+  band: (key, band) => viaApi(band) ? `${API}/api/band?key=${enc(key)}&band=${enc(bandPath(band))}` : `${DATA}/${key}/${bandPath(band)}.json`,
+  frame: (key, epoch, band, kind) => viaApi(band)
+    ? `${API}/api/frame?key=${enc(key)}&epoch=${epoch}&band=${enc(bandPath(band))}` + (kind === "image" ? "" : `&kind=${kind}`)
+    : `${DATA}/${key}/${epoch}_${bandPath(band)}${kind === "image" ? "" : "_" + kind}.f32`,
   gaia: (key) => USE_API ? `${API}/api/gaia?key=${enc(key)}` : `${DATA}/${key}/gaia.json`,
   spectrum: (key, ra, dec) => USE_API
     ? `${API}/api/spectrum?key=${enc(key)}` + (ra != null ? `&ra=${ra}&dec=${dec}` : "")
@@ -207,7 +215,8 @@ async function loadTarget() {
   S.epoch = Math.min(S.epoch, S.m.epochs.length - 1);
   const ready = S.m.bands.filter((b) => b.status === "ready");
   const want = params.get("band");
-  S.band = (S.m.bands.find((b) => b.id === want) || S.m.bands.find((b) => b.id === S.m.default_band) || ready[0] || S.m.bands[0])?.id;
+  if (isCustom(want)) addCustomBand(want); // a shared address with band=w4300_5000 opens the same window
+  S.band = (S.m.bands.find((b) => b.id === want) ||S.m.bands.find((b) => b.id === S.m.default_band) || ready[0] || S.m.bands[0])?.id;
   const rgbq = (params.get("rgb") || "").split(",");
   if (rgbq.length === 3 && rgbq.every((b) => S.m.bands.some((x) => x.id === b))) S.rgb = { r: rgbq[0], g: rgbq[1], b: rgbq[2] };
   setupRGB();
@@ -268,8 +277,8 @@ function loadBand(band) {
   if (!S.bandInfo.has(band)) {
     // a failure (404, 504 timeout) is not cached, so the band can be asked for again later
     const p = fetchLogged(src.band(S.key, band)).then(
-      (j) => { S.bandInfo.set(band, j); return j; },
-      () => { S.bandInfo.delete(band); return null; });
+      (j) => { S.bandInfo.set(band, j); if (isCustom(band)) customBandLoaded(band, j); return j; },
+      (e) => { S.bandInfo.delete(band); if (isCustom(band)) customBandFailed(band, e); return null; });
     S.bandInfo.set(band, p);
   }
   // frames after the band file: an epoch with n_used 0 has no file, so it is not requested (no 404 noise)
@@ -834,6 +843,7 @@ function scatter(svg, pts, xk, yk, xlabel, ylabel) {
   const ys = (good.length ? good : pts).map((p) => p[yk]);
   const [x0, x1] = [Math.min(...xs), Math.max(...xs)], [y0, y1] = percentile([Float32Array.from(ys)], [1, 99]);
   const sx = (x) => L + ((x - x0) / (x1 - x0 || 1)) * (W - L - R);
+  Object.assign(svg.dataset, { x0, x1, L, R, W }); // for the wavelength-window drag on the spectrum
   const sy = (y) => H - B - ((y - y0) / (y1 - y0 || 1)) * (H - B - T);
   let h = `<line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="#555"/><line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" stroke="#555"/>`;
   h += `<text x="${L}" y="${H - 8}" fill="#888" font-size="11">${x0.toFixed(2)}</text><text x="${W - R}" y="${H - 8}" fill="#888" font-size="11" text-anchor="end">${x1.toFixed(2)} ${xlabel}</text>`;
@@ -940,14 +950,55 @@ function renderBands() {
     btn.className = b.id === S.band ? "on" : "";
     btn.disabled = b.status === "empty";
     btn.onclick = () => selectBand(b.id);
+    if (b.custom) { // user window: removable
+      const x = Object.assign(document.createElement("span"), { className: "rm", textContent: "×", title: "remove this window" });
+      x.onclick = (e) => { e.stopPropagation(); removeCustomBand(b.id); };
+      btn.append(x);
+    }
     return btn;
   }));
+}
+
+// ---------- user wavelength windows ----------
+function windowId(lo, hi) { return `w${Math.round(lo * 1000)}_${Math.round(hi * 1000)}`; }
+function addCustomBand(id) {
+  if (S.m.bands.some((b) => b.id === id)) return id;
+  const [lo, hi] = id.slice(1).split("_").map((v) => +v / 1000);
+  S.m.bands.push({ id, label: `${lo}–${hi} µm (your window)`, wave_um: [lo, hi], n_exposures: [], status: "pending", custom: true });
+  return id;
+}
+function customBandLoaded(id, j) { // the band file says what was built: label, measured wavelengths, counts, rule
+  const b = S.m.bands.find((x) => x.id === id); if (!b) return;
+  Object.assign(b, { status: "ready", label: (j.label || b.label), wave_um: j.wave_um || b.wave_um, n_exposures: j.n_exposures || b.n_exposures, note: j.note || "" });
+  if (id === S.band) $("winNote").textContent = b.note;
+  renderBands(); plots();
+}
+function customBandFailed(id, e) {
+  const b = S.m.bands.find((x) => x.id === id); if (b) b.status = "failed";
+  if (id === S.band) status(`Window ${id} could not be built: ${e.message}`, true);
+  renderBands();
+}
+function removeCustomBand(id) {
+  S.m.bands = S.m.bands.filter((b) => b.id !== id);
+  S.bandInfo.delete(id);
+  for (const k of [...S.frames.keys()]) if (k.startsWith(id + "|")) S.frames.delete(k);
+  if (S.band === id) { S.band = null; selectBand(S.m.default_band || S.m.bands[0].id); } else { renderBands(); syncUrl(); }
+}
+function blinkWindow(lo, hi) {
+  if (!API && !WINMOCK) { $("winNote").textContent = "Your own wavelength window needs the live server, which is not reachable right now."; return; }
+  if (!(lo >= 0.75 && hi <= 5.0 && lo < hi)) { $("winNote").textContent = "Choose a window between 0.75 and 5.00 µm, with the first number smaller."; return; }
+  const id = addCustomBand(windowId(lo, hi));
+  $("winNote").textContent = `Building ${id} on the server…`;
+  renderBands(); selectBand(id);
 }
 
 function selectBand(id) {
   if (id === S.band) return;
   S.prevBand = S.band; S.band = id; S.userScale = null;
-  $("swapBand").textContent = `⇄ ${S.prevBand} (t)`; $("swapBand").disabled = false;
+  if (S.prevBand) { $("swapBand").textContent = `⇄ ${S.prevBand} (t)`; $("swapBand").disabled = false; }
+  // a user window shows the server's selection rule (note) once its band file is in
+  const cb = isCustom(id) && S.m.bands.find((b) => b.id === id);
+  $("winNote").textContent = cb ? cb.note || `Building ${id} on the server…` : "";
   fixEpoch(); renderBands(); draw(); syncUrl(); plots();
   loadBand(id).then(draw);
 }
@@ -1152,6 +1203,31 @@ function wire() {
   // measure mode: a click adds a mark, a drag moves the mark under the cursor
   $("measureBtn").onclick = () => setMeasuring(!S.measuring);
   $("clearMarks").onclick = () => { S.marks = []; renderMarks(); draw(); };
+  // wavelength window: drag across the spectrum (or type two numbers), then "Blink this window"
+  const spec = $("spec");
+  const umAt = (ev) => {
+    const d = spec.dataset; if (d.x0 == null) return null;
+    const r = spec.getBoundingClientRect(), vx = ((ev.clientX - r.left) * +d.W) / r.width;
+    const um = +d.x0 + ((vx - +d.L) / (+d.W - +d.L - +d.R)) * (+d.x1 - +d.x0);
+    return Math.min(5, Math.max(0.75, um));
+  };
+  const showSel = (a, b) => {
+    spec.querySelector("#winSel")?.remove();
+    const d = spec.dataset, px = (um) => +d.L + ((um - +d.x0) / (+d.x1 - +d.x0)) * (+d.W - +d.L - +d.R);
+    const x = Math.min(px(a), px(b)), w = Math.abs(px(b) - px(a));
+    spec.insertAdjacentHTML("beforeend", `<rect id="winSel" x="${x}" y="24" width="${w}" height="166" fill="#e89a3c" opacity="0.18"/>`);
+  };
+  let selFrom = null;
+  spec.addEventListener("mousedown", (ev) => { selFrom = umAt(ev); });
+  spec.addEventListener("mousemove", (ev) => { if (selFrom != null) showSel(selFrom, umAt(ev)); });
+  window.addEventListener("mouseup", (ev) => {
+    if (selFrom == null) return;
+    const to = umAt(ev) ?? selFrom, lo = Math.min(selFrom, to), hi = Math.max(selFrom, to); selFrom = null;
+    if (hi - lo < 0.01) return; // a click, not a drag
+    $("winLo").value = lo.toFixed(2); $("winHi").value = hi.toFixed(2);
+    $("winNote").textContent = `${lo.toFixed(2)}–${hi.toFixed(2)} µm selected: press "Blink this window".`;
+  });
+  $("winGo").onclick = () => blinkWindow(+$("winLo").value, +$("winHi").value);
   $("refineBtn").onclick = refine;
   $("reportBtn").onclick = openReport;
   $("dlgCsv").onclick = () => downloadReport("csv");

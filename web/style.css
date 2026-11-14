@@ -45,6 +45,12 @@ svg { width: 100%; background: #0b0b0d; border: 1px solid var(--line); }
 footer { margin-top: 16px; font-size: 12px; }
 #links a, #embedLine a { color: var(--accent); margin-right: 8px; }
 #measureBtn.on { border-color: #ff4fd8; color: #ff4fd8; }
+#bands button .rm { margin-left: 4px; color: var(--muted); }
+#bands button .rm:hover { color: #ff6b5b; }
+#winBox { gap: 6px; margin-top: 4px; }
+#winBox input { width: 64px; }
+#spec { cursor: col-resize; }
+body.embed #winBox, body.embed #winNote { display: none; }
 #markList { padding-left: 20px; margin: 6px 0; }
 #markList li button { padding: 0 5px; margin-left: 6px; font-size: 11px; }
 #measureResult { white-space: pre-wrap; }
