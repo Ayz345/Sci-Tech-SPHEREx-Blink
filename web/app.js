@@ -1121,7 +1121,7 @@ async function changeFov(deg) {
     } catch (e) { status(`Could not resolve ${S.m.name || t} for a new field: ${e.message}`, true); }
     return;
   }
-  navigate({ ra: params.get("ra"), dec: params.get("dec"), fov, name: params.get("name"), pmra: params.get("pmra"),
+  navigate({ ra: S.m?.query?.ra ?? params.get("ra"), dec: S.m?.query?.dec ?? params.get("dec"), fov, name: params.get("name"), pmra: params.get("pmra"),
     pmdec: params.get("pmdec"), ref_epoch: params.get("ref_epoch"), ...keep });
 }
 
@@ -1171,6 +1171,9 @@ function setMode(mode) {
 function syncUrl() {
   const p = new URLSearchParams(location.search);
   p.set("band", S.band); p.set("mode", S.mode); p.set("frame", S.epoch); p.set("zoom", S.zoom);
+  // free position: keep the server's own query.ra/dec in the address (exactly as returned), so a reload or a
+  // shared link asks for the same field key and does not land on the other side of the server's rounding
+  if (p.has("ra") && S.m?.query?.ra != null) { p.set("ra", String(S.m.query.ra)); p.set("dec", String(S.m.query.dec)); }
   if (S.layer !== "image") p.set("layer", S.layer); else p.delete("layer");
   if (S.mode === "rgb" && S.m?.bands) { const c = rgbBands(); p.set("rgb", [c.r, c.g, c.b].join(",")); } else p.delete("rgb");
   if (S.showLow) p.set("low", "1"); else p.delete("low");
