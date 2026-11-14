@@ -44,6 +44,9 @@ svg { width: 100%; background: #0b0b0d; border: 1px solid var(--line); }
 #log .bad { color: #ff6b5b; }
 footer { margin-top: 16px; font-size: 12px; }
 #links a, #embedLine a { color: var(--accent); margin-right: 8px; }
+#wingMissing { margin: 8px 0; }
+#wingMissing a { color: var(--accent); }
+#wingMethod { margin-top: 6px; font-size: 12px; }
 #fovButtons { gap: 4px; }
 #embedLine { display: none; font-size: 11px; max-width: 520px; }
 /* ?embed=1: player and essential controls only; the acknowledgement stays as one small line */

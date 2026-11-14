@@ -65,8 +65,10 @@ position without coverage.
   so the epoch is seen to exist.
 - PSF-wing plot: labelled "Indicative only, not a formal detection of variability." For the selected band it shows
   `meta.wing_bands[band]` as a neutral comparison ("×2.42 between epochs; bright control stars reach ×1.47 —
-  exceeds / within the bright-star scatter"; `significant` only picks the phrase), a one-line summary over all
-  bands, and `meta.wing` (method text) verbatim.
+  exceeds / within the bright-star scatter"; `significant` only picks the phrase) and a one-line summary over all
+  bands. `meta.wing` (method text) is shown verbatim inside a "Method details" section that is closed by default.
+  If the selected band has no `wing_bands` entry, the plot is replaced by "No PSF-wing series in D5. Available
+  in: D1, D2, …" with links that switch band; the page never switches band by itself.
 - API mode survives a server restart: "server not reachable, retrying…" and it carries on when the server is back.
 - Spectrum: `overflow: true` = recovered from overflow (valid, reduced accuracy): filled diamond, kept in the
   light curve; `saturated: true` stays a lower limit and is left out.

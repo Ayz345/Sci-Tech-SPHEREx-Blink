@@ -615,15 +615,27 @@ function plots() {
   const wing = pts.filter((p) => Number.isFinite(p.wing_flux));
   $("wingBox").hidden = !wing.length;
   if (wing.length) {
-    const wb = wing.filter(inBand);
-    $("wingWhere").textContent = `(${S.band}; ${wb.length} of ${wing.length} saturated exposures)`;
-    scatter($("wing"), wb, "mjd", "wing_flux", "MJD", "MJy/sr");
-    // meta.wing (control-star systematics) is shown verbatim
+    const wbs = meta.wing_bands || {}, cur = wbs[S.band];
+    // the selected band has no wing series: say so and offer the bands that have one (never switch by itself)
+    const missing = Object.keys(wbs).length > 0 && !cur;
+    $("wingMissing").hidden = !missing; $("wingPlot").hidden = missing;
+    if (missing) {
+      const links = Object.keys(wbs).map((b) => Object.assign(document.createElement("a"),
+        { href: "#", textContent: b, title: `switch to ${b}`, onclick: (e) => { e.preventDefault(); selectBand(b); } }));
+      $("wingMissing").replaceChildren(`No PSF-wing series in ${S.band}. Available in: `,
+        ...links.flatMap((a, i) => (i ? [", ", a] : [a])));
+      $("wingWhere").textContent = `(${S.band})`;
+    } else {
+      const wb = wing.filter(inBand);
+      $("wingWhere").textContent = `(${S.band}; ${wb.length} of ${wing.length} saturated exposures)`;
+      scatter($("wing"), wb, "mjd", "wing_flux", "MJD", "MJy/sr");
+    }
+    // meta.wing (method text, from the co-add session) verbatim, in a "Method details" section closed by default
     const mw = meta.wing;
     const method = mw == null ? "" : typeof mw === "string" ? mw
       : mw.text ?? Object.entries(mw).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ");
+    $("wingMethod").hidden = !method; $("wingMethodText").textContent = method;
     // meta.wing_bands[band] = {ratio, threshold, significant}: the selected band first, then a short summary
-    const wbs = meta.wing_bands || {}, cur = wbs[S.band];
     const fx = (v) => `×${(+v).toFixed(2)}`;
     // neutral comparison: the wing series is consistent with variability, it does not prove it
     // (meta.wing_bands[].significant only picks one of the two phrases; the word itself is never shown)
@@ -631,7 +643,7 @@ function plots() {
     const line = cur ? `${S.band}: ${fx(cur.ratio)} between epochs; bright control stars reach ${fx(cur.threshold)} — ${cmp(cur)}` : "";
     const summary = Object.keys(wbs).length ? "All bands: " + Object.entries(wbs).map(([b, v]) =>
       `${b} ${fx(v.ratio)} (${cmp(v)})`).join(", ") : "";
-    $("wingNote").replaceChildren(...[line, summary, method].filter(Boolean).map((t) => Object.assign(document.createElement("div"), { textContent: t })));
+    $("wingNote").replaceChildren(...[line, summary].filter(Boolean).map((t) => Object.assign(document.createElement("div"), { textContent: t })));
   }
   const nf = pts.filter((p) => p.flagged).length, ns = pts.filter((p) => p.saturated).length;
   const no = pts.filter((p) => p.overflow && !p.saturated).length;
