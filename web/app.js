@@ -638,10 +638,13 @@ function updateRefineButtons() {
 function normTrack(j) {
   return {
     id: j.report_id ?? j.id, regime: j.regime, regimeReason: j.regime_reason ?? "",
-    nights: (j.nights || []).map((n) => ({ night: n.night, nAcc: n.n_accepted, nTot: n.n_total, included: n.included })),
+    nights: (j.nights || []).map((n) => ({ night: n.night, nAcc: n.n_accepted, nTot: n.n_total, included: n.included, nDraft: n.n_in_draft })),
+    counts: { found: j.n_exposures_found, measured: j.n_measured, accepted: j.n_accepted, draft: j.n_in_draft },
+    testForms: j.mpc_test_forms || {},
     meas: (j.measurements || []).map((m) => ({ id: m.obs_id, time: m.obs_time, mjd: m.mjd, ra: m.ra, dec: m.dec,
       // S/N: only the calibrated value is shown (snr_fit is about 1.5x optimistic); null -> "—"
-      rmsRa: m.rms_ra, rmsDec: m.rms_dec, snr: m.snr_calibrated ?? null, ok: !!m.accepted, reason: m.reason || "", band: m.band, night: m.night })),
+      rmsRa: m.rms_ra, rmsDec: m.rms_dec, snr: m.snr_calibrated ?? null, ok: !!m.accepted, reason: m.reason || "", band: m.band, night: m.night,
+      inDraft: m.in_ades })), // in_ades: the server's word on whether this row is in the MPC draft
     validation: j.validation || {},
   };
 }
@@ -677,12 +680,15 @@ function renderTrack() {
   const f = fitMotion(ok.map((m) => ({ ra: m.ra, dec: m.dec, mjd: m.mjd, sig: Math.hypot(m.rmsRa, m.rmsDec) / Math.SQRT2 })));
   const head = document.createElement("div");
   head.className = "mono";
-  head.textContent = `${t.regime}${t.regimeReason ? ": " + t.regimeReason : ""}` +
+  const c = t.counts, cnt = c.found != null ? `\n${c.found} exposures found, ${c.measured} measured, ${c.accepted} accepted, ${c.draft} in the MPC draft` : "";
+  head.textContent = `${t.regime}${t.regimeReason ? ": " + t.regimeReason : ""}` + cnt +
     (f ? `\n${rateText(f, ok.length, "single-exposure measurements")}` : "\nfewer than two accepted measurements: no rate");
   head.style.whiteSpace = "pre-wrap";
   const tbl = document.createElement("table");
   // "reason" says why a measurement is not in the MPC draft; an accepted one can still be left out of it
-  const state = (m) => (m.ok ? (m.reason ? `accepted · not in the MPC draft: ${escapeHtml(m.reason)}` : "accepted") : `rejected: ${escapeHtml(m.reason)}`);
+  const state = (m) => (!m.ok ? `rejected: ${escapeHtml(m.reason)}`
+    : m.inDraft === false || (m.inDraft == null && m.reason) ? `accepted · not in the MPC draft${m.reason ? ": " + escapeHtml(m.reason) : ""}`
+    : m.inDraft ? "accepted · in the MPC draft" : "accepted");
   tbl.innerHTML = "<tr><th>time (UTC)</th><th>RA</th><th>Dec</th><th>±″</th><th title=\"calibrated on empty positions\">S/N (cal.)</th><th>band</th><th></th></tr>" +
     t.meas.map((m) => `<tr class="${m.ok ? "" : "rejected"}"><td>${escapeHtml(String(m.time ?? ""))}</td><td>${(+m.ra).toFixed(5)}</td>` +
       `<td>${(+m.dec).toFixed(5)}</td><td>${Math.hypot(m.rmsRa, m.rmsDec).toFixed(1)}</td><td>${m.snr == null ? "—" : (+m.snr).toFixed(1)}</td>` +
@@ -695,15 +701,20 @@ const ADES_BLOCKED_BETWEEN = "The Minor Planet Center accepts Solar System objec
 function openReport() {
   const t = S.track; if (!t) return;
   const v = t.validation || {};
-  $("dlgValidation").textContent = [v.text, v.timing === "not verified" ? "Timing: not verified." : ""].filter(Boolean).join(" ");
+  // validation text from the server (lines separated by \n), shown as it is
+  $("dlgValidation").textContent = [v.text, v.timing === "not verified" ? "Timing: not verified." : "",
+    v.pixel_scale != null ? String(v.pixel_scale) : "", v.same_frame_code ? `Same-frame code: ${v.same_frame_code}.` : ""].filter(Boolean).join("\n");
+  // the MPC's own test forms: links from the server if it gives them, else the fixed ones in the page
+  if (t.testForms.psv) $("reportDlg").querySelector('a[href*="submit_psv_test"]').href = t.testForms.psv;
   $("dlgNights").replaceChildren(...t.nights.map((n) => {
-    const div = document.createElement("div"), inFile = n.included !== false && n.nAcc >= 3;
+    // n_in_draft from the server decides; older answers fall back to "3 accepted"
+    const div = document.createElement("div"), inFile = n.nDraft != null ? n.nDraft > 0 : n.included !== false && n.nAcc >= 3;
     div.className = inFile ? "" : "excluded";
-    div.textContent = `24-h window from ${n.night} (UTC): ${n.nAcc} accepted of ${n.nTot}` +
+    div.textContent = `24-h window from ${n.night} (UTC): ${n.nAcc} accepted of ${n.nTot}` + (n.nDraft != null ? `, ${n.nDraft} in the draft` : "") +
       (inFile ? "" : " — not in the MPC draft (fewer than 3 accepted in the window)");
     return div;
   }));
-  const goodNight = t.nights.some((n) => n.included !== false && n.nAcc >= 3);
+  const goodNight = t.counts.draft != null ? t.counts.draft > 0 : t.nights.some((n) => n.included !== false && n.nAcc >= 3);
   const why = t.regime === "between_epochs" ? ADES_BLOCKED_BETWEEN
     : t.regime !== "within_visit" ? `The server did not classify this motion as within one visit (${t.regime ?? "unknown"}); use the CSV.`
     : !goodNight ? "The MPC asks for at least three observations per night; no 24-hour window has three accepted measurements. Use the CSV."
@@ -729,12 +740,15 @@ async function downloadReport(format) {
       const r = await fetch(`${API}/api/report?${q}`);
       if (!r.ok) { let msg = `${r.status}`; try { msg = (await r.json()).message || msg; } catch { /* not json */ } throw new Error(msg); }
       blob = await r.blob();
+      S.schemaChecked = r.headers.get("X-ADES-Schema-Checked");
       const cd = r.headers.get("Content-Disposition") || "";
-      name = (cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i) || [])[1] || `spherex_${format}.txt`; // name chosen by the server
+      // name chosen by the server (needs Access-Control-Expose-Headers when the server is on another origin)
+      name = (cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i) || [])[1] || `spherex_report.${{ csv: "csv", ades: "psv", ades_xml: "xml" }[format] || "txt"}`;
     }
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: decodeURIComponent(name) });
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    st.textContent = `Downloaded ${decodeURIComponent(name)}.`;
+    st.textContent = `Downloaded ${decodeURIComponent(name)}.` +
+      (ades && !MOCK ? (S.schemaChecked ? ` The server checked it against the ADES schema (${S.schemaChecked}).` : " The server did not report a schema check.") : "");
   } catch (e) { st.textContent = e.message; st.className = "err"; } // server messages are shown as they are
 }
 
@@ -1198,3 +1212,8 @@ serverReady.then((ok) => {
 wire();
 loadIndex();
 loadTarget();
+// developer hook (?debug=1): place marks at exact positions/times, e.g. to replay a known asteroid passage
+if (params.get("debug") === "1") {
+  window.__spx = { S, refine, openReport,
+    mark: (ra, dec, mjd, band = S.band) => { S.marks.push({ n: ++S.markSeq, ra, dec, mjd, epoch: S.epoch, date: `MJD ${mjd}`, band }); renderMarks(); draw(); } };
+}

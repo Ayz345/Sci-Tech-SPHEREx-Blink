@@ -58,6 +58,7 @@ dialog .warn { padding-left: 18px; font-size: 13px; }
 dialog .warn a { color: var(--accent); }
 dialog label { display: block; margin: 6px 0; }
 #dlgStatus.err { color: #ff6b5b; }
+#dlgValidation { white-space: pre-line; display: block; margin-top: 4px; }
 #wingMissing { margin: 8px 0; }
 #wingMissing a { color: var(--accent); }
 #wingMethod { margin-top: 6px; font-size: 12px; }
