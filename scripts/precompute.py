@@ -3,6 +3,9 @@
     python scripts/precompute.py                      # all five targets
     python scripts/precompute.py wise-0855 barnard    # some
     python scripts/precompute.py --out web/data --bands D6 W
+    python scripts/precompute.py --final              # release build: only from committed code
+
+Regenerated web/data is NOT committed except the single --final build (PLAN.md 14.6).
 
 Per target it writes manifest.json, {band}.json, {epoch}_{band}.f32 (+ _weight, _flagfrac), gaia.json,
 spectrum.json and provenance.json into a temporary folder and swaps it in when complete, so the page never
@@ -87,7 +90,7 @@ def build_target(key: str, out_root: Path, bands=None) -> dict:
     P.write_json(tmp / "gaia.json", gaia, indent=None)
     # spectrum at the target (detector bands only, each exposure once)
     all_cuts = [c for d in sorted(by_det) for c in by_det[d]]
-    spec = P.spectrum(f, all_cuts)
+    spec = P.spectrum(f, all_cuts, gaia=gaia)
     P.write_json(tmp / "spectrum.json", spec, indent=None)
     # manifest last
     man = P.manifest(f, status=status, n_exposures=nexp)
@@ -144,9 +147,15 @@ def main():
     ap.add_argument("keys", nargs="*", default=list(TARGETS))
     ap.add_argument("--out", default=str(ROOT / "web" / "data"))
     ap.add_argument("--bands", nargs="*")
+    ap.add_argument("--final", action="store_true",
+                    help="the release build: refuses to run unless spx/, server/, scripts/ match the commit")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    if a.final:
+        c = P.spx_commit()
+        if not c["commit"] or c["uncommitted_code"]:
+            sys.exit(f"--final refused: code differs from commit {c['commit']}: {c['uncommitted_code']}")
     out_root = Path(a.out)
     out_root.mkdir(parents=True, exist_ok=True)
     for key in a.keys:

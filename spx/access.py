@@ -44,8 +44,9 @@ log = logging.getLogger("spx.access")
 # --------------------------------------------------------------------------- settings
 
 #: Data releases searched, in order of preference (a duplicate exposure keeps the first one).
-#: A new release = one new name here.
-COLLECTIONS = ("spherex_dr1", "spherex_qr3")
+#: A new release = one new name here (or SPX_COLLECTIONS="spherex_dr2,spherex_dr1" in the environment).
+COLLECTIONS = tuple(c.strip() for c in (os.environ.get("SPX_COLLECTIONS") or "spherex_dr1,spherex_qr3").split(",")
+                    if c.strip())
 
 SIA_URL = "https://irsa.ipac.caltech.edu/SIA"
 SIA_RADIUS_DEG = 0.001
@@ -391,8 +392,7 @@ def find_images(ra: float, dec: float, collections=COLLECTIONS, radius_deg: floa
     """
     ra = float(ra) % 360.0
     dec = float(dec)
-    out, seen = [], set()
-    for coll in collections:
+    def one(coll):
         path = _sia_cache_path(ra, dec, coll, radius_deg)
         rows = None
         if path.exists():
@@ -412,6 +412,13 @@ def find_images(ra: float, dec: float, collections=COLLECTIONS, radius_deg: floa
                 _atomic_write_bytes(path, json.dumps({"ra": ra, "dec": dec, "collection": coll,
                                                       "radius_deg": radius_deg, "queried": time.time(),
                                                       "rows": rows}).encode())
+        return rows
+
+    collections = list(collections)
+    with ThreadPoolExecutor(max_workers=max(1, len(collections))) as ex:  # collections in parallel
+        per_coll = list(ex.map(one, collections))
+    out, seen = [], set()
+    for rows in per_coll:
         for r in rows:
             k = (r["obs_id"], r["detector"])
             if k in seen:

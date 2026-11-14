@@ -85,7 +85,7 @@ def dumps(o, indent=None) -> str:
 def write_json(path: Path, o, indent=1) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(dumps(o, indent), encoding="utf-8")
+    tmp.write_text(dumps(o, indent), encoding="utf-8", newline="\n")
     os.replace(tmp, path)
 
 
@@ -99,7 +99,8 @@ def write_f32(path: Path, a: np.ndarray) -> None:
 
 def free_key(ra: float, dec: float, fov_deg: float) -> str:
     """r133p7951_dm7p2451_f0p100 (p = decimal point, dp/dm = Dec sign, f = field in degrees)."""
-    ra = float(ra) % 360.0
+    ra = round(float(ra) % 360.0, 4) % 360.0  # 359.99999 -> 0.0000, never 360.0000
+    dec = round(float(dec), 4) + 0.0  # -0.0 -> 0.0
     s = "dm" if dec < 0 else "dp"
     return (f"r{ra:.4f}_{s}{abs(dec):.4f}_f{fov_deg:.3f}").replace(".", "p")
 
@@ -122,7 +123,7 @@ def spx_commit() -> dict:
             return {"commit": r.stdout.strip(), "uncommitted_code": dirty}
         except (OSError, subprocess.TimeoutExpired):
             pass
-    return {"commit": None, "uncommitted_code": None}
+    return {"commit": os.environ.get("SPX_COMMIT"), "uncommitted_code": None}  # e.g. inside the Docker image
 
 
 # --------------------------------------------------------------------------- field
@@ -260,19 +261,38 @@ def manifest(f: Field, status: dict | None = None, n_exposures: dict | None = No
             st = "empty"
         bands.append({**b, "n_exposures": nexp, "status": st})
     m["bands"] = bands
+    notes = list(f.notes) + _weak_epoch_notes(f, bands)
     if f.tinfo is not None:
         m["target_track"] = [{"epoch": e["id"], "ra": p[0], "dec": p[1]}
                              for e in f.epochs for p in [_radec(target_at(f.target, e["mjd_mid"]))]]
         m["target_source"] = f.tinfo["source"]
     if f.tinfo and f.tinfo.get("default_band"):
         m["default_band"] = f.tinfo["default_band"]
-    if f.notes:
-        m["notes"] = list(f.notes)
+    if notes:
+        m["notes"] = notes
     m["processing"] = processing_text()
     m["acknowledgement"] = ACKNOWLEDGEMENT
     m["n_images"] = len(f.refs)
     m["mjd_median"] = float(np.median(mjd))
     return m
+
+
+def _weak_epoch_notes(f: Field, bands: list[dict]) -> list[str]:
+    """Say so when one epoch has far fewer exposures than the others (its frames are noisier)."""
+    det = [b for b in bands if b["id"].startswith("D") and b["id"][1:].isdigit()]
+    if len(f.epochs) < 2 or not det:
+        return []
+    per_epoch = np.array([[b["n_exposures"][i] for b in det] for i in range(len(f.epochs))])  # epoch x band
+    tot = per_epoch.sum(axis=1)
+    notes = []
+    for i, e in enumerate(f.epochs):
+        others = np.delete(tot, i)
+        if tot[i] > 0 and tot[i] < 0.5 * np.median(others):
+            lo, hi = int(per_epoch[i].min()), int(per_epoch[i].max())
+            olo, ohi = int(np.delete(per_epoch, i, axis=0).min()), int(np.delete(per_epoch, i, axis=0).max())
+            notes.append(f"Epoch {e['id']} ({e['date']}) has only {lo}–{hi} exposures per band "
+                         f"(the other epochs {olo}–{ohi}), so its frames are noisier.")
+    return notes
 
 
 def _radec(c: SkyCoord) -> tuple[float, float]:
@@ -289,12 +309,12 @@ def band_refs(f: Field, band_id: str, cap: int = MAX_PER_EPOCH_BAND) -> list:
 
 
 def fetch_band_cutouts(f: Field, band_id: str, layers=("IMAGE", "FLAGS", "VARIANCE"), cap: int = MAX_PER_EPOCH_BAND,
-                       progress=None, stats: dict | None = None):
+                       progress=None, stats: dict | None = None, workers: int = access.S3_MAX_CONCURRENCY):
     refs = band_refs(f, band_id, cap)
     if not refs:
         return [], 0
     return access.fetch_cutouts(refs, f.center.ra.deg, f.center.dec.deg, half_px=f.half_px, layers=layers,
-                                progress=progress, stats=stats)
+                                progress=progress, stats=stats, workers=workers)
 
 
 BUILD_PARAMS = {"pix_arcsec": PIX_ARCSEC, "min_exposures": MIN_EXPOSURES, "max_exposures": MAX_PER_EPOCH_BAND,
@@ -411,8 +431,34 @@ def gaia_sources(f: Field, gmax: float = GAIA_GMAX, max_age_days: float = 30.0) 
     raise RuntimeError(f"Gaia TAP unreachable: {last!r}")
 
 
-def spectrum(f: Field, cuts, ra: float | None = None, dec: float | None = None) -> dict:
-    """spx.photometry.spectrum_points at the target (propagated per exposure) or at a fixed (ra, dec)."""
+SELF_MATCH_ARCSEC = 3.0
+
+
+def gaia_neighbors(coord: SkyCoord, gaia: list[dict] | None, self_match_arcsec: float = SELF_MATCH_ARCSEC):
+    """Gaia rows as a SkyCoord with proper motion (epoch 2016.0) for spectrum_points(neighbors=...).
+
+    The source at the photometry position itself (closer than self_match_arcsec at 2016.0, e.g. Barnard's
+    Star) is left out: it is the object being measured, not a neighbour. Returns (SkyCoord | None, rows).
+    """
+    from astropy.time import Time
+    rows = [g for g in (gaia or []) if g.get("ra") is not None and g.get("dec") is not None]
+    if not rows:
+        return None, []
+    ref = Time(2016.0, format="jyear", scale="tdb")
+    c = SkyCoord(ra=[g["ra"] for g in rows] * u.deg, dec=[g["dec"] for g in rows] * u.deg,
+                 pm_ra_cosdec=[g.get("pmra") or 0.0 for g in rows] * u.mas / u.yr,
+                 pm_dec=[g.get("pmdec") or 0.0 for g in rows] * u.mas / u.yr, obstime=ref, frame="icrs")
+    here = target_at(coord, float(ref.mjd))
+    keep = SkyCoord(c.ra, c.dec, frame="icrs").separation(here).arcsec > self_match_arcsec
+    if not keep.any():
+        return None, []
+    return c[keep], [r for r, k in zip(rows, keep) if k]
+
+
+def spectrum(f: Field, cuts, ra: float | None = None, dec: float | None = None, gaia: list[dict] | None = None) -> dict:
+    """spx.photometry.spectrum_points at the target (propagated per exposure) or at a fixed (ra, dec),
+    with the Gaia sources around it passed as neighbours (deblended PSF photometry). Returned as is."""
     from spx.photometry import spectrum_points
     coord = f.target if ra is None else SkyCoord(float(ra) * u.deg, float(dec) * u.deg, frame="icrs")
-    return spectrum_points(cuts, coord, epochs=f.epochs)
+    nb, info = gaia_neighbors(coord, gaia)
+    return spectrum_points(cuts, coord, epochs=f.epochs, neighbors=nb, neighbor_info=info or None)
