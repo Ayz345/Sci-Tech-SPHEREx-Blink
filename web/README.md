@@ -131,10 +131,10 @@ When the field has candidates (`{key}/candidates.json` for gallery targets, `/ap
 from the live server; PLAN.md section 17 F2 layout), the Overlays box shows "Automatic candidates" with the fixed
 note "Automatic candidates are places to look at, not detection claims." Each candidate is a dashed ring at its
 position in the current epoch (faint at the nearest epoch when it has none there) with a short label (`mover`,
-`variable`, or `known: Gaia …` when `near_gaia` is set). The list shows id, label, bands, S/N and rate; clicking
+`variable`, or `known: Gaia …` when `known` is true; a nearby Gaia star alone is only in the tooltip). The list shows id, label, bands, S/N and rate; clicking
 one loads its positions as marks in the measure tool (and switches to its first band), from where refine and
 report work as usual. A closed "How candidates are found" section shows `method`, `params`, `bands_searched`,
-the `rejected` counts and the `validation` lines as given. When the live server answers 202 (candidates not computed yet) the toggle is shown faint with "Automatic candidates are being computed…" and the page asks again every 5 s; 404 or no static file: the control is not shown.
+the `rejected` counts and the `validation` lines as given. When the live server answers 202 (candidates not computed yet) the toggle is shown faint with "Automatic candidates are being computed…" and the `bands_pending` list; 503 says they are not available right now with the server's message; and the page asks again every 5 s; 404 or no static file: the control is not shown.
 
 ## Flag names on spectrum points (F3)
 

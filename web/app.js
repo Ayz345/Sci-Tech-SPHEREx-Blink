@@ -1261,8 +1261,9 @@ function catwiseAt(sx, sy, mjd) {
 // Places to look at, not detection claims. Without a file the control stays hidden.
 S.cands = null;
 const CAND_COLOR = "#ffd84f";
+// "known" = motion explained by a Gaia DR3 proper motion; near_gaia alone (a star nearby) is only in the tooltip
 function candLabel(c) {
-  if (c.near_gaia) return `known: Gaia ${String(c.near_gaia.source_id ?? "").slice(-6)}`;
+  if (c.known) return `known: Gaia ${String(c.near_gaia?.source_id ?? "").slice(-6)}`.trim();
   return c.kind || "candidate";
 }
 async function loadCandidates() {
@@ -1271,8 +1272,15 @@ async function loadCandidates() {
     const r = await fetch(url); // quiet: a missing file only means no candidates for this field
     if (r.status === 202) { // the server computes candidates once all bands of the field are built: ask again
       $("candBox").hidden = false; $("candBox").classList.add("pending");
-      $("ovCand").disabled = true; $("candPending").textContent = "Automatic candidates are being computed…";
+      let bp = []; try { bp = (await r.json()).bands_pending || []; } catch { /* no body */ }
+      $("ovCand").disabled = true;
+      $("candPending").textContent = `Automatic candidates are being computed…${bp.length ? ` (waiting for bands ${bp.join(", ")})` : ""}`;
       setTimeout(() => loadCandidates().then(draw), 5000);
+      return;
+    }
+    if (r.status === 503) { // the detector is missing or failed: say so
+      let msg = ""; try { msg = (await r.json()).message || ""; } catch { /* no body */ }
+      $("candBox").hidden = false; $("ovCand").disabled = true; $("candPending").textContent = `Automatic candidates are not available right now${msg ? `: ${msg}` : "."}`;
       return;
     }
     if (!r.ok) { $("candBox").hidden = true; return; } // 404: no candidates for this field
@@ -1285,7 +1293,8 @@ async function loadCandidates() {
     const li = document.createElement("li"), b = document.createElement("button");
     const rate = c.rate_arcsec_per_year ? ` · ${Math.hypot(...c.rate_arcsec_per_year).toFixed(1)}″/yr` : "";
     b.textContent = `${c.id} ${candLabel(c)} · ${(c.bands || []).join(", ")} · S/N ${(+c.snr).toFixed(1)}${rate}`;
-    b.title = `${c.notes || ""}\nclick: load its ${c.positions?.length || 0} positions as marks in the measure tool`;
+    const ng = c.near_gaia ? `\nnear Gaia DR3 ${c.near_gaia.source_id} (${(+c.near_gaia.sep_arcsec).toFixed(1)}″, G ${(+c.near_gaia.g_mag).toFixed(1)})` : "";
+    b.title = `${c.notes || ""}${ng}\nclick: load its ${c.positions?.length || 0} positions as marks in the measure tool`;
     b.onclick = () => candidateToMarks(c);
     li.append(b); return li;
   }));
