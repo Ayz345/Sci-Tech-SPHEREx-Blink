@@ -788,7 +788,7 @@ def measured_notes(f: Field, cuts, spec: dict, gaia) -> list[str]:
         det = json.loads(WISE_DETECTION.read_text(encoding="utf-8"))
         seps = [e.get("sep_to_blend_star_arcsec") for e in det.get("epochs", [])]
         if seps and all(x is not None for x in seps):
-            notes.append("Measured separation between WISE 0855 and that star (two-source PSF fit, co-add session): "
+            notes.append("Measured separation between WISE 0855 and that star (two-source PSF fit): "
                          + " → ".join(f"{x:.1f}″" for x in seps) + " over the three epochs.")
     return notes
 
