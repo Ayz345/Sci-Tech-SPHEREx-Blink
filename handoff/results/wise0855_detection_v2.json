@@ -1,0 +1,119 @@
+{
+ "target": "wise-0855",
+ "band_um": [
+  4.3,
+  5.0
+ ],
+ "grid_arcsec": 3.0,
+ "psf_fwhm_arcsec": 9.95,
+ "psf_fwhm_stars_arcsec": [
+  10.36,
+  10.58,
+  9.95,
+  9.51,
+  9.91
+ ],
+ "n_cutouts": 258,
+ "n_skipped": 0,
+ "epochs": [
+  {
+   "epoch": 0,
+   "date": "2025-05-06",
+   "mjd": 60801.1088,
+   "n_exposures": 5,
+   "snr": 12.57,
+   "filtered_noise_mjy_sr": 0.016202856587327754,
+   "ra": 133.76115,
+   "dec": -7.242297,
+   "err_ra_arcsec": 0.286,
+   "err_dec_arcsec": 0.274,
+   "offset_from_prediction_arcsec": 2.08,
+   "pred_ra": 133.760574,
+   "pred_dec": -7.242373,
+   "sep_to_blend_star_arcsec": 11.43,
+   "gaia_ref": {
+    "n": 4,
+    "dra": -0.272,
+    "ddec": 0.222,
+    "scatter": 0.169
+   },
+   "null_n": 3000,
+   "null_median": 0.75,
+   "null_p99_9": 4.03,
+   "null_max": 4.19,
+   "null_frac_ge_5": 0.0,
+   "null_frac_ge_detection": 0.0
+  },
+  {
+   "epoch": 1,
+   "date": "2025-11-12",
+   "mjd": 60991.7425,
+   "n_exposures": 24,
+   "snr": 24.61,
+   "filtered_noise_mjy_sr": 0.00857343083197681,
+   "ra": 133.760137,
+   "dec": -7.242305,
+   "err_ra_arcsec": 0.144,
+   "err_dec_arcsec": 0.13,
+   "offset_from_prediction_arcsec": 2.68,
+   "pred_ra": 133.759388,
+   "pred_dec": -7.242275,
+   "sep_to_blend_star_arcsec": 8.18,
+   "gaia_ref": {
+    "n": 4,
+    "dra": 0.125,
+    "ddec": 0.073,
+    "scatter": 0.094
+   },
+   "null_n": 3000,
+   "null_median": 0.83,
+   "null_p99_9": 5.14,
+   "null_max": 5.49,
+   "null_frac_ge_5": 0.004,
+   "null_frac_ge_detection": 0.0
+  },
+  {
+   "epoch": 2,
+   "date": "2026-04-26",
+   "mjd": 61156.1534,
+   "n_exposures": 23,
+   "snr": 28.76,
+   "filtered_noise_mjy_sr": 0.00834436097873836,
+   "ra": 133.758845,
+   "dec": -7.241939,
+   "err_ra_arcsec": 0.18,
+   "err_dec_arcsec": 0.201,
+   "offset_from_prediction_arcsec": 1.94,
+   "pred_ra": 133.758364,
+   "pred_dec": -7.242189,
+   "sep_to_blend_star_arcsec": 3.74,
+   "gaia_ref": {
+    "n": 4,
+    "dra": -0.064,
+    "ddec": -0.007,
+    "scatter": 0.063
+   },
+   "null_n": 3000,
+   "null_median": 0.91,
+   "null_p99_9": 6.18,
+   "null_max": 6.18,
+   "null_frac_ge_5": 0.022333333333333334,
+   "null_frac_ge_detection": 0.0
+  }
+ ],
+ "motion_arcsec_per_yr": {
+  "pmra": -8.823,
+  "pmra_err": 0.334,
+  "pmra_chi2": 13.514,
+  "pmdec": 1.543,
+  "pmdec_err": 0.344,
+  "pmdec_chi2": 11.637,
+  "pmra_err_scaled": 1.228,
+  "pmdec_err_scaled": 1.173
+ },
+ "literature_pm_arcsec_per_yr": [
+  -8.118,
+  0.68
+ ],
+ "method": "frames   spx.coadd.build_frames, band W = exposures whose LVF wavelength at the target is 4.3-5.0 um,\n           3\" grid, epochs = split_epochs over ALL exposures of the field (max_epoch_days=60).\n  PSF      Gaussian, FWHM measured on the brightest isolated stars of the same W frames (measure_fwhm).\n  S/N      matched filter (convolution with that PSF); noise = robust std of the matched-filtered\n           half-split difference (A-B)/2, A/B = alternate exposures of the epoch in time order, so the\n           noise estimate contains no sky signal; S/N = max of the S/N map within 6\" of the prediction.\n  position PSF fit of the mover + a second PSF at the FIXED Gaia DR3 position of the blended star\n           5756956644387831296 (G=16.3) + constant; 1-sigma errors from the fit Jacobian with the\n           half-split per-pixel noise. Then a weighted linear fit of position vs time.\n  astrom   reference: the same PSF fit on Gaia DR3 stars (G < 15, propagated to the epoch) in the same frames;\n           their median offset is the frame's systematic astrometric error.\n  pm err   formal errors are scaled by sqrt(chi2/dof) when chi2/dof > 1 (dof = n_epochs - 2).\n  null     the same S/N measurement (max within 6\") at 3000 random positions per epoch whose disc avoids\n           any emission above 3 sigma in the matched-filtered frame."
+}
