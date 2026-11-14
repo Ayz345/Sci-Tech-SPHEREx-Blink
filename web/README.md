@@ -101,7 +101,8 @@ north (catalogue 10.4″/yr); WISE 0855 W → 9.6 ± 4.3″/yr west (catalogue ~
 
 - "Refine on single exposures" (needs the live server and 2+ marks): `POST /api/track` with
   `{key, band, marks: [{ra, dec, mjd, band}]}`. The result table shows each exposure (time, RA, Dec, ±″,
-  calibrated S/N `snr_calibrated` or "—", band, and status: accepted, "accepted · not in the MPC draft: <reason>"
+  "image S/N" = `snr_image` (the draft's logSNR is log10 of it), "acceptance S/N" = min(`snr_fit`,
+  `snr_calibrated`) (accepted at ≥ 5), "—" when missing, band, and status: accepted, "accepted · not in the MPC draft: <reason>"
   or "rejected: <reason>"; rejected rows faint) and the rate is fitted again from the accepted measurements.
   `nights[].night` is the start of a 24-hour UTC window.
 - "Download report…" opens a window with fixed text (draft only, nothing is sent; MPC checker, form and rules

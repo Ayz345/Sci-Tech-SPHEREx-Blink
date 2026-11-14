@@ -642,8 +642,11 @@ function normTrack(j) {
     counts: { found: j.n_exposures_found, measured: j.n_measured, accepted: j.n_accepted, draft: j.n_in_draft },
     testForms: j.mpc_test_forms || {},
     meas: (j.measurements || []).map((m) => ({ id: m.obs_id, time: m.obs_time, mjd: m.mjd, ra: m.ra, dec: m.dec,
-      // S/N: only the calibrated value is shown (snr_fit is about 1.5x optimistic); null -> "—"
-      rmsRa: m.rms_ra, rmsDec: m.rms_dec, snr: m.snr_calibrated ?? null, ok: !!m.accepted, reason: m.reason || "", band: m.band, night: m.night,
+      // two different S/N: image S/N (snr_image, behind the draft's logSNR) and acceptance S/N
+      // (min of snr_fit and snr_calibrated; a row is accepted at >= 5); null -> "—"
+      rmsRa: m.rms_ra, rmsDec: m.rms_dec, snrImage: m.snr_image ?? null,
+      snrAccept: [m.snr_fit, m.snr_calibrated].filter((v) => v != null).reduce((a, v) => Math.min(a, v), Infinity),
+      ok: !!m.accepted, reason: m.reason || "", band: m.band, night: m.night,
       inDraft: m.in_ades })), // in_ades: the server's word on whether this row is in the MPC draft
     validation: j.validation || {},
   };
@@ -689,9 +692,12 @@ function renderTrack() {
   const state = (m) => (!m.ok ? `rejected: ${escapeHtml(m.reason)}`
     : m.inDraft === false || (m.inDraft == null && m.reason) ? `accepted · not in the MPC draft${m.reason ? ": " + escapeHtml(m.reason) : ""}`
     : m.inDraft ? "accepted · in the MPC draft" : "accepted");
-  tbl.innerHTML = "<tr><th>time (UTC)</th><th>RA</th><th>Dec</th><th>±″</th><th title=\"calibrated on empty positions\">S/N (cal.)</th><th>band</th><th></th></tr>" +
+  const num = (v) => (v == null || !Number.isFinite(+v) ? "—" : (+v).toFixed(1));
+  tbl.innerHTML = "<tr><th>time (UTC)</th><th>RA</th><th>Dec</th><th>±″</th>" +
+    "<th title=\"S/N of the source in the image (snr_image); the draft's logSNR is log10 of this\">image S/N</th>" +
+    "<th title=\"min(snr_fit, snr_calibrated); a measurement is accepted at 5 or more\">acceptance S/N</th><th>band</th><th></th></tr>" +
     t.meas.map((m) => `<tr class="${m.ok ? "" : "rejected"}"><td>${escapeHtml(String(m.time ?? ""))}</td><td>${(+m.ra).toFixed(5)}</td>` +
-      `<td>${(+m.dec).toFixed(5)}</td><td>${Math.hypot(m.rmsRa, m.rmsDec).toFixed(1)}</td><td>${m.snr == null ? "—" : (+m.snr).toFixed(1)}</td>` +
+      `<td>${(+m.dec).toFixed(5)}</td><td>${Math.hypot(m.rmsRa, m.rmsDec).toFixed(1)}</td><td>${num(m.snrImage)}</td><td>${num(m.snrAccept)}</td>` +
       `<td>${escapeHtml(String(m.band ?? ""))}</td><td style="text-align:left">${state(m)}</td></tr>`).join("");
   $("refineResult").replaceChildren(head, tbl);
 }
@@ -748,7 +754,8 @@ async function downloadReport(format) {
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: decodeURIComponent(name) });
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     st.textContent = `Downloaded ${decodeURIComponent(name)}.` +
-      (ades && !MOCK ? (S.schemaChecked ? ` The server checked it against the ADES schema (${S.schemaChecked}).` : " The server did not report a schema check.") : "");
+      (ades && !MOCK ? (S.schemaChecked === "true" ? " The server checked it against the ADES schema."
+        : S.schemaChecked ? ` Schema check reported by the server: ${S.schemaChecked}.` : " The server did not report a schema check.") : "");
   } catch (e) { st.textContent = e.message; st.className = "err"; } // server messages are shown as they are
 }
 
