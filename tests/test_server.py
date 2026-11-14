@@ -98,6 +98,20 @@ def client(tmp_path, monkeypatch):
         r.close()
 
 
+def _wait_idle(timeout=60):
+    import time
+    from server import app as A
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        with A.REG.lock:
+            busy = A.REG.urgent or A.REG.background or any(
+                j.state == "running" for fs in A.REG.fields.values() for j in fs.jobs.values())
+        if not busy:
+            return
+        time.sleep(0.05)
+    raise AssertionError("registry did not become idle")
+
+
 def _strict(r):
     return json.loads(r.content, parse_constant=lambda c: (_ for _ in ()).throw(AssertionError(f"non-finite {c}")))
 
@@ -130,7 +144,9 @@ def test_manifest_band_frame(client):
     assert np.nanargmax(img) in {i * 120 + j for i in (59, 60) for j in (59, 60)}  # the star is in the middle
     assert client.calls["layers"] == ("IMAGE", "FLAGS")  # live path skips VARIANCE
 
-    # same request again: no new SIA2 query, no new download
+    # same request again: no new SIA2 query, no new download (after the background bands have finished,
+    # otherwise a background fetch can land between the two snapshots)
+    _wait_idle()
     n_sia, n_fetch = client.calls["sia"], client.calls["fetch"]
     assert client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "fov": 0.1}).status_code == 200
     assert client.get("/api/band", params={"key": m["key"], "band": "D3"}).status_code == 200
