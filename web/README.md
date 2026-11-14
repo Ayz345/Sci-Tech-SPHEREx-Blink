@@ -63,7 +63,10 @@ position without coverage.
 - Epochs with no data in the band (0 exposures): always skipped by playback and the arrow keys, whatever the
   low option. The slider can still reach them (dashed marker, "no data in this band") and shows a "no data" frame,
   so the epoch is seen to exist.
-- PSF-wing plot: `meta.wing` (control-star systematics) is shown verbatim under it.
+- PSF-wing plot: labelled "Indicative only, not a formal detection of variability." For the selected band it shows
+  `meta.wing_bands[band]` as a neutral comparison ("×2.42 between epochs; bright control stars reach ×1.47 —
+  exceeds / within the bright-star scatter"; `significant` only picks the phrase), a one-line summary over all
+  bands, and `meta.wing` (method text) verbatim.
 - API mode survives a server restart: "server not reachable, retrying…" and it carries on when the server is back.
 - Spectrum: `overflow: true` = recovered from overflow (valid, reduced accuracy): filled diamond, kept in the
   light curve; `saturated: true` stays a lower limit and is left out.

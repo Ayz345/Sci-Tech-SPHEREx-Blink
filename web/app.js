@@ -625,10 +625,12 @@ function plots() {
     // meta.wing_bands[band] = {ratio, threshold, significant}: the selected band first, then a short summary
     const wbs = meta.wing_bands || {}, cur = wbs[S.band];
     const fx = (v) => `×${(+v).toFixed(2)}`;
-    const line = cur ? `${S.band}: ${fx(cur.ratio)} between epochs; control stars reach ${fx(cur.threshold)}` +
-      (cur.significant === false ? " — not significant" : "") : "";
+    // neutral comparison: the wing series is consistent with variability, it does not prove it
+    // (meta.wing_bands[].significant only picks one of the two phrases; the word itself is never shown)
+    const cmp = (v) => (v.significant ? "exceeds the bright-star scatter" : "within the bright-star scatter");
+    const line = cur ? `${S.band}: ${fx(cur.ratio)} between epochs; bright control stars reach ${fx(cur.threshold)} — ${cmp(cur)}` : "";
     const summary = Object.keys(wbs).length ? "All bands: " + Object.entries(wbs).map(([b, v]) =>
-      `${b} ${fx(v.ratio)}${v.significant === false ? " (not significant)" : ""}`).join(", ") : "";
+      `${b} ${fx(v.ratio)} (${cmp(v)})`).join(", ") : "";
     $("wingNote").replaceChildren(...[line, summary, method].filter(Boolean).map((t) => Object.assign(document.createElement("div"), { textContent: t })));
   }
   const nf = pts.filter((p) => p.flagged).length, ns = pts.filter((p) => p.saturated).length;
