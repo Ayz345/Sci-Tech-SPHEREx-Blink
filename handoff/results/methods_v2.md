@@ -47,5 +47,38 @@ The numbers below are the published ones: `server/pipeline.variability_report` o
   - Measured with `spectrum_points(..., wings=True)` → `binned_series(kind="wing")` → `variability` on the cached R Dra cutouts, with controls from `select_controls` on `web/data/r-dra/gaia.json`.
 - **Control selection:** `select_controls` does not exclude stars embedded in the target's own halo or scattered light. This had no visible effect for RW Aur, Barnard or Eps Indi B, but it makes the R Dra controls unusable (above). A future improvement is to reject controls whose wing or background tracks the target.
 - **WISE 0855 blending:** the object passes 11.4″ → 8.2″ → 3.7″ (measured) from a constant star (Gaia DR3 5756956644387831296, G = 16.3). That star is what shows at short wavelengths. Its light is removed by the two-source PSF fit, with the 5–15% residual noted above.
+- **Per-exposure astrometry, time not verified:** an offset larger than ~5 s is not supported, but the time is not verified. Object-dependent systematics of ~0.15″ remain unexplained:
+  - Eros: −0.15″ along its motion.
+  - Euphrosyne: +0.14″ across its motion.
+  - Possible sources, none established: PSF asymmetry within the trail, or the object's colour across the LVF band.
+  - The structural reason the time cannot be separated from a sky offset: SPHEREx scans at ~90° solar elongation, so asteroids almost never move retrograde (1–3% of exposures for the candidates checked). An opposite-direction test is therefore not possible with these data.
 
-Reproduce: `python tests/test_coadd_metrics.py`, `tests/test_coadd_wise0855.py`, `tests/test_coadd_saturation.py`, `tests/test_coadd_wings.py`, `tests/test_coadd_variability.py`; figures with `python -m spx.display`.
+## Per-exposure astrometry (MPC drafts)
+
+Code: `spx/astrometry.py` (ada328d); validation `tests/test_astrometry.py` → `handoff/results/astrometry_validation_v2.json`.
+
+For an MPC report each exposure is measured on its own, since blink frames combine days and clip fast movers.
+
+- **Measurement:** a pixel-integrated Gaussian PSF (the exposure's PSF_FWHM) is fitted at a free position near the motion predicted from the user's marks. Gaia DR3 neighbours within 25″ are fitted as fixed PSFs. Pixels flagged only OUTLIER or TRANSIENT on the object's core are kept, because a moving source raises them.
+- **Uncertainty:** the fit error, scaled by √χ²ᵣ, added in quadrature to a 0.23″ per-axis floor measured on Gaia stars.
+- **Realistic single-exposure error per axis:** ~0.5″ at S/N 5–10, ~0.4″ at S/N 10–20, ~0.3″ at S/N 20–50, against a 6.15″ pixel.
+- **Validation:** positions were compared with JPL Horizons, moved from the geocentre to the spacecraft position in the header (X_SC/Y_SC/Z_SC, which we verified to be geocentric ICRF axes; the parallax correction is 1–10″).
+
+  | Object | Accepted | Median residual (RA·cosδ / Dec) | Robust scatter |
+  |---|---|---|---|
+  | (433) Eros | 382 of 450 | −0.12″ / −0.05″ | 0.17″ / 0.16″ |
+  | (31) Euphrosyne | 275 of 350 | −0.01″ / +0.02″ | 0.24″ / 0.18″ |
+
+  Gaia stars measured the same way show no bias: −0.01″ / −0.03″.
+- **Rejected exposures** are listed with the reason. An exposure is rejected for any of the following:
+  - S/N < 5, using the smaller of the fit S/N and an S/N calibrated on random positions of the same cutout;
+  - unusable core pixels;
+  - saturation;
+  - FINAST ≠ 0;
+  - a Gaia neighbour closer than 0.6 FWHM;
+  - more than 6.15″ of motion within the exposure (validated up to 4.9″).
+- **Time is not independently verified.** The along-track residual is −0.15″ for Eros and +0.01 ± 0.02″ for Euphrosyne (+1.3 ± 2.3 s). obsTime is the header mid-exposure time (DATE-AVG), uncorrected, and no time uncertainty is claimed.
+- **MPC rules followed** (MPC "Getting started" and "Reporting observations" pages): only detections of sufficient S/N, at least three observations per object per night, mid-exposure times, no approximate measures, and consistency better than 1″.
+- **WISE 0855** is too faint per exposure for MPC-grade positions; its epoch means agree with the co-add positions.
+
+Reproduce: `python tests/test_coadd_metrics.py`, `tests/test_coadd_wise0855.py`, `tests/test_coadd_saturation.py`, `tests/test_coadd_wings.py`, `tests/test_coadd_variability.py`, `tests/test_astrometry.py` (second object: `--object`); figures with `python -m spx.display`.
