@@ -1197,9 +1197,15 @@ async function loadCatwise() {
   if (!r.ok) { box.hidden = true; return; } // no layer for this field (e.g. R Dra in the gallery): no button
   let j;
   try { j = await r.json(); S.catwise = normCatwise(j); S.catBright = null; } catch { box.hidden = true; return; }
-  box.hidden = false; $("ovCat").disabled = false;
-  const moved = S.catwise.some((s) => s.pmra != null && s.pmdec != null && s.reliable), fast = S.catwise.filter((s) => !s.reliable).length;
   const m = j?.meta || {};
+  box.hidden = false;
+  if (!S.catwise.length) { // an empty answer: the catalogue has nothing here (not an outage)
+    $("ovCat").disabled = true; $("ovCat").checked = false;
+    note.textContent = m.empty_note || "CatWISE2020 has no sources in this field.";
+    return;
+  }
+  $("ovCat").disabled = false;
+  const moved = S.catwise.some((s) => s.pmra != null && s.pmdec != null && s.reliable), fast = S.catwise.filter((s) => !s.reliable).length;
   note.textContent = [`${S.catwise.length} sources; ` + (moved ? "moved to each epoch with their proper motion"
     : `positions at the catalogue epoch (${CAT_EPOCH}), not moved`),
     fast && `${fast} with an unreliable catalogue motion are drawn dashed at the catalogue position, not moved`,
