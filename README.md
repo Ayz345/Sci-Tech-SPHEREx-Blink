@@ -65,6 +65,17 @@ The moving-object report needs the ADES submission schema once: `python scripts/
 
 Rebuild the gallery from the archive: `python scripts/precompute.py` (all five targets).
 
+### When a new SPHEREx data release arrives
+
+1. Add the new collection name to the list: set `SPX_COLLECTIONS` (for example
+   `SPX_COLLECTIONS=spherex_dr2,spherex_dr1`) or edit `COLLECTIONS` in `spx/access.py`. Nothing else in the code
+   names a release.
+2. Restart the server. A new collection is asked from IRSA on the next request. Image lists are cached per
+   collection for 7 days and built frames are kept on disk, so delete `cache/sia/` and `cache/fields/` to rebuild
+   positions that were already built.
+3. Rebuild the gallery: `python scripts/precompute.py`. Each target's `provenance.json` records the collections,
+   the exposure counts and the code version it was built from, and the page shows the date range of the data.
+
 ## How it works
 
 ```
