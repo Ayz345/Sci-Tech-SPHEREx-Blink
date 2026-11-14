@@ -1,5 +1,5 @@
 {
- "code_hash": "30b1aa64097d",
+ "code_hash": "5fc61a58ccc5",
  "params": {
   "max_shift_px": 8.0,
   "shift_step_px": 0.5,
@@ -24,7 +24,7 @@
  },
  "targets": {
   "barnard": {
-   "seconds": 20.5,
+   "seconds": 21.7,
    "bands_searched": [
     "D1",
     "D2",
@@ -66,6 +66,9 @@
     "mover_residual": 1
    },
    "validation": [
+    "Finds objects that move at least about 10 arcsec (about the width of a star image) over the time covered; slower motion is mostly missed.",
+    "In a sparse field an object at S/N 12 per pass moving 15 arcsec was recovered in 18 of 18 injections; in a crowded field in 8 of 18.",
+    "Grade A: seen in two independent wavelength ranges, or in three passes on a straight line, or a known moving star. Grade B: one wavelength range only; very cold objects look like this, and so do most false alarms.",
     "D1: epochs [0, 1, 2], span 0.98 yr, FWHM 3.07 px, noise rescale 3.09, 3.07, 3.42, bright-star systematic 0.053 (pixel) / 0.027 (PSF amplitude) (156 peaks), saturated px 116, masked 482 px, 33 seeds, 1 movers, 2 variables",
     "D2: epochs [0, 1, 2], span 0.99 yr, FWHM 3.05 px, noise rescale 2.82, 2.99, 3.66, bright-star systematic 0.071 (pixel) / 0.039 (PSF amplitude) (161 peaks), saturated px 137, masked 510 px, 23 seeds, 0 movers, 1 variables",
     "D3: epochs [0, 1, 2], span 0.99 yr, FWHM 3.04 px, noise rescale 3.18, 2.96, 3.17, bright-star systematic 0.057 (pixel) / 0.036 (PSF amplitude) (169 peaks), saturated px 146, masked 543 px, 22 seeds, 0 movers, 0 variables",
@@ -79,6 +82,9 @@
      "kind": "mover",
      "known": true,
      "snr": 40.8,
+     "n_bands": 1,
+     "grade": "A",
+     "grade_reason": "known",
      "bands": [
       "D6"
      ],
@@ -87,19 +93,22 @@
        "epoch": 0,
        "ra": 269.446375,
        "dec": 4.766781,
-       "snr": 52.3
+       "snr": 52.3,
+       "snr_single": 95.4
       },
       {
        "epoch": 1,
        "ra": 269.446187,
        "dec": 4.768561,
-       "snr": 1.4
+       "snr": 1.4,
+       "snr_single": 39.6
       },
       {
        "epoch": 2,
        "ra": 269.446054,
        "dec": 4.76981,
-       "snr": 23.2
+       "snr": 23.2,
+       "snr_single": 67.7
       }
      ],
      "rate_arcsec_per_year": [
@@ -122,6 +131,9 @@
      "kind": "variable",
      "known": false,
      "snr": 9.3,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D1"
      ],
@@ -130,19 +142,22 @@
        "epoch": 0,
        "ra": 269.392173,
        "dec": 4.715797,
-       "snr": 3.0
+       "snr": 3.0,
+       "snr_single": 28.3
       },
       {
        "epoch": 1,
        "ra": 269.392173,
        "dec": 4.715797,
-       "snr": 10.4
+       "snr": 10.4,
+       "snr_single": 35.8
       },
       {
        "epoch": 2,
        "ra": 269.392173,
        "dec": 4.715797,
-       "snr": -8.3
+       "snr": -8.3,
+       "snr_single": 13.8
       }
      ],
      "rate_arcsec_per_year": null,
@@ -161,6 +176,9 @@
      "kind": "mover",
      "known": false,
      "snr": 9.3,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D1"
      ],
@@ -169,19 +187,22 @@
        "epoch": 0,
        "ra": 269.44733,
        "dec": 4.71945,
-       "snr": 3.3
+       "snr": 3.3,
+       "snr_single": -0.8
       },
       {
        "epoch": 1,
        "ra": 269.446698,
        "dec": 4.717754,
-       "snr": 6.6
+       "snr": 6.6,
+       "snr_single": 4.4
       },
       {
        "epoch": 2,
        "ra": 269.44615,
        "dec": 4.716284,
-       "snr": 0.3
+       "snr": 0.3,
+       "snr_single": -3.0
       }
      ],
      "rate_arcsec_per_year": [
@@ -199,6 +220,9 @@
      "kind": "variable",
      "known": false,
      "snr": 8.4,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D1"
      ],
@@ -207,19 +231,22 @@
        "epoch": 0,
        "ra": 269.449881,
        "dec": 4.819056,
-       "snr": 4.5
+       "snr": 4.5,
+       "snr_single": 9.6
       },
       {
        "epoch": 1,
        "ra": 269.449881,
        "dec": 4.819056,
-       "snr": -8.0
+       "snr": -8.0,
+       "snr_single": -2.9
       },
       {
        "epoch": 2,
        "ra": 269.449881,
        "dec": 4.819056,
-       "snr": 3.0
+       "snr": 3.0,
+       "snr_single": 7.4
       }
      ],
      "rate_arcsec_per_year": null,
@@ -233,6 +260,9 @@
      "kind": "variable",
      "known": false,
      "snr": 7.6,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D5"
      ],
@@ -241,19 +271,22 @@
        "epoch": 0,
        "ra": 269.470508,
        "dec": 4.76275,
-       "snr": -2.6
+       "snr": -2.6,
+       "snr_single": 12.0
       },
       {
        "epoch": 1,
        "ra": 269.470508,
        "dec": 4.76275,
-       "snr": 6.4
+       "snr": 6.4,
+       "snr_single": 16.7
       },
       {
        "epoch": 2,
        "ra": 269.470508,
        "dec": 4.76275,
-       "snr": -5.1
+       "snr": -5.1,
+       "snr_single": 7.8
       }
      ],
      "rate_arcsec_per_year": null,
@@ -267,6 +300,9 @@
      "kind": "variable",
      "known": false,
      "snr": 7.1,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D6"
      ],
@@ -275,19 +311,22 @@
        "epoch": 0,
        "ra": 269.451657,
        "dec": 4.752551,
-       "snr": 7.0
+       "snr": 7.0,
+       "snr_single": 28.3
       },
       {
        "epoch": 1,
        "ra": 269.451657,
        "dec": 4.752551,
-       "snr": -1.9
+       "snr": -1.9,
+       "snr_single": 14.3
       },
       {
        "epoch": 2,
        "ra": 269.451657,
        "dec": 4.752551,
-       "snr": -4.2
+       "snr": -4.2,
+       "snr_single": 16.6
       }
      ],
      "rate_arcsec_per_year": null,
@@ -301,6 +340,9 @@
      "kind": "variable",
      "known": false,
      "snr": 6.5,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D5"
      ],
@@ -309,19 +351,22 @@
        "epoch": 0,
        "ra": 269.465191,
        "dec": 4.763764,
-       "snr": -2.4
+       "snr": -2.4,
+       "snr_single": 23.3
       },
       {
        "epoch": 1,
        "ra": 269.465191,
        "dec": 4.763764,
-       "snr": 7.0
+       "snr": 7.0,
+       "snr_single": 26.7
       },
       {
        "epoch": 2,
        "ra": 269.465191,
        "dec": 4.763764,
-       "snr": -5.2
+       "snr": -5.2,
+       "snr_single": 17.7
       }
      ],
      "rate_arcsec_per_year": null,
@@ -335,6 +380,9 @@
      "kind": "variable",
      "known": false,
      "snr": 6.1,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D2"
      ],
@@ -343,19 +391,22 @@
        "epoch": 0,
        "ra": 269.424451,
        "dec": 4.774753,
-       "snr": -1.9
+       "snr": -1.9,
+       "snr_single": 20.2
       },
       {
        "epoch": 1,
        "ra": 269.424451,
        "dec": 4.774753,
-       "snr": -4.2
+       "snr": -4.2,
+       "snr_single": 16.5
       },
       {
        "epoch": 2,
        "ra": 269.424451,
        "dec": 4.774753,
-       "snr": 6.2
+       "snr": 6.2,
+       "snr_single": 22.5
       }
      ],
      "rate_arcsec_per_year": null,
@@ -372,7 +423,7 @@
    ]
   },
   "eps-indi-b": {
-   "seconds": 23.6,
+   "seconds": 24.2,
    "bands_searched": [
     "D1",
     "D2",
@@ -416,6 +467,9 @@
     "mover_residual": 1
    },
    "validation": [
+    "Finds objects that move at least about 10 arcsec (about the width of a star image) over the time covered; slower motion is mostly missed.",
+    "In a sparse field an object at S/N 12 per pass moving 15 arcsec was recovered in 18 of 18 injections; in a crowded field in 8 of 18.",
+    "Grade A: seen in two independent wavelength ranges, or in three passes on a straight line, or a known moving star. Grade B: one wavelength range only; very cold objects look like this, and so do most false alarms.",
     "D1: epochs [1, 2] (low-coverage [0] left out), span 0.53 yr, FWHM 3.10 px, noise rescale 2.68, 2.95, bright-star systematic 0.061 (pixel) / 0.073 (PSF amplitude) (51 peaks), saturated px 0, masked 0 px, 1 seeds, 0 movers, 1 variables",
     "D2: epochs [0, 1, 2, 3], span 1.42 yr, FWHM 3.08 px, noise rescale 4.17, 2.52, 3.02, 3.59, bright-star systematic 0.077 (pixel) / 0.063 (PSF amplitude) (55 peaks), saturated px 0, masked 0 px, 5 seeds, 1 movers, 0 variables",
     "D3: epochs [0, 1, 2, 3], span 1.41 yr, FWHM 3.10 px, noise rescale 3.76, 2.74, 3.16, 1.75, bright-star systematic 0.114 (pixel) / 0.091 (PSF amplitude) (54 peaks), saturated px 0, masked 0 px, 8 seeds, 1 movers, 0 variables",
@@ -429,6 +483,9 @@
      "kind": "mover",
      "known": true,
      "snr": 22.5,
+     "n_bands": 4,
+     "grade": "A",
+     "grade_reason": "known",
      "bands": [
       "D6",
       "D2",
@@ -440,25 +497,29 @@
        "epoch": 0,
        "ra": 331.095513,
        "dec": -56.800301,
-       "snr": 15.8
+       "snr": 15.8,
+       "snr_single": 54.1
       },
       {
        "epoch": 1,
        "ra": 331.096345,
        "dec": -56.800654,
-       "snr": 2.4
+       "snr": 2.4,
+       "snr_single": 41.9
       },
       {
        "epoch": 2,
        "ra": 331.097483,
        "dec": -56.801136,
-       "snr": 3.3
+       "snr": 3.3,
+       "snr_single": 46.1
       },
       {
        "epoch": 3,
        "ra": 331.098293,
        "dec": -56.801479,
-       "snr": 19.4
+       "snr": 19.4,
+       "snr_single": 53.2
       }
      ],
      "rate_arcsec_per_year": [
@@ -484,6 +545,9 @@
      "kind": "variable",
      "known": false,
      "snr": 8.6,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D6"
      ],
@@ -492,25 +556,29 @@
        "epoch": 0,
        "ra": 331.084649,
        "dec": -56.762431,
-       "snr": 7.1
+       "snr": 7.1,
+       "snr_single": 22.4
       },
       {
        "epoch": 1,
        "ra": 331.084649,
        "dec": -56.762431,
-       "snr": -5.9
+       "snr": -5.9,
+       "snr_single": 7.3
       },
       {
        "epoch": 2,
        "ra": 331.084649,
        "dec": -56.762431,
-       "snr": 2.9
+       "snr": 2.9,
+       "snr_single": 14.8
       },
       {
        "epoch": 3,
        "ra": 331.084649,
        "dec": -56.762431,
-       "snr": -6.8
+       "snr": -6.8,
+       "snr_single": 7.2
       }
      ],
      "rate_arcsec_per_year": null,
@@ -527,7 +595,7 @@
    ]
   },
   "wise-0855": {
-   "seconds": 15.5,
+   "seconds": 15.7,
    "bands_searched": [
     "D1",
     "D2",
@@ -566,6 +634,9 @@
     "mover_residual": 1
    },
    "validation": [
+    "Finds objects that move at least about 10 arcsec (about the width of a star image) over the time covered; slower motion is mostly missed.",
+    "In a sparse field an object at S/N 12 per pass moving 15 arcsec was recovered in 18 of 18 injections; in a crowded field in 8 of 18.",
+    "Grade A: seen in two independent wavelength ranges, or in three passes on a straight line, or a known moving star. Grade B: one wavelength range only; very cold objects look like this, and so do most false alarms.",
     "D1: epochs [1, 2] (low-coverage [0] left out), span 0.50 yr, FWHM 3.04 px, noise rescale 2.84, 2.83, bright-star systematic 0.064 (pixel) / 0.041 (PSF amplitude) (53 peaks), saturated px 0, masked 0 px, 6 seeds, 0 movers, 0 variables",
     "D2: epochs [0, 1, 2], span 0.99 yr, FWHM 3.03 px, noise rescale 2.76, 2.78, 2.63, bright-star systematic 0.079 (pixel) / 0.029 (PSF amplitude) (67 peaks), saturated px 0, masked 0 px, 9 seeds, 0 movers, 1 variables",
     "D3: epochs [1, 2] (low-coverage [0] left out), span 0.45 yr, FWHM 3.03 px, noise rescale 3.22, 3.24, bright-star systematic 0.041 (pixel) / 0.025 (PSF amplitude) (80 peaks), saturated px 0, masked 0 px, 13 seeds, 0 movers, 0 variables",
@@ -580,6 +651,9 @@
      "kind": "mover",
      "known": false,
      "snr": 10.7,
+     "n_bands": 1,
+     "grade": "A",
+     "grade_reason": "three passes on a line",
      "bands": [
       "D5",
       "W"
@@ -589,19 +663,22 @@
        "epoch": 0,
        "ra": 133.761245,
        "dec": -7.242326,
-       "snr": 6.5
+       "snr": 6.5,
+       "snr_single": 15.0
       },
       {
        "epoch": 1,
        "ra": 133.759995,
        "dec": -7.242231,
-       "snr": 0.8
+       "snr": 0.8,
+       "snr_single": 16.3
       },
       {
        "epoch": 2,
        "ra": 133.75881,
        "dec": -7.242141,
-       "snr": 3.1
+       "snr": 3.1,
+       "snr_single": 21.2
       }
      ],
      "rate_arcsec_per_year": [
@@ -620,6 +697,9 @@
      "kind": "variable",
      "known": false,
      "snr": 6.1,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D2"
      ],
@@ -628,19 +708,22 @@
        "epoch": 0,
        "ra": 133.714908,
        "dec": -7.261753,
-       "snr": -1.8
+       "snr": -1.8,
+       "snr_single": 6.5
       },
       {
        "epoch": 1,
        "ra": 133.714908,
        "dec": -7.261753,
-       "snr": 5.0
+       "snr": 5.0,
+       "snr_single": 15.7
       },
       {
        "epoch": 2,
        "ra": 133.714908,
        "dec": -7.261753,
-       "snr": -3.9
+       "snr": -3.9,
+       "snr_single": 7.1
       }
      ],
      "rate_arcsec_per_year": null,
@@ -652,7 +735,7 @@
    ]
   },
   "rw-aur": {
-   "seconds": 54.8,
+   "seconds": 56.5,
    "bands_searched": [
     "D1",
     "D2",
@@ -693,6 +776,9 @@
     "saturated_halo": 17
    },
    "validation": [
+    "Finds objects that move at least about 10 arcsec (about the width of a star image) over the time covered; slower motion is mostly missed.",
+    "In a sparse field an object at S/N 12 per pass moving 15 arcsec was recovered in 18 of 18 injections; in a crowded field in 8 of 18.",
+    "Grade A: seen in two independent wavelength ranges, or in three passes on a straight line, or a known moving star. Grade B: one wavelength range only; very cold objects look like this, and so do most false alarms.",
     "D1: epochs [0, 1, 2], span 1.01 yr, FWHM 3.15 px, noise rescale 2.49, 2.75, 2.50, bright-star systematic 0.089 (pixel) / 0.033 (PSF amplitude) (122 peaks), saturated px 0, masked 86 px, 22 seeds, 0 movers, 3 variables",
     "D2: epochs [0, 1, 2], span 1.01 yr, FWHM 3.09 px, noise rescale 2.62, 2.91, 2.52, bright-star systematic 0.053 (pixel) / 0.029 (PSF amplitude) (163 peaks), saturated px 0, masked 1 px, 26 seeds, 0 movers, 3 variables",
     "D3: epochs [0, 1, 2], span 0.99 yr, FWHM 3.11 px, noise rescale 2.92, 3.66, 2.94, bright-star systematic 0.038 (pixel) / 0.021 (PSF amplitude) (155 peaks), saturated px 0, masked 0 px, 27 seeds, 0 movers, 0 variables",
@@ -706,6 +792,9 @@
      "kind": "variable",
      "known": false,
      "snr": 12.7,
+     "n_bands": 3,
+     "grade": "A",
+     "grade_reason": "two independent bands",
      "bands": [
       "D5",
       "D6",
@@ -716,19 +805,22 @@
        "epoch": 0,
        "ra": 76.956031,
        "dec": 30.401336,
-       "snr": 11.8
+       "snr": 11.8,
+       "snr_single": 47.1
       },
       {
        "epoch": 1,
        "ra": 76.956031,
        "dec": 30.401336,
-       "snr": 4.1
+       "snr": 4.1,
+       "snr_single": 34.8
       },
       {
        "epoch": 2,
        "ra": 76.956031,
        "dec": 30.401336,
-       "snr": -13.3
+       "snr": -13.3,
+       "snr_single": 21.3
       }
      ],
      "rate_arcsec_per_year": null,
@@ -749,6 +841,9 @@
      "kind": "variable",
      "known": false,
      "snr": 10.1,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D1"
      ],
@@ -757,19 +852,22 @@
        "epoch": 0,
        "ra": 76.988104,
        "dec": 30.436037,
-       "snr": 7.3
+       "snr": 7.3,
+       "snr_single": 9.0
       },
       {
        "epoch": 1,
        "ra": 76.988104,
        "dec": 30.436037,
-       "snr": -6.4
+       "snr": -6.4,
+       "snr_single": -4.8
       },
       {
        "epoch": 2,
        "ra": 76.988104,
        "dec": 30.436037,
-       "snr": 0.7
+       "snr": 0.7,
+       "snr_single": 2.5
       }
      ],
      "rate_arcsec_per_year": null,
@@ -783,6 +881,9 @@
      "kind": "variable",
      "known": false,
      "snr": 7.2,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D1"
      ],
@@ -791,19 +892,22 @@
        "epoch": 0,
        "ra": 76.97454,
        "dec": 30.454246,
-       "snr": 3.7
+       "snr": 3.7,
+       "snr_single": 4.5
       },
       {
        "epoch": 1,
        "ra": 76.97454,
        "dec": 30.454246,
-       "snr": -3.9
+       "snr": -3.9,
+       "snr_single": -2.9
       },
       {
        "epoch": 2,
        "ra": 76.97454,
        "dec": 30.454246,
-       "snr": 4.5
+       "snr": 4.5,
+       "snr_single": 5.3
       }
      ],
      "rate_arcsec_per_year": null,
@@ -817,6 +921,9 @@
      "kind": "variable",
      "known": false,
      "snr": 7.1,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D2"
      ],
@@ -825,19 +932,22 @@
        "epoch": 0,
        "ra": 76.959841,
        "dec": 30.407949,
-       "snr": -6.8
+       "snr": -6.8,
+       "snr_single": 11.4
       },
       {
        "epoch": 1,
        "ra": 76.959841,
        "dec": 30.407949,
-       "snr": 6.3
+       "snr": 6.3,
+       "snr_single": 21.6
       },
       {
        "epoch": 2,
        "ra": 76.959841,
        "dec": 30.407949,
-       "snr": -0.7
+       "snr": -0.7,
+       "snr_single": 18.3
       }
      ],
      "rate_arcsec_per_year": null,
@@ -851,6 +961,9 @@
      "kind": "variable",
      "known": false,
      "snr": 6.4,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D2"
      ],
@@ -859,19 +972,22 @@
        "epoch": 0,
        "ra": 76.963159,
        "dec": 30.399727,
-       "snr": -1.0
+       "snr": -1.0,
+       "snr_single": 24.4
       },
       {
        "epoch": 1,
        "ra": 76.963159,
        "dec": 30.399727,
-       "snr": -7.7
+       "snr": -7.7,
+       "snr_single": 14.1
       },
       {
        "epoch": 2,
        "ra": 76.963159,
        "dec": 30.399727,
-       "snr": 10.4
+       "snr": 10.4,
+       "snr_single": 36.0
       }
      ],
      "rate_arcsec_per_year": null,
@@ -885,6 +1001,9 @@
      "kind": "variable",
      "known": false,
      "snr": 6.2,
+     "n_bands": 1,
+     "grade": "B",
+     "grade_reason": "one band",
      "bands": [
       "D2"
      ],
@@ -893,19 +1012,22 @@
        "epoch": 0,
        "ra": 76.98727,
        "dec": 30.373784,
-       "snr": 4.3
+       "snr": 4.3,
+       "snr_single": 16.0
       },
       {
        "epoch": 1,
        "ra": 76.98727,
        "dec": 30.373784,
-       "snr": -5.0
+       "snr": -5.0,
+       "snr_single": 4.9
       },
       {
        "epoch": 2,
        "ra": 76.98727,
        "dec": 30.373784,
-       "snr": 1.7
+       "snr": 1.7,
+       "snr_single": 14.4
       }
      ],
      "rate_arcsec_per_year": null,
@@ -917,7 +1039,7 @@
    ]
   },
   "r-dra": {
-   "seconds": 190.8,
+   "seconds": 196.2,
    "bands_searched": [
     "D1",
     "D2",
@@ -938,6 +1060,9 @@
     "saturated_halo": 45
    },
    "validation": [
+    "Finds objects that move at least about 10 arcsec (about the width of a star image) over the time covered; slower motion is mostly missed.",
+    "In a sparse field an object at S/N 12 per pass moving 15 arcsec was recovered in 18 of 18 injections; in a crowded field in 8 of 18.",
+    "Grade A: seen in two independent wavelength ranges, or in three passes on a straight line, or a known moving star. Grade B: one wavelength range only; very cold objects look like this, and so do most false alarms.",
     "D1: epochs [1, 2, 5] (low-coverage [0] left out), span 0.98 yr, FWHM 3.04 px, noise rescale 3.82, 2.86, 2.71, bright-star systematic 0.105 (pixel) / 0.082 (PSF amplitude) (30 peaks), saturated px 125, masked 513 px, 1 seeds, 0 movers, 0 variables",
     "D2: epochs [0, 1, 2, 3, 5], span 1.03 yr, FWHM 2.97 px, noise rescale 2.32, 6.08, 1.23, 1.01, 1.88, bright-star systematic 0.208 (pixel) / 0.217 (PSF amplitude) (24 peaks), saturated px 327, masked 853 px, 4 seeds, 0 movers, 0 variables",
     "D3: epochs [0, 3, 4, 5], span 1.01 yr, FWHM 3.03 px, noise rescale 2.54, 2.06, 0.53, 0.19, bright-star systematic 1.015 (pixel) / 1.092 (PSF amplitude) (17 peaks), saturated px 316, masked 830 px, 133 seeds, 0 movers, 0 variables",
