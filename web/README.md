@@ -97,6 +97,24 @@ live server, also for a gallery target opened from static files. The window gets
 centre falls in the window) are shown. Without the live server the page says so. Developer: `?winmock=1` serves
 any window as the target's `W` band, to try the interface before the server builds windows.
 
+## Sky context panel (F5, Aladin Lite)
+
+"Sky context (Aladin Lite)" is closed by default; Aladin Lite is loaded only when it is opened, and never in
+the embedded view. It shows the player's centre and field (orange box = this grid, ring = the target at the
+current epoch) in a chosen survey: AllWISE color, AllWISE W2, unWISE color, NEOWISER color, 2MASS color, DSS2
+color, Pan-STARRS DR1 color. If the script or WebGL2 is missing, one sentence says so and the page is unaffected.
+
+- Third-party code: Aladin Lite 3.8.2 by CDS (Université de Strasbourg / CNRS), loaded as an ES module from
+  `https://cdn.jsdelivr.net/npm/aladin-lite@3.8.2/dist/aladin.js`. Licence: the `LICENSE` file in the npm package
+  is the GNU LGPL v3 (the package also ships `COPYING` and `COPYING.LESSER`; its `package.json` for 3.8.2 says
+  "GPL-3", the later 3.9.2-beta says "LGPL-3.0-or-later"). Not bundled or modified.
+- Survey ids are from Aladin's built-in list and the CDS MocServer. They are passed to Aladin as HiPS URLs, not
+  ids, because the id resolver Aladin 3.8.2 calls (`alasky.unistra.fr`) does not resolve (checked 14 Nov 2026);
+  the URLs are each survey's `hips_service_url` mirrors from its MocServer record, tried in order (IRSA first),
+  and the first whose `properties` file answers is used. unWISE, NEOWISER and Pan-STARRS are only on CDS
+  servers, which did not answer on 14 Nov 2026; the panel then says so.
+- Aladin Lite itself also sends a start-up log request to `alasky.unistra.fr`; it fails without effect.
+
 ## Measure / mark (key `m`)
 
 Turn measuring on, click the moving object in one frame, step to another frame and click it again (any number

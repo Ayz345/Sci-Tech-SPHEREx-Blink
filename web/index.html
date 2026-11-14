@@ -101,6 +101,24 @@
   </aside>
 </main>
 
+<details id="aladinBox">
+  <summary>Sky context (Aladin Lite) — other surveys at the same place</summary>
+  <div class="row">
+    <label>survey <select id="aladinSurvey">
+      <option value="CDS/P/allWISE/color">AllWISE color (W1, W2, W4)</option>
+      <option value="CDS/P/allWISE/W2">AllWISE W2 (4.6 µm)</option>
+      <option value="CDS/P/unWISE/color-W2-W1W2-W1">unWISE color (W1, W2)</option>
+      <option value="CDS/P/NEOWISER/Color">NEOWISER color (W1, W2)</option>
+      <option value="CDS/P/2MASS/color">2MASS color (J, H, K)</option>
+      <option value="CDS/P/DSS2/color">DSS2 color (optical)</option>
+      <option value="CDS/P/PanSTARRS/DR1/color-z-zg-g">Pan-STARRS DR1 color (g, z)</option>
+    </select></label>
+    <span class="muted">same centre and field as the player; orange box = this grid, ring = target now</span>
+  </div>
+  <div id="aladinMsg" class="muted"></div>
+  <div id="aladinDiv"></div>
+</details>
+
 <section id="plots">
   <div><h3>Spectrum <span id="specWhere" class="muted"></span></h3><svg id="spec" viewBox="0 0 460 220"></svg>
     <div id="winBox" class="row">

@@ -959,6 +959,76 @@ function renderBands() {
   }));
 }
 
+// ---------- sky context panel (F5): Aladin Lite, loaded only when the panel is opened ----------
+// Aladin Lite 3.8.2 (CDS, LGPL-3.0 per the LICENSE file in the npm package), an ES module from jsDelivr.
+// Survey ids are from Aladin's own built-in list / the CDS MocServer (checked 14 Nov 2026).
+const ALADIN_URL = "https://cdn.jsdelivr.net/npm/aladin-lite@3.8.2/dist/aladin.js";
+// Surveys are given to Aladin as HiPS URLs, not ids: the id resolver Aladin 3.8.2 calls (alasky.unistra.fr)
+// does not resolve. The URLs are each survey's hips_service_url mirrors from its CDS MocServer record; the
+// page tries them in this order and uses the first whose "properties" file answers.
+const SURVEY_MIRRORS = {
+  "CDS/P/allWISE/color": ["https://irsa.ipac.caltech.edu/data/hips/CDS/AllWISE/RGB-W4-W2-W1", "https://skies.esac.esa.int/AllWISEColor",
+    "https://hips.china-vo.org/m/CDS_P_allWISE_color", "https://alasky.cds.unistra.fr/AllWISE/RGB-W4-W2-W1"],
+  "CDS/P/allWISE/W2": ["https://irsa.ipac.caltech.edu/data/hips/CDS/AllWISE/W2", "https://alasky.cds.unistra.fr/AllWISE/W2"],
+  "CDS/P/unWISE/color-W2-W1W2-W1": ["https://alasky.cds.unistra.fr/unWISE/color-W2-W1W2-W1", "https://alaskybis.cds.unistra.fr/unWISE/color-W2-W1W2-W1"],
+  "CDS/P/NEOWISER/Color": ["https://alasky.cds.unistra.fr/NEOWISER/W1W2", "https://alaskybis.cds.unistra.fr/NEOWISER/W1W2"],
+  "CDS/P/2MASS/color": ["https://irsa.ipac.caltech.edu/data/hips/CDS/2MASS/Color", "https://alasky.cds.unistra.fr/2MASS/Color"],
+  "CDS/P/DSS2/color": ["https://irsa.ipac.caltech.edu/data/hips/CDS/DSS2/color", "https://skies.esac.esa.int/DSSColor",
+    "https://stpubdata.s3.us-east-1.amazonaws.com/mast/skybackgrounds/DSSColor", "https://alasky.cds.unistra.fr/DSS/DSSColor"],
+  "CDS/P/PanSTARRS/DR1/color-z-zg-g": ["https://alasky.cds.unistra.fr/Pan-STARRS/DR1/color-z-zg-g", "https://alaskybis.cds.unistra.fr/Pan-STARRS/DR1/color-z-zg-g"],
+};
+const mirrorCache = {};
+async function pickMirror(id) {
+  if (id in mirrorCache) return mirrorCache[id];
+  for (const u of SURVEY_MIRRORS[id] || []) {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 4000);
+    try { const r = await fetch(`${u}/properties`, { signal: ctl.signal }); if (r.ok) return (mirrorCache[id] = u); }
+    catch { /* try the next mirror */ } finally { clearTimeout(t); }
+  }
+  return (mirrorCache[id] = null);
+}
+async function setSurvey() {
+  const id = $("aladinSurvey").value, label = $("aladinSurvey").selectedOptions[0].textContent;
+  $("aladinMsg").textContent = `Looking for a server for ${label}…`;
+  const url = await pickMirror(id);
+  if (!url) { $("aladinMsg").textContent = `${label}: none of its servers answers right now; choose another survey.`; return null; }
+  if (aladin) aladin.setBaseImageLayer(url);
+  $("aladinMsg").textContent = `${label} from ${new URL(url).host}`;
+  return url;
+}
+let aladin = null, aladinLoading = null;
+async function openAladin() {
+  if (aladin || aladinLoading || !S.m?.grid) return aladinLoading;
+  const msg = $("aladinMsg");
+  msg.textContent = "Loading Aladin Lite…";
+  aladinLoading = (async () => {
+    try {
+      const A = (await import(ALADIN_URL)).default;
+      await A.init; // throws when WebGL2 is not available
+      const first = await setSurvey(); // a reachable mirror of the chosen survey (or null)
+      const g = S.m.grid, [ra0, dec0] = pix2world((g.shape[1] - 1) / 2, (g.shape[0] - 1) / 2);
+      const fov = Math.max(g.shape[0], g.shape[1]) * Math.abs(g.cdelt[1]) * 1.3;
+      aladin = A.aladin("#aladinDiv", { ...(first ? { survey: first } : {}), fov, target: `${ra0} ${dec0}`,
+        showReticle: false, showCooGrid: false, showLayersControl: false, showGotoControl: false, showFullscreenControl: false,
+        showFrame: false, showZoomControl: true, showProjectionControl: false, showSimbadPointerControl: false, showShareControl: false });
+      // this grid's outline and the target's current position
+      const ov = A.graphicOverlay({ color: "#e89a3c", lineWidth: 2 });
+      aladin.addOverlay(ov);
+      const [ny, nx] = g.shape, c = [[-0.5, -0.5], [nx - 0.5, -0.5], [nx - 0.5, ny - 0.5], [-0.5, ny - 0.5]].map(([x, y]) => pix2world(x, y));
+      ov.add(A.polygon(c));
+      const t = S.m.target_track?.find((p) => p.epoch === S.m.epochs[S.epoch]?.id) || S.m.target_track?.at(-1) || S.m.query;
+      if (t) {
+        const cat = A.catalog({ name: "target", color: "#ff4fd8", sourceSize: 18, shape: "circle" });
+        aladin.addCatalog(cat); cat.addSources([A.source(+t.ra, +t.dec)]);
+      }
+    } catch (e) {
+      aladin = null;
+      msg.textContent = `The sky context viewer (Aladin Lite) could not be loaded (${e?.message || e}); the rest of the page works without it.`;
+    } finally { aladinLoading = null; }
+  })();
+  return aladinLoading;
+}
+
 // ---------- user wavelength windows ----------
 function windowId(lo, hi) { return `w${Math.round(lo * 1000)}_${Math.round(hi * 1000)}`; }
 function addCustomBand(id) {
@@ -1228,6 +1298,8 @@ function wire() {
     $("winNote").textContent = `${lo.toFixed(2)}–${hi.toFixed(2)} µm selected: press "Blink this window".`;
   });
   $("winGo").onclick = () => blinkWindow(+$("winLo").value, +$("winHi").value);
+  $("aladinBox").addEventListener("toggle", () => { if ($("aladinBox").open) openAladin(); });
+  $("aladinSurvey").onchange = () => { if (aladin) setSurvey(); };
   $("refineBtn").onclick = refine;
   $("reportBtn").onclick = openReport;
   $("dlgCsv").onclick = () => downloadReport("csv");
@@ -1297,6 +1369,6 @@ loadIndex();
 loadTarget();
 // developer hook (?debug=1): place marks at exact positions/times, e.g. to replay a known asteroid passage
 if (params.get("debug") === "1") {
-  window.__spx = { S, refine, openReport,
+  window.__spx = { S, refine, openReport, aladin: () => aladin,
     mark: (ra, dec, mjd, band = S.band) => { S.marks.push({ n: ++S.markSeq, ra, dec, mjd, epoch: S.epoch, date: `MJD ${mjd}`, band }); renderMarks(); draw(); } };
 }
