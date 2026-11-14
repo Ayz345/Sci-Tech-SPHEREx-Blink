@@ -134,7 +134,8 @@
       Submission form: <a href="https://minorplanetcenter.net/submit_psv" target="_blank" rel="noopener">submit_psv</a>.
       Rules: <a href="https://docs.minorplanetcenter.net/mpc-ops-docs/astrometry/reporting-observations/" target="_blank" rel="noopener">reporting observations</a>.
       Reading the rules and checking the file is your responsibility.</li>
-    <li>The MPC asks for at least three observations of an object per night and returns batches with single positions.</li>
+    <li>The MPC asks for at least three observations of an object per night and returns batches with single positions.
+      A space telescope has no night, so the server counts 24-hour windows (UTC).</li>
     <li>Station code 288 is SPHEREx. Submitting archival measurements under it may need a program code: contact the MPC first.</li>
     <li>SPHEREx pixels are 6.15″ (the MPC advises 2–3″ for ground observers). The position uncertainty of every
       measurement is written in the file. <span id="dlgValidation"></span></li>
@@ -145,7 +146,8 @@
   <label>Temporary designation (optional, up to 7 characters) <input id="dlgTrksub" maxlength="7" size="9"></label>
   <div class="row">
     <button id="dlgCsv" type="button">Download CSV</button>
-    <button id="dlgAdes" type="button">Download MPC draft (ADES)</button>
+    <button id="dlgAdes" type="button">Download MPC draft (ADES PSV)</button>
+    <button id="dlgAdesXml" type="button">Download MPC draft (ADES XML)</button>
     <button id="dlgClose" type="button">Close</button>
   </div>
   <div id="dlgWhy" class="muted"></div>

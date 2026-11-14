@@ -4,20 +4,149 @@
  "report_id": "mock-within",
  "regime": "within_visit",
  "regime_reason": "marks are 0.21 days apart: motion within one visit, as for a Solar System object",
- "rate": {"east": 41.2, "north": -12.7, "unit": "arcsec/h"},
+ "rate": {
+  "east": 41.2,
+  "north": -12.7,
+  "unit": "arcsec/h"
+ },
  "nights": [
-  {"night": "2025-10-31", "n_accepted": 4, "n_total": 5, "included": true},
-  {"night": "2025-11-01", "n_accepted": 2, "n_total": 3, "included": false}
+  {
+   "night": "2025-10-31",
+   "n_accepted": 4,
+   "n_total": 5,
+   "included": true
+  },
+  {
+   "night": "2025-11-01",
+   "n_accepted": 2,
+   "n_total": 3,
+   "included": false
+  }
  ],
  "measurements": [
-  {"obs_id": "mock-001", "obs_time": "2025-10-31T03:12:40.1Z", "mjd": 60979.13380, "ra": 133.80112, "dec": -7.23011, "rms_ra": 1.9, "rms_dec": 2.1, "snr": 14.2, "accepted": true, "reason": "", "band": "D3", "night": "2025-10-31"},
-  {"obs_id": "mock-002", "obs_time": "2025-10-31T04:47:05.6Z", "mjd": 60979.19937, "ra": 133.80031, "dec": -7.22991, "rms_ra": 2.0, "rms_dec": 2.0, "snr": 12.8, "accepted": true, "reason": "", "band": "D3", "night": "2025-10-31"},
-  {"obs_id": "mock-003", "obs_time": "2025-10-31T06:21:30.9Z", "mjd": 60979.26494, "ra": 133.79952, "dec": -7.22968, "rms_ra": 2.3, "rms_dec": 2.4, "snr": 9.7, "accepted": true, "reason": "", "band": "D4", "night": "2025-10-31"},
-  {"obs_id": "mock-004", "obs_time": "2025-10-31T07:55:56.2Z", "mjd": 60979.33051, "ra": 133.79870, "dec": -7.22950, "rms_ra": 2.6, "rms_dec": 2.5, "snr": 8.1, "accepted": true, "reason": "", "band": "D4", "night": "2025-10-31"},
-  {"obs_id": "mock-005", "obs_time": "2025-10-31T09:30:21.5Z", "mjd": 60979.39608, "ra": 133.79702, "dec": -7.22861, "rms_ra": 4.9, "rms_dec": 5.2, "snr": 3.1, "accepted": false, "reason": "S/N below 5", "band": "D5", "night": "2025-10-31"},
-  {"obs_id": "mock-006", "obs_time": "2025-11-01T02:10:00.0Z", "mjd": 60980.09028, "ra": 133.77011, "dec": -7.22111, "rms_ra": 2.2, "rms_dec": 2.2, "snr": 11.0, "accepted": true, "reason": "", "band": "D2", "night": "2025-11-01"},
-  {"obs_id": "mock-007", "obs_time": "2025-11-01T03:44:25.3Z", "mjd": 60980.15585, "ra": 133.76930, "dec": -7.22090, "rms_ra": 2.4, "rms_dec": 2.3, "snr": 10.2, "accepted": true, "reason": "", "band": "D2", "night": "2025-11-01"},
-  {"obs_id": "mock-008", "obs_time": "2025-11-01T05:18:50.6Z", "mjd": 60980.22142, "ra": 133.76501, "dec": -7.21800, "rms_ra": 6.0, "rms_dec": 6.0, "snr": 4.0, "accepted": false, "reason": "flagged pixels in the aperture", "band": "D6", "night": "2025-11-01"}
+  {
+   "obs_id": "mock-001",
+   "obs_time": "2025-10-31T03:12:40.1Z",
+   "mjd": 60979.1338,
+   "ra": 133.80112,
+   "dec": -7.23011,
+   "rms_ra": 1.9,
+   "rms_dec": 2.1,
+   "accepted": true,
+   "reason": "",
+   "band": "D3",
+   "night": "2025-10-31",
+   "snr_fit": 14.2,
+   "snr_calibrated": 9.5
+  },
+  {
+   "obs_id": "mock-002",
+   "obs_time": "2025-10-31T04:47:05.6Z",
+   "mjd": 60979.19937,
+   "ra": 133.80031,
+   "dec": -7.22991,
+   "rms_ra": 2.0,
+   "rms_dec": 2.0,
+   "accepted": true,
+   "reason": "",
+   "band": "D3",
+   "night": "2025-10-31",
+   "snr_fit": 12.8,
+   "snr_calibrated": 8.5
+  },
+  {
+   "obs_id": "mock-003",
+   "obs_time": "2025-10-31T06:21:30.9Z",
+   "mjd": 60979.26494,
+   "ra": 133.79952,
+   "dec": -7.22968,
+   "rms_ra": 2.3,
+   "rms_dec": 2.4,
+   "accepted": true,
+   "reason": "",
+   "band": "D4",
+   "night": "2025-10-31",
+   "snr_fit": 9.7,
+   "snr_calibrated": null
+  },
+  {
+   "obs_id": "mock-004",
+   "obs_time": "2025-10-31T07:55:56.2Z",
+   "mjd": 60979.33051,
+   "ra": 133.7987,
+   "dec": -7.2295,
+   "rms_ra": 2.6,
+   "rms_dec": 2.5,
+   "accepted": true,
+   "reason": "",
+   "band": "D4",
+   "night": "2025-10-31",
+   "snr_fit": 8.1,
+   "snr_calibrated": 5.4
+  },
+  {
+   "obs_id": "mock-005",
+   "obs_time": "2025-10-31T09:30:21.5Z",
+   "mjd": 60979.39608,
+   "ra": 133.79702,
+   "dec": -7.22861,
+   "rms_ra": 4.9,
+   "rms_dec": 5.2,
+   "accepted": false,
+   "reason": "S/N below 5",
+   "band": "D5",
+   "night": "2025-10-31",
+   "snr_fit": 3.1,
+   "snr_calibrated": 2.1
+  },
+  {
+   "obs_id": "mock-006",
+   "obs_time": "2025-11-01T02:10:00.0Z",
+   "mjd": 60980.09028,
+   "ra": 133.77011,
+   "dec": -7.22111,
+   "rms_ra": 2.2,
+   "rms_dec": 2.2,
+   "accepted": true,
+   "reason": "fewer than 3 in one night (24-hour window)",
+   "band": "D2",
+   "night": "2025-11-01",
+   "snr_fit": 11.0,
+   "snr_calibrated": 7.3
+  },
+  {
+   "obs_id": "mock-007",
+   "obs_time": "2025-11-01T03:44:25.3Z",
+   "mjd": 60980.15585,
+   "ra": 133.7693,
+   "dec": -7.2209,
+   "rms_ra": 2.4,
+   "rms_dec": 2.3,
+   "accepted": true,
+   "reason": "fewer than 3 in one night (24-hour window)",
+   "band": "D2",
+   "night": "2025-11-01",
+   "snr_fit": 10.2,
+   "snr_calibrated": 6.8
+  },
+  {
+   "obs_id": "mock-008",
+   "obs_time": "2025-11-01T05:18:50.6Z",
+   "mjd": 60980.22142,
+   "ra": 133.76501,
+   "dec": -7.218,
+   "rms_ra": 6.0,
+   "rms_dec": 6.0,
+   "accepted": false,
+   "reason": "flagged pixels in the aperture",
+   "band": "D6",
+   "night": "2025-11-01",
+   "snr_fit": 4.0,
+   "snr_calibrated": 2.7
+  }
  ],
- "validation": {"text": "SYNTHETIC: median offset 0.0″ from the JPL ephemeris over 0 exposures (mock).", "timing": "not verified"}
+ "validation": {
+  "text": "SYNTHETIC: median offset 0.0″ from the JPL ephemeris over 0 exposures (mock).",
+  "timing": "not verified"
+ }
 }

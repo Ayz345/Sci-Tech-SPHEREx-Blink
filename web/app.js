@@ -640,7 +640,8 @@ function normTrack(j) {
     id: j.report_id ?? j.id, regime: j.regime, regimeReason: j.regime_reason ?? "",
     nights: (j.nights || []).map((n) => ({ night: n.night, nAcc: n.n_accepted, nTot: n.n_total, included: n.included })),
     meas: (j.measurements || []).map((m) => ({ id: m.obs_id, time: m.obs_time, mjd: m.mjd, ra: m.ra, dec: m.dec,
-      rmsRa: m.rms_ra, rmsDec: m.rms_dec, snr: m.snr, ok: !!m.accepted, reason: m.reason || "", band: m.band, night: m.night })),
+      // S/N: only the calibrated value is shown (snr_fit is about 1.5x optimistic); null -> "—"
+      rmsRa: m.rms_ra, rmsDec: m.rms_dec, snr: m.snr_calibrated ?? null, ok: !!m.accepted, reason: m.reason || "", band: m.band, night: m.night })),
     validation: j.validation || {},
   };
 }
@@ -680,10 +681,12 @@ function renderTrack() {
     (f ? `\n${rateText(f, ok.length, "single-exposure measurements")}` : "\nfewer than two accepted measurements: no rate");
   head.style.whiteSpace = "pre-wrap";
   const tbl = document.createElement("table");
-  tbl.innerHTML = "<tr><th>time (UTC)</th><th>RA</th><th>Dec</th><th>±″</th><th>S/N</th><th>band</th><th></th></tr>" +
+  // "reason" says why a measurement is not in the MPC draft; an accepted one can still be left out of it
+  const state = (m) => (m.ok ? (m.reason ? `accepted · not in the MPC draft: ${escapeHtml(m.reason)}` : "accepted") : `rejected: ${escapeHtml(m.reason)}`);
+  tbl.innerHTML = "<tr><th>time (UTC)</th><th>RA</th><th>Dec</th><th>±″</th><th title=\"calibrated on empty positions\">S/N (cal.)</th><th>band</th><th></th></tr>" +
     t.meas.map((m) => `<tr class="${m.ok ? "" : "rejected"}"><td>${escapeHtml(String(m.time ?? ""))}</td><td>${(+m.ra).toFixed(5)}</td>` +
-      `<td>${(+m.dec).toFixed(5)}</td><td>${Math.hypot(m.rmsRa, m.rmsDec).toFixed(1)}</td><td>${(+m.snr).toFixed(1)}</td>` +
-      `<td>${escapeHtml(String(m.band ?? ""))}</td><td style="text-align:left">${m.ok ? "accepted" : "rejected: " + escapeHtml(m.reason)}</td></tr>`).join("");
+      `<td>${(+m.dec).toFixed(5)}</td><td>${Math.hypot(m.rmsRa, m.rmsDec).toFixed(1)}</td><td>${m.snr == null ? "—" : (+m.snr).toFixed(1)}</td>` +
+      `<td>${escapeHtml(String(m.band ?? ""))}</td><td style="text-align:left">${state(m)}</td></tr>`).join("");
   $("refineResult").replaceChildren(head, tbl);
 }
 
@@ -696,21 +699,24 @@ function openReport() {
   $("dlgNights").replaceChildren(...t.nights.map((n) => {
     const div = document.createElement("div"), inFile = n.included !== false && n.nAcc >= 3;
     div.className = inFile ? "" : "excluded";
-    div.textContent = `${n.night}: ${n.nAcc} accepted of ${n.nTot}` + (inFile ? "" : " — not in the MPC draft (fewer than 3 accepted that night)");
+    div.textContent = `24-h window from ${n.night} (UTC): ${n.nAcc} accepted of ${n.nTot}` +
+      (inFile ? "" : " — not in the MPC draft (fewer than 3 accepted in the window)");
     return div;
   }));
   const goodNight = t.nights.some((n) => n.included !== false && n.nAcc >= 3);
   const why = t.regime === "between_epochs" ? ADES_BLOCKED_BETWEEN
     : t.regime !== "within_visit" ? `The server did not classify this motion as within one visit (${t.regime ?? "unknown"}); use the CSV.`
-    : !goodNight ? "The MPC asks for at least three observations per night; no night has three accepted measurements. Use the CSV." : "";
-  $("dlgAdes").disabled = !!why; $("dlgWhy").textContent = why;
+    : !goodNight ? "The MPC asks for at least three observations per night; no 24-hour window has three accepted measurements. Use the CSV."
+    : S.health?.ades_schema === false ? "The server cannot check ADES files against the MPC schema right now, so it does not offer them; use the CSV." : "";
+  $("dlgAdes").disabled = $("dlgAdesXml").disabled = !!why; $("dlgWhy").textContent = why;
   $("dlgStatus").textContent = ""; $("dlgStatus").className = "";
   $("reportDlg").showModal();
 }
 async function downloadReport(format) {
   const t = S.track, st = $("dlgStatus");
   const submitter = $("dlgSubmitter").value.trim(), trksub = $("dlgTrksub").value.trim();
-  if (format === "ades" && !submitter) { st.textContent = "Enter the submitter name (for example I. M. Lastname)."; st.className = "err"; return; }
+  const ades = format.startsWith("ades");
+  if (ades && !submitter) { st.textContent = "Enter the submitter name (for example I. M. Lastname)."; st.className = "err"; return; }
   st.textContent = "Preparing the file…"; st.className = "";
   try {
     let blob, name;
@@ -719,7 +725,7 @@ async function downloadReport(format) {
       name = `MOCK_${format}_report.json`;
     } else {
       const q = new URLSearchParams({ id: t.id, format });
-      if (format === "ades") { q.set("submitter", submitter); if (trksub) q.set("trksub", trksub); }
+      if (ades) { q.set("submitter", submitter); if (trksub) q.set("trksub", trksub); }
       const r = await fetch(`${API}/api/report?${q}`);
       if (!r.ok) { let msg = `${r.status}`; try { msg = (await r.json()).message || msg; } catch { /* not json */ } throw new Error(msg); }
       blob = await r.blob();
@@ -1129,6 +1135,7 @@ function wire() {
   $("reportBtn").onclick = openReport;
   $("dlgCsv").onclick = () => downloadReport("csv");
   $("dlgAdes").onclick = () => downloadReport("ades");
+  $("dlgAdesXml").onclick = () => downloadReport("ades_xml");
   $("dlgClose").onclick = () => $("reportDlg").close();
   updateRefineButtons();
   setMeasuring(false);
