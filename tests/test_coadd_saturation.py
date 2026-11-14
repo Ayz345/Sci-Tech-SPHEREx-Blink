@@ -161,8 +161,8 @@ def run():
                              "inf_near": int(np.isposinf(f.image[near]).sum()), "covered_px": int(covered.sum()),
                              "core": "inf" if np.isposinf(core) else ("nan" if np.isnan(core) else round(core, 4)),
                              "peak_offset_px": round(peak_off, 2) if peak_off is not None else None})
-    from spx import code_hash
-    write_json(OUT_NAME, {"spx_code_hash": code_hash(), "frames": rows})
+    from spx import code_hash, frame_code_hash
+    write_json(OUT_NAME, {"spx_code_hash": code_hash(), "frame_code_hash": frame_code_hash(), "frames": rows})
     return rows
 
 

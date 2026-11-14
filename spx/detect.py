@@ -81,9 +81,8 @@ USER_LINES = [
     "slower motion is mostly missed.",
     "In a sparse field an object at S/N 12 per pass moving 15 arcsec was recovered in 18 of 18 injections; "
     "in a crowded field in 8 of 18.",
-    "Grade A = seen in at least two independent bands, or a known Gaia star; grade B = one band only. A change "
-    "seen in one band only is usually not confirmed in the neighbouring band (it is not explained by the "
-    "wavelengths sampled in each pass, which differ by less than 0.1 um); treat B with caution.",
+    "Grade A: seen in two independent wavelength ranges, or in three passes on a straight line, or a known moving "
+    "star. Grade B: one wavelength range only; very cold objects look like this, and so do most false alarms.",
 ]
 
 MJD_J2000 = 51544.5
@@ -246,6 +245,14 @@ class _Band:
         self.inner = inner & good
         self.zscale = np.array([_mad(Z[k][self.inner]) for k in range(self.n)])
         self.Z = Z / self.zscale[:, None, None]
+        # the same matched-filter S/N on each epoch FRAME itself (no template subtraction): is the object detected
+        # on its own in that pass? Same noise model and the same measured correlated-noise scale.
+        Zf = np.zeros_like(R)
+        for k in range(self.n):
+            num = cP * gaussian_filter(I0[k] * ivar[k], sg, mode="constant")
+            den = cP2 * gaussian_filter(ivar[k], sg / math.sqrt(2), mode="constant")
+            Zf[k] = np.where(den > 0, num / np.sqrt(np.maximum(den, 1e-30)), 0.0) / self.zscale[k]
+        self.Zf = Zf
         # same empirical scale for the local fits (pixel noise is correlated: native 6.15" pixels on a 3" grid)
         self.var = self.var * self.zscale[:, None, None] ** 2
         self.shape = (ny, nx)
@@ -345,6 +352,9 @@ class _Band:
 
     def amp_at(self, x, y):
         return max(0.0, float(map_coordinates(self.tamp, [[y], [x]], order=1, mode="nearest")[0]))
+
+    def zf_at(self, k, x, y):
+        return float(map_coordinates(self.Zf[k], [[y], [x]], order=1, mode="constant", cval=0.0)[0])
 
     def z_at(self, k, x, y):
         return float(map_coordinates(self.Z[k], [[y], [x]], order=1, mode="constant", cval=0.0)[0])
@@ -473,7 +483,8 @@ def _search_band(bid, bdata, wcs, gaia, p, rejected, validation):
         c["band"] = bid
         c["epochs"] = [{"epoch": e["id"], "mjd": float(B.mjd[k]),
                         "x": c["x"] + c["vx"] * B.dt[k], "y": c["y"] + c["vy"] * B.dt[k],
-                        "snr": B.z_at(k, c["x"] + c["vx"] * B.dt[k], c["y"] + c["vy"] * B.dt[k])}
+                        "snr": B.z_at(k, c["x"] + c["vx"] * B.dt[k], c["y"] + c["vy"] * B.dt[k]),
+                        "snr_single": B.zf_at(k, c["x"] + c["vx"] * B.dt[k], c["y"] + c["vy"] * B.dt[k])}
                        for k, e in enumerate(B.eps)]
         c["t_ref_mjd"] = B.t_ref_mjd
         c["span_yr"] = B.span
@@ -572,7 +583,7 @@ def find_candidates(field: dict, bands: list[str] | None = None, params: dict | 
         for e in h["epochs"]:
             ra, dec = wcs.wcs_pix2world([e["x"]], [e["y"]], 0)
             pos.append({"epoch": e["epoch"], "ra": round(float(ra[0]), 6), "dec": round(float(dec[0]), 6),
-                        "snr": round(e["snr"], 1)})
+                        "snr": round(e["snr"], 1), "snr_single": round(e["snr_single"], 1)})
         notes = [f"{c['band']}: S/N {c['snr']:.1f}" for c in g]
         if h["kind"] == "mover":
             notes.append(f"motion {h['shift_px'] * pix_arcsec:.1f} arcsec over {h['span_yr']:.2f} yr")
@@ -583,9 +594,16 @@ def find_candidates(field: dict, bands: list[str] | None = None, params: dict | 
         if h["kind"] == "variable" and h["near_gaia"]:
             notes.append("at a Gaia DR3 star")
         nb = n_independent_bands([c["band"] for c in g], waves)
+        # "three passes on a line": a mover (linear-motion model preferred by the fit) that is detected on its own
+        # (matched-filter S/N of that epoch's frame at its fitted track position >= mover_snr) in >= 3 epochs of one
+        # band: three separate detections on one straight line
+        three = h["kind"] == "mover" and any(len(c["epochs"]) >= 3 and all(e["snr_single"] >= p["mover_snr"] for e in c["epochs"])
+                                             for c in g)
+        reason = ("known" if h.get("known") else "two independent bands" if nb >= 2
+                  else "three passes on a line" if three else "one band")
         cands.append({
             "id": i + 1, "kind": h["kind"], "known": bool(h.get("known")), "snr": round(h["snr"], 1),
-            "n_bands": nb, "grade": "A" if (nb >= 2 or h.get("known")) else "B",
+            "n_bands": nb, "grade": "A" if reason != "one band" else "B", "grade_reason": reason,
             "bands": [c["band"] for c in g], "positions": pos,
             "rate_arcsec_per_year": ([round(h["vx"] * cd1, 2), round(h["vy"] * cd2, 2)] if h["kind"] == "mover" else None),
             "near_gaia": h["near_gaia"], "notes": notes})
@@ -606,5 +624,5 @@ if __name__ == "__main__":
         for line in res["validation"]:
             print("  ", line)
         for c in res["candidates"]:
-            print(f"   #{c['id']} {c['grade']} n{c['n_bands']} {c['kind']}{' (known)' if c['known'] else ''} S/N {c['snr']} bands {c['bands']} "
+            print(f"   #{c['id']} {c['grade']} ({c['grade_reason']}) n{c['n_bands']} {c['kind']}{' (known)' if c['known'] else ''} S/N {c['snr']} bands {c['bands']} "
                   f"rate {c['rate_arcsec_per_year']} gaia {c['near_gaia']} first {c['positions'][0]}")
