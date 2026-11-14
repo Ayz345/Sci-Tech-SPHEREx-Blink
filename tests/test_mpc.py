@@ -162,3 +162,32 @@ def test_each_exposure_keeps_its_own_spacecraft_position(telescope):
     assert [r["pos3"] for r in rows] == ["-4079.724", "-4442.724", "-4805.724"]
     assert len({r["vel1"] for r in rows}) == 3
     assert len({r["obsTime"] for r in rows}) == 3
+
+
+def test_ades_selection_rules_and_validation_lines(tmp_path, monkeypatch):
+    import json
+    d = _dets(6)
+    d[0]["trailed"] = True
+    d[1]["accepted"], d[1]["reason"] = False, "blended"
+    d[2]["regime"] = "between_epochs"
+    for x in d[3:]:
+        x["regime"], x["accepted"], x["trailed"] = "within_visit", True, False
+    rows = _psv_parse(mpc.write_ades_psv(d, {"submitter": "X"}))[1]
+    assert len(rows) == 3
+    csv_txt = mpc.write_csv(d, {})
+    for why in ("trailed", "blended", "regime between_epochs"):
+        assert why in csv_txt
+    txt = mpc.write_ades_psv(d, {"submitter": "X"})
+    assert "rmsTime" not in txt and "Method validation summary not available" in txt
+    assert "obsTime is the header mid-exposure time (DATE-AVG); not independently verified." in txt
+    f = tmp_path / "v.json"
+    f.write_text(json.dumps({"object": "(433) Eros", "r": {"mra": -0.12, "mdec": -0.05, "sra": 0.17, "sdec": 0.16,
+                                                          "at": -0.15, "n": 382, "floor": 0.23}}), encoding="utf-8")
+    monkeypatch.setattr(mpc, "VALIDATION_FILE", f)
+    monkeypatch.setattr(mpc, "VALIDATION_KEYS", {"object": "object", "median_ra": "r.mra", "median_dec": "r.mdec",
+                                                 "scatter_ra": "r.sra", "scatter_dec": "r.sdec",
+                                                 "along_track": "r.at", "n_accepted": "r.n", "floor": "r.floor"})
+    txt = mpc.write_ades_psv(d, {"submitter": "X"})
+    assert "against JPL Horizons: median offset -0.12, -0.05 arcsec;" in txt
+    assert "Along-track residual on (433) Eros: -0.15 arcsec (382 exposures)." in txt
+    assert mpc.validate_psv(txt) == []

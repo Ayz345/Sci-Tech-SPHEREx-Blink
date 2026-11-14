@@ -73,6 +73,13 @@ UNVERIFIED_FACTS: list = []
 #: Only exposures with a good fine-astrometric solution go into an ADES draft (Explanatory Supplement v2.1:
 #: FINAST 0 good, 1 partly good, higher not to be used); the others stay in the CSV with the reason.
 GOOD_FINAST = (0,)
+#: Only measurements made within one visit go into an ADES draft (between-epoch tracks are proper-motion stars).
+ADES_REGIME = "within_visit"
+
+#: The co-add session's validation of the per-exposure astrometry against JPL Horizons (set to its test JSON;
+#: read at write time, never typed in here). Keys are mapped in VALIDATION_KEYS once the file is known.
+VALIDATION_FILE: Path | None = None
+VALIDATION_KEYS: dict = {}
 #: Minimum accepted single-exposure detections for an ADES draft. MPC rule not found in our sources.
 MIN_DETECTIONS = 3
 MIN_DETECTIONS_VERIFIED = False
@@ -163,6 +170,7 @@ def _comment_lines(context: dict) -> list[str]:
         f"Made with {tool}" + (f", code {code}" if code else "") + ".",
         "Data: NASA/IPAC IRSA SPHEREx archive (DR1/QR3 Level 2 images).",
         "Positions measured on single exposures; obsTime is mid-exposure (UTC).",
+        "obsTime is the header mid-exposure time (DATE-AVG); not independently verified.",
         "Telescope: SPHEREx Explanatory Supplement v2.1, Sec. 1.3 and Table 2",
         "Spacecraft position: header X_SC, Y_SC, Z_SC (geocentric, ICRF equatorial;",
         "checked against the header ground-track longitude)",
@@ -170,6 +178,17 @@ def _comment_lines(context: dict) -> list[str]:
         "astCat code not verified against the MPC list",
         "Checked with an in-house reader of adesmaster.xml; not validated with the official ADES tools",
     ]
+    v = validation_summary()
+    if v is None:
+        lines.append("Method validation summary not available")
+    else:
+        lines += [
+            f"Method validated on {v['object']} against JPL Horizons: median offset {v['median_ra']:+.2f}, "
+            f"{v['median_dec']:+.2f} arcsec;",
+            f"scatter {v['scatter_ra']:.2f}, {v['scatter_dec']:.2f} arcsec.",
+            f"Along-track residual on {v['object']}: {v['along_track']:+.2f} arcsec ({v['n_accepted']} exposures).",
+            f"Position uncertainties include a {v['floor']:.2f} arcsec floor per axis measured on Gaia DR3 stars.",
+        ]
     unver = [k for k, ok in VERIFIED.items() if not ok]
     if unver:
         lines.append("unverified: " + ", ".join(unver))
@@ -221,14 +240,37 @@ def ades_rows(detections, trk_sub: str) -> list[dict]:
 
 
 def ades_reason(d) -> str | None:
-    """Why a detection stays out of an ADES draft (None = it goes in)."""
+    """Why a detection stays out of an ADES draft (None = it goes in): not accepted (e.g. blended), FINAST not 0,
+    trailed, a regime other than within_visit, or no spacecraft position."""
     if d.get("accepted") is False:
         return d.get("reason") or "not accepted by the measurement"
     if d.get("finast") is not None and int(d["finast"]) not in GOOD_FINAST:
         return f"FINAST={d['finast']} (only {', '.join(map(str, GOOD_FINAST))} used for ADES)"
+    if d.get("trailed"):
+        return "trailed"
+    if d.get("regime") is not None and d["regime"] != ADES_REGIME:
+        return f"regime {d['regime']} (ADES only for {ADES_REGIME})"
     if d.get("sc_pos_km") is None:
         return "no spacecraft position"
     return None
+
+
+def validation_summary() -> dict | None:
+    """The co-add session's Horizons validation, read from its test output; None when not available."""
+    import json
+    if VALIDATION_FILE is None or not Path(VALIDATION_FILE).exists() or not VALIDATION_KEYS:
+        return None
+    data = json.loads(Path(VALIDATION_FILE).read_text(encoding="utf-8"))
+
+    def get(path):
+        cur = data
+        for k in path.split("."):
+            if not isinstance(cur, dict) or k not in cur:
+                return None
+            cur = cur[k]
+        return cur
+    out = {name: get(path) for name, path in VALIDATION_KEYS.items()}
+    return None if any(v is None for v in out.values()) else out
 
 
 def build_ades(detections, context: dict):
