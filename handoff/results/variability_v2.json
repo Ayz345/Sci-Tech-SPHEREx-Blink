@@ -37,8 +37,8 @@
    "target_ratio": 1.4,
    "n_bins": 8,
    "n_controls": 5,
-   "control_max": 1.031,
-   "control_median": 1.024,
+   "control_max": 1.024,
+   "control_median": 1.023,
    "variable": true,
    "weak": false
   },
@@ -46,8 +46,8 @@
    "target_ratio": 1.373,
    "n_bins": 6,
    "n_controls": 5,
-   "control_max": 1.061,
-   "control_median": 1.034,
+   "control_max": 1.059,
+   "control_median": 1.032,
    "variable": true,
    "weak": false
   },
@@ -55,8 +55,8 @@
    "target_ratio": 1.463,
    "n_bins": 1,
    "n_controls": 5,
-   "control_max": 1.051,
-   "control_median": 1.038,
+   "control_max": 1.045,
+   "control_median": 1.034,
    "variable": true,
    "weak": true
   },
@@ -64,8 +64,8 @@
    "target_ratio": 1.172,
    "n_bins": 1,
    "n_controls": 5,
-   "control_max": 1.058,
-   "control_median": 1.042,
+   "control_max": 1.039,
+   "control_median": 1.032,
    "variable": true,
    "weak": true
   },
@@ -73,8 +73,8 @@
    "target_ratio": 1.942,
    "n_bins": 7,
    "n_controls": 5,
-   "control_max": 1.063,
-   "control_median": 1.035,
+   "control_max": 1.059,
+   "control_median": 1.033,
    "variable": true,
    "weak": false
   },
@@ -82,8 +82,8 @@
    "target_ratio": 1.641,
    "n_bins": 8,
    "n_controls": 5,
-   "control_max": 1.111,
-   "control_median": 1.06,
+   "control_max": 1.103,
+   "control_median": 1.054,
    "variable": true,
    "weak": false
   }

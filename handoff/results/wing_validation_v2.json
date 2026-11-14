@@ -12,8 +12,8 @@
      0.804
     ],
     "epochs": 3,
-    "n": 10,
-    "max_over_min": 1.173
+    "n": 11,
+    "max_over_min": 1.179
    },
    {
     "band": "D1",
@@ -22,8 +22,8 @@
      0.867
     ],
     "epochs": 3,
-    "n": 9,
-    "max_over_min": 1.39
+    "n": 10,
+    "max_over_min": 1.422
    },
    {
     "band": "D1",
@@ -32,8 +32,8 @@
      0.93
     ],
     "epochs": 3,
-    "n": 7,
-    "max_over_min": 1.185
+    "n": 9,
+    "max_over_min": 1.273
    },
    {
     "band": "D1",
@@ -42,8 +42,8 @@
      0.993
     ],
     "epochs": 3,
-    "n": 8,
-    "max_over_min": 1.016
+    "n": 9,
+    "max_over_min": 1.004
    },
    {
     "band": "D1",
@@ -52,8 +52,8 @@
      1.056
     ],
     "epochs": 3,
-    "n": 7,
-    "max_over_min": 1.341
+    "n": 8,
+    "max_over_min": 1.26
    },
    {
     "band": "D1",
@@ -62,8 +62,8 @@
      1.119
     ],
     "epochs": 3,
-    "n": 4,
-    "max_over_min": 1.375
+    "n": 5,
+    "max_over_min": 1.371
    }
   ]
  },
@@ -107,8 +107,8 @@
       0.804
      ],
      "epochs": 3,
-     "n": 8,
-     "max_over_min": 1.065
+     "n": 11,
+     "max_over_min": 1.246
     },
     {
      "band": "D1",
@@ -117,8 +117,8 @@
       0.867
      ],
      "epochs": 3,
-     "n": 8,
-     "max_over_min": 1.202
+     "n": 9,
+     "max_over_min": 1.177
     },
     {
      "band": "D1",
@@ -137,8 +137,8 @@
       0.993
      ],
      "epochs": 3,
-     "n": 7,
-     "max_over_min": 1.09
+     "n": 9,
+     "max_over_min": 1.045
     },
     {
      "band": "D1",
@@ -147,8 +147,8 @@
       1.056
      ],
      "epochs": 3,
-     "n": 7,
-     "max_over_min": 1.032
+     "n": 8,
+     "max_over_min": 1.141
     },
     {
      "band": "D1",
@@ -157,8 +157,8 @@
       1.119
      ],
      "epochs": 3,
-     "n": 6,
-     "max_over_min": 1.361
+     "n": 7,
+     "max_over_min": 1.343
     },
     {
      "band": "D2",
@@ -167,8 +167,8 @@
       1.196
      ],
      "epochs": 3,
-     "n": 8,
-     "max_over_min": 1.028
+     "n": 9,
+     "max_over_min": 1.107
     },
     {
      "band": "D2",
@@ -177,8 +177,8 @@
       1.286
      ],
      "epochs": 3,
-     "n": 9,
-     "max_over_min": 1.212
+     "n": 10,
+     "max_over_min": 1.218
     },
     {
      "band": "D2",
@@ -187,8 +187,8 @@
       1.376
      ],
      "epochs": 3,
-     "n": 7,
-     "max_over_min": 1.118
+     "n": 8,
+     "max_over_min": 1.102
     },
     {
      "band": "D2",
@@ -197,8 +197,8 @@
       1.466
      ],
      "epochs": 3,
-     "n": 8,
-     "max_over_min": 1.124
+     "n": 9,
+     "max_over_min": 1.133
     },
     {
      "band": "D2",
@@ -227,8 +227,8 @@
       1.764
      ],
      "epochs": 3,
-     "n": 9,
-     "max_over_min": 1.066
+     "n": 11,
+     "max_over_min": 1.033
     },
     {
      "band": "D3",
@@ -237,8 +237,8 @@
       1.888
      ],
      "epochs": 3,
-     "n": 8,
-     "max_over_min": 1.094
+     "n": 9,
+     "max_over_min": 1.116
     },
     {
      "band": "D3",
@@ -257,8 +257,8 @@
       2.136
      ],
      "epochs": 3,
-     "n": 7,
-     "max_over_min": 1.196
+     "n": 8,
+     "max_over_min": 1.172
     },
     {
      "band": "D3",
@@ -267,8 +267,8 @@
       2.261
      ],
      "epochs": 3,
-     "n": 5,
-     "max_over_min": 1.087
+     "n": 6,
+     "max_over_min": 1.068
     },
     {
      "band": "D3",
@@ -320,9 +320,9 @@
       0.741,
       0.804
      ],
-     "epochs": 2,
-     "n": 4,
-     "max_over_min": 1.1
+     "epochs": 3,
+     "n": 8,
+     "max_over_min": 1.499
     },
     {
      "band": "D1",
@@ -331,7 +331,7 @@
       0.867
      ],
      "epochs": 3,
-     "n": 8,
+     "n": 9,
      "max_over_min": 1.245
     },
     {
@@ -341,8 +341,8 @@
       0.93
      ],
      "epochs": 3,
-     "n": 5,
-     "max_over_min": 1.316
+     "n": 7,
+     "max_over_min": 1.297
     },
     {
      "band": "D1",
@@ -350,9 +350,19 @@
       0.93,
       0.993
      ],
-     "epochs": 2,
-     "n": 5,
-     "max_over_min": 1.12
+     "epochs": 3,
+     "n": 7,
+     "max_over_min": 1.736
+    },
+    {
+     "band": "D1",
+     "wave_um": [
+      0.993,
+      1.056
+     ],
+     "epochs": 3,
+     "n": 6,
+     "max_over_min": 1.401
     },
     {
      "band": "D1",
@@ -361,8 +371,8 @@
       1.119
      ],
      "epochs": 2,
-     "n": 2,
-     "max_over_min": 4.366
+     "n": 3,
+     "max_over_min": 1.943
     },
     {
      "band": "D2",
@@ -381,8 +391,8 @@
       1.278
      ],
      "epochs": 3,
-     "n": 9,
-     "max_over_min": 1.45
+     "n": 10,
+     "max_over_min": 1.219
     },
     {
      "band": "D2",
@@ -401,8 +411,8 @@
       1.462
      ],
      "epochs": 3,
-     "n": 7,
-     "max_over_min": 1.175
+     "n": 10,
+     "max_over_min": 1.144
     },
     {
      "band": "D2",
@@ -411,8 +421,8 @@
       1.554
      ],
      "epochs": 3,
-     "n": 6,
-     "max_over_min": 1.264
+     "n": 7,
+     "max_over_min": 1.33
     },
     {
      "band": "D2",
@@ -461,7 +471,7 @@
       2.15
      ],
      "epochs": 3,
-     "n": 8,
+     "n": 9,
      "max_over_min": 1.286
     },
     {
@@ -522,11 +532,21 @@
      "band": "D1",
      "wave_um": [
       0.767,
-      0.817
+      0.819
+     ],
+     "epochs": 2,
+     "n": 5,
+     "max_over_min": 1.056
+    },
+    {
+     "band": "D1",
+     "wave_um": [
+      1.027,
+      1.079
      ],
      "epochs": 2,
      "n": 3,
-     "max_over_min": 1.144
+     "max_over_min": 1.756
     },
     {
      "band": "D2",
@@ -535,8 +555,8 @@
       1.219
      ],
      "epochs": 3,
-     "n": 14,
-     "max_over_min": 1.25
+     "n": 15,
+     "max_over_min": 1.285
     },
     {
      "band": "D2",
@@ -545,8 +565,8 @@
       1.306
      ],
      "epochs": 3,
-     "n": 8,
-     "max_over_min": 1.12
+     "n": 9,
+     "max_over_min": 1.118
     },
     {
      "band": "D2",
@@ -555,7 +575,7 @@
       1.392
      ],
      "epochs": 4,
-     "n": 8,
+     "n": 9,
      "max_over_min": 1.321
     },
     {
@@ -564,8 +584,8 @@
       1.392,
       1.479
      ],
-     "epochs": 3,
-     "n": 4,
+     "epochs": 4,
+     "n": 5,
      "max_over_min": 1.264
     },
     {
@@ -574,9 +594,9 @@
       1.479,
       1.565
      ],
-     "epochs": 3,
-     "n": 4,
-     "max_over_min": 1.191
+     "epochs": 4,
+     "n": 7,
+     "max_over_min": 1.256
     },
     {
      "band": "D2",
@@ -591,18 +611,18 @@
     {
      "band": "D3",
      "wave_um": [
-      1.647,
-      1.769
+      1.644,
+      1.766
      ],
-     "epochs": 3,
-     "n": 15,
-     "max_over_min": 2.282
+     "epochs": 4,
+     "n": 17,
+     "max_over_min": 1.604
     },
     {
      "band": "D3",
      "wave_um": [
-      1.769,
-      1.89
+      1.766,
+      1.888
      ],
      "epochs": 2,
      "n": 8,
@@ -611,37 +631,37 @@
     {
      "band": "D3",
      "wave_um": [
-      1.89,
-      2.012
+      1.888,
+      2.01
      ],
      "epochs": 4,
-     "n": 10,
+     "n": 11,
      "max_over_min": 1.475
     },
     {
      "band": "D3",
      "wave_um": [
-      2.012,
-      2.133
+      2.01,
+      2.132
      ],
      "epochs": 4,
-     "n": 10,
-     "max_over_min": 1.236
+     "n": 11,
+     "max_over_min": 1.201
     },
     {
      "band": "D3",
      "wave_um": [
-      2.133,
-      2.255
+      2.132,
+      2.254
      ],
-     "epochs": 2,
-     "n": 6,
+     "epochs": 3,
+     "n": 8,
      "max_over_min": 1.406
     },
     {
      "band": "D3",
      "wave_um": [
-      2.255,
+      2.254,
       2.376
      ],
      "epochs": 4,
@@ -653,12 +673,12 @@
  ],
  "summary": {
   "controls_n_stars": 3,
-  "controls_n_bins": 48,
-  "controls_median_max_over_min": 1.203,
-  "controls_p90": 1.465,
+  "controls_n_bins": 50,
+  "controls_median_max_over_min": 1.232,
+  "controls_p90": 1.51,
   "rw_aur_D1_n_bins": 6,
-  "rw_aur_D1_median_max_over_min": 1.263,
-  "significance_threshold": 1.465
+  "rw_aur_D1_median_max_over_min": 1.266,
+  "significance_threshold": 1.51
  },
  "wing_variability": {
   "rw-aur": {
@@ -667,19 +687,19 @@
     "n_bins": 8
    },
    "D2": {
-    "ratio": 1.48,
+    "ratio": 1.435,
     "n_bins": 8
    },
    "D3": {
-    "ratio": 1.18,
+    "ratio": 1.204,
     "n_bins": 8
    },
    "D4": {
-    "ratio": 1.346,
-    "n_bins": 8
+    "ratio": 1.151,
+    "n_bins": 3
    },
    "D5": {
-    "ratio": 2.642,
+    "ratio": 2.693,
     "n_bins": 8
    },
    "D6": {
