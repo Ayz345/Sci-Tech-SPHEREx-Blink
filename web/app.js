@@ -1296,7 +1296,7 @@ async function loadCandidates() {
     const li = document.createElement("li"), b = document.createElement("button");
     const rate = c.rate_arcsec_per_year ? ` · ${Math.hypot(...c.rate_arcsec_per_year).toFixed(1)}″/yr` : "";
     // grade A/B from the detector (B drawn faint); n_bands = in how many bands it was found
-    b.textContent = `${c.id}${c.grade ? ` [${c.grade}]` : ""} ${candLabel(c)} · ${(c.bands || []).join(", ")}` +
+    b.textContent = `${c.id}${c.grade ? ` [${c.grade}${c.grade_reason ? `: ${c.grade_reason}` : ""}]` : ""} ${candLabel(c)} · ${(c.bands || []).join(", ")}` +
       `${c.n_bands != null ? ` (${c.n_bands} band${c.n_bands === 1 ? "" : "s"})` : ""} · S/N ${(+c.snr).toFixed(1)}${rate}`;
     if (c.grade === "B") b.classList.add("gradeB");
     const ng = c.near_gaia ? `\nnear Gaia DR3 ${c.near_gaia.source_id} (${(+c.near_gaia.sep_arcsec).toFixed(1)}″, G ${(+c.near_gaia.g_mag).toFixed(1)})` : "";

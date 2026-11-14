@@ -102,7 +102,7 @@ body.embed fieldset label { margin: 2px 0; }
 /* compact controls so the player fits a 560 px high frame */
 body.embed #bands button { padding: 2px 6px; }
 body.embed #bands button small { display: none; }
-body.embed label:has(#layer), body.embed #swapBand { display: none; }
+body.embed label:has(#layer), body.embed #swapBand, body.embed #wiseBox, body.embed label:has(#showLow) { display: none; }
 body.embed #notes { margin: 0 0 4px; padding-left: 0; list-style: none; font-size: 12px; }
 body.embed #notes summary { cursor: pointer; color: #d8c48a; }
 body.embed #notes ul { padding-left: 18px; margin: 4px 0; }
@@ -110,3 +110,5 @@ body.embed #status { min-height: 0; font-size: 12px; }
 body.embed #epochLabel, body.embed #readout { font-size: 11px; }
 body.embed #readout { min-height: 0; margin-top: 2px; }
 body.embed #embedLine { font-size: 10px; line-height: 1.25; }
+/* measuring stays in the embed; help text, refine and report are in the full view */
+body.embed #measureHelp, body.embed #refineWhy, body.embed #measureBox .row, body.embed #refineResult { display: none; }
