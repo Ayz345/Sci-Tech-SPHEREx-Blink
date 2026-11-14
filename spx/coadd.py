@@ -7,7 +7,8 @@ shows only real motion and real brightness change.
 
 Quality steps, in order (each one is measured in handoff/results/coadd_metrics_v2.csv):
   1. FLAGS mask: transient/overflow/hot/cold/persistence/outlier/crosstalk/ghost/halo... -> NaN.
-     SOURCE (bit 21) and FULLSAMPLE (bit 12) are informational and are NOT masked.
+     SOURCE (bit 21) and FULLSAMPLE (bit 12) are informational and are NOT masked. Recovered overflow
+     (OVERFLOW without SUR_ERROR: flux from the reads before the threshold) is kept, see usable_pixels.
   2. Local background: sigma-clipped median of unflagged, non-SOURCE pixels in each cutout
      (after subtracting ZODI when the cutout carries it).
   3. Per-exposure robust noise sigma -> weight 1/sigma^2.
@@ -16,7 +17,7 @@ Quality steps, in order (each one is measured in handoff/results/coadd_metrics_v
   5. Per-pixel clipped, weighted mean over all exposures of the epoch in the band. The clip
      threshold has a term proportional to |median|: exposures sample different wavelengths (LVF),
      so real spectral differences are kept; single-exposure hits are rejected.
-  6. Saturated cores (no clean sample; every exposure flagged OVERFLOW/BLOOM/TRANSIENT...) become +inf
+  6. Saturated cores (no usable sample; EARLY OVERFLOW = OVERFLOW+SUR_ERROR, or NONLINEAR) become +inf
      (contract: drawn at the brightest colour, labelled "saturated"); NaN only ever means "no data".
      saturated="fill" puts the soft-masked median there instead. Frame.filled marks those pixels.
   7. Display: one asinh scale shared by all epochs of a band (no blink flicker).
@@ -52,7 +53,29 @@ BAD_MASK = sum(1 << b for n, b in FLAG_BITS.items() if n not in INFO_ONLY)
 # pixels that are never usable, not even to fill a saturated core
 HARD_MASK = sum(1 << FLAG_BITS[n] for n in ("NONFUNC", "MISSING_DATA", "HOT", "COLD", "PHANMISS", "DICHROIC"))
 SOURCE_MASK = 1 << FLAG_BITS["SOURCE"]
-SATURATION_MASK = sum(1 << FLAG_BITS[n] for n in ("OVERFLOW", "NONLINEAR", "BLOOM"))
+_OVF, _SUR, _NL = (1 << FLAG_BITS[n] for n in ("OVERFLOW", "SUR_ERROR", "NONLINEAR"))
+# bits that may accompany a recovered overflow (bright-star core: late transient, bloom mantle)
+_OVF_COMPANIONS = _OVF | (1 << FLAG_BITS["TRANSIENT"]) | (1 << FLAG_BITS["BLOOM"])
+SATURATION_MASK = _OVF | _NL  # kept for callers; use saturated_pixels() for the exact rule
+
+
+def saturated_pixels(flags) -> np.ndarray:
+    """True saturation (Explanatory Supplement v2.1, Table 16 / sect. 3.2.2): EARLY OVERFLOW = OVERFLOW and
+    SUR_ERROR on the same pixel (overflow in the first ~5 s, no usable reads, no nonlinearity correction),
+    or NONLINEAR (correction not trusted)."""
+    f = np.asarray(flags)
+    return (((f & _OVF) != 0) & ((f & _SUR) != 0)) | ((f & _NL) != 0)
+
+
+def usable_pixels(flags) -> np.ndarray:
+    """Clean pixels plus RECOVERED overflow pixels: OVERFLOW without SUR_ERROR means the slope was fit to the
+    reads before the overflow threshold (~half full well) and linearised, so the value is a valid flux.
+    Measured on RW Aurigae D1: recovered-overflow / clean flux at the same epoch and wavelength = 1.04 (median).
+    Other bad bits on such a pixel must be only TRANSIENT/BLOOM (bloom onset around a bright core)."""
+    f = np.asarray(flags)
+    clean = (f & BAD_MASK) == 0
+    ovf = ((f & _OVF) != 0) & ((f & _SUR) == 0) & ((f & BAD_MASK & ~_OVF_COMPANIONS) == 0)
+    return clean | ovf
 
 DETECTOR_BANDS_UM = {1: (0.75, 1.11), 2: (1.10, 1.66), 3: (1.63, 2.42), 4: (2.42, 3.83),
                      5: (3.80, 4.43), 6: (4.41, 5.01)}  # measured LVF range at the target pixel
@@ -177,8 +200,8 @@ def prepare(cut, min_good: int = 200):
     if var is not None:
         var = np.asarray(var, float)
         finite &= np.isfinite(var) & (var > 0)
-    good = finite & ((flags & BAD_MASK) == 0)
-    bg = good & ((flags & SOURCE_MASK) == 0)
+    good = finite & usable_pixels(flags)
+    bg = finite & ((flags & BAD_MASK) == 0) & ((flags & SOURCE_MASK) == 0)
     if bg.sum() < min_good:
         bg = good
     if bg.sum() < min_good:
@@ -189,7 +212,7 @@ def prepare(cut, min_good: int = 200):
     d = img - med
     soft = np.where(np.isfinite(img) & ((flags & HARD_MASK) == 0), d, np.nan)
     d[~good] = np.nan
-    sat = ((flags & SATURATION_MASK) != 0).astype(float)
+    sat = saturated_pixels(flags).astype(float)
     return d, soft, float(std), sat
 
 
@@ -294,7 +317,8 @@ def build_frames(cutouts, target: SkyCoord, fov_arcmin: float = 7.0, pix_arcsec:
               band = band_id (default "W<lo>-<hi>") and per_detector is ignored.
     max_exposures  cap per (epoch, band), chosen spread in time (dense fields near the poles).
     saturated "inf" (default, data contract): grid pixels covered by exposures but with no clean sample,
-              where at least one exposure has a saturation-type flag (OVERFLOW/NONLINEAR/BLOOM), become +inf.
+              where at least one exposure is truly saturated (saturated_pixels: early overflow or NONLINEAR),
+              become +inf.
               "fill": soft-masked median instead. "nan": leave NaN.
     smooth_fwhm_arcsec  optional NaN-aware Gaussian (~7" = point-source matched filter, "detection view").
     """
