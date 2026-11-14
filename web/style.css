@@ -33,6 +33,10 @@ fieldset label { display: block; margin: 4px 0; }
 #epochMarks .low { opacity: .35; text-decoration: line-through; }
 #epochMarks .empty { opacity: .6; border: 1px dashed var(--muted); border-radius: 3px; padding: 0 2px; }
 #epochMarks .cur { color: var(--accent); }
+#epochMarks .wise { color: #79c0ff; }
+#epochMarks .wise.cur { text-decoration: underline; }
+#wiseBox { margin-top: 4px; }
+#wiseBox label { display: inline; }
 #plots { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
 #plots > div { flex: 1 1 360px; max-width: 560px; }
 #plots h3 { margin: 4px 0; font-size: 14px; }

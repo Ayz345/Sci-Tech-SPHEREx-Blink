@@ -100,6 +100,17 @@ live server, also for a gallery target opened from static files. The window gets
 centre falls in the window) are shown. Without the live server the page says so. Developer: `?winmock=1` serves
 any window as the target's `W` band, to try the interface before the server builds windows.
 
+## WISE image in the blink
+
+When `{key}/wise.json` and `wise_W1.f32` / `wise_W2.f32` exist (resampled onto this field's grid, row 0 = south),
+the Frame box shows "Add the WISE image to the blink" with a W1/W2 choice (`?wise=W2` in the address; `frame=wise`
+opens on it, also in the embedded view). The WISE frame goes first in the sequence (oldest), is drawn with its
+own `bands[].scale` and carries a "WISE W2 · date · not SPHEREx" banner; the slider's leftmost position and a
+"WISE" marker stand for it. It is in the blink only: difference, sum, false colour and candidates never use it.
+Overlays on it use the WISE date (Gaia and CatWISE moved to `epoch_mjd`; without a date Gaia is not drawn). The
+measure tool accepts marks on it with that date; when `epoch_mjd` is null it refuses and says why. Field names
+(`epoch_mjd, date, survey, note, bands[{id, file, scale}]`) are read in `loadWise()`.
+
 ## CatWISE2020 layer
 
 When the field has it (`{key}/catwise.json` for gallery targets, `/api/catwise?key=` for live fields), the
@@ -129,7 +140,7 @@ the others faint). Without `flag_legend` the section is hidden. The fixtures' le
 
 ## Sky context panel (F5, Aladin Lite)
 
-"Sky context (Aladin Lite)" is closed by default; Aladin Lite is loaded only when it is opened, and never in
+"Sky context (Aladin Lite)" is closed by default; Aladin Lite is loaded only when it is opened (more surveys; the static WISE image and CatWISE layers above are the primary WISE view), and never in
 the embedded view. It shows the player's centre and field (orange box = this grid, ring = the target at the
 current epoch) in a chosen survey: AllWISE color, AllWISE W2, unWISE color, NEOWISER color, 2MASS color, DSS2
 color, Pan-STARRS DR1 color. If the script or WebGL2 is missing, one sentence says so and the page is unaffected.

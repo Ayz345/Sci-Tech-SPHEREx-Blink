@@ -232,6 +232,7 @@ async function loadTarget() {
   fetchLogged(src.gaia(S.key)).then((g) => { S.gaia = g; draw(); }).catch(() => { S.gaia = []; });
   loadCandidates().then(draw);
   loadCatwise().then(draw);
+  loadWise().then(() => { draw(); syncUrl(); });
   // static: spectrum.json is the target position; API: ask for the latest track point (or the query position)
   const at = S.m.target_track?.at(-1) || S.m.query || {};
   S.specTarget = at;
@@ -337,11 +338,13 @@ function fixEpoch() {
 // epoch markers under the slider: skipped (low-coverage) epochs are drawn faint
 function renderEpochMarks() {
   if (!S.m?.epochs) return;
-  $("epochMarks").replaceChildren(...S.m.epochs.map((e, i) => {
+  const wiseMark = wiseActive() ? [Object.assign(document.createElement("span"), {
+    textContent: "WISE", className: "wise" + (S.onWise ? " cur" : ""), title: `WISE ${S.wiseBand} ${S.wise.date || ""} (not SPHEREx)` })] : [];
+  $("epochMarks").replaceChildren(...wiseMark, ...S.m.epochs.map((e, i) => {
     const s = document.createElement("span"), low = isLow(S.band, i), empty = emptyEpoch(S.band, i);
     const n = bandEpoch(S.band, i)?.n_used;
     s.textContent = e.date.slice(2, 7);
-    s.className = (empty ? "empty" : low ? "low" : "") + (i === S.epoch ? " cur" : "");
+    s.className = (empty ? "empty" : low ? "low" : "") + (i === S.epoch && !S.onWise ? " cur" : "");
     s.title = empty ? `${e.date}: no data in this band (skipped in playback)`
       : low ? `low coverage: ${n ?? "?"} exposures — ${S.showLow ? "shown" : "skipped"}` : e.date;
     return s;
@@ -524,6 +527,14 @@ function draw() {
   const [ny, nx] = S.m.grid.shape, z = S.zoom, cv = $("canvas"), ctx = cv.getContext("2d");
   cv.width = nx * z; cv.height = ny * z;
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, cv.width, cv.height);
+  if (S.onWise && wiseActive()) { // the WISE frame: its own image, overlays at the WISE date, no SPHEREx processing
+    $("epoch").value = -1; renderEpochMarks();
+    $("epochLabel").textContent = `WISE ${S.wiseBand}  ${S.wise.date || ""}${S.wise.mjd != null ? `  MJD ${(+S.wise.mjd).toFixed(2)}` : ""}\nnot SPHEREx: ${S.wise.survey}`;
+    drawWise(ctx, nx, ny, z);
+    overlays(ctx, { id: "wise", mjd_mid: S.wise.mjd, date: S.wise.date });
+    wiseBanner(ctx);
+    return;
+  }
   const ep = S.m.epochs[S.epoch];
   $("epoch").value = S.epoch;
   renderEpochMarks();
@@ -572,6 +583,11 @@ function draw() {
 S.marks = []; S.measuring = false; S.markSeq = 0;
 const MARK_COLOR = "#ff4fd8";
 function addMark(ra, dec) {
+  if (S.onWise) { // a mark on the WISE frame carries the WISE date; without one it cannot be timed
+    if (S.wise.mjd == null) { status("This WISE image has no date in wise.json, so a mark on it cannot be timed; mark the SPHEREx frames instead.", true); return; }
+    S.marks.push({ n: ++S.markSeq, ra, dec, mjd: +S.wise.mjd, epoch: -1, date: S.wise.date || `MJD ${S.wise.mjd}`, band: `WISE ${S.wiseBand}` });
+    renderMarks(); draw(); return;
+  }
   const ep = S.m.epochs[S.epoch];
   S.marks.push({ n: ++S.markSeq, ra, dec, mjd: ep.mjd_mid, epoch: S.epoch, date: ep.date, band: S.mode === "rgb" ? "rgb" : S.band });
   renderMarks(); draw();
@@ -639,7 +655,7 @@ function drawMarks(ctx) {
   ctx.beginPath(); ms.forEach(({ p }, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.stroke();
   ctx.setLineDash([]);
   for (const { m, p } of ms) {
-    const here = m.epoch === S.epoch, r = Math.max(5, 2 * z);
+    const here = S.onWise ? m.epoch === -1 : m.epoch === S.epoch, r = Math.max(5, 2 * z);
     ctx.lineWidth = here ? 2 : 1; ctx.globalAlpha = here ? 1 : 0.6;
     ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 2 * Math.PI); ctx.stroke();
     ctx.font = "bold 12px system-ui"; ctx.lineWidth = 3; ctx.strokeStyle = "#000"; ctx.strokeText(String(m.n), p[0] + r + 2, p[1] - r);
@@ -808,7 +824,7 @@ function toScreen(ra, dec) {
 function overlays(ctx, ep) {
   const z = S.zoom;
   ctx.lineWidth = 1.5;
-  if ($("ovGaia").checked && S.gaia) {
+  if ($("ovGaia").checked && S.gaia && ep.mjd_mid != null) { // no date (a WISE frame without epoch): not drawn
     ctx.strokeStyle = "#4fd1c5";
     for (const g of S.gaia) {
       const dt = (ep.mjd_mid - mjdOfYear(g.ref_epoch ?? 2016)) / 365.25;
@@ -1092,6 +1108,60 @@ async function openAladin() {
   return aladinLoading;
 }
 
+// ---------- WISE image in the blink: {key}/wise.json + wise_W1.f32 / wise_W2.f32 on this field's grid ----------
+// Shown only in blink, first in the sequence (oldest), with its own scale and a "WISE, not SPHEREx" banner.
+// Not used in difference, sum, false colour or candidates. ?wise=W1|W2 turns it on; frame=wise opens on it.
+S.wise = null; S.wiseOn = /^W[12]$/.test(params.get("wise") || ""); S.wiseBand = params.get("wise") || "W2"; S.onWise = false;
+const wiseActive = () => !!(S.wise && S.wiseOn && S.mode === "blink");
+async function loadWise() {
+  let meta;
+  try { const r = await fetch(`${DATA}/${S.key}/wise.json`); if (!r.ok) return; meta = await r.json(); } catch { return; }
+  // field names (one place to adapt): epoch_mjd (or null), date, survey, note, bands[{id, file, scale, wave_um}]
+  const bands = (meta.bands || []).filter((b) => /^W[12]$/.test(b.id));
+  const frames = {};
+  for (const b of bands) {
+    try {
+      const r = await fetch(`${DATA}/${S.key}/${b.file || `wise_${b.id}.f32`}`);
+      if (r.ok) frames[b.id] = new Float32Array(littleEndian(await r.arrayBuffer()));
+    } catch { /* that band is left out */ }
+  }
+  if (!Object.keys(frames).length) return;
+  S.wise = { mjd: meta.epoch_mjd ?? meta.mjd ?? null, date: meta.date || "", survey: meta.survey || "WISE", note: meta.note || "",
+    scale: Object.fromEntries(bands.map((b) => [b.id, b.scale])), frames };
+  if (!frames[S.wiseBand]) S.wiseBand = Object.keys(frames)[0];
+  $("wiseBox").hidden = false; $("wiseOn").checked = S.wiseOn; $("wiseBand").value = S.wiseBand;
+  [...$("wiseBand").options].forEach((o) => { o.disabled = !frames[o.value]; });
+  $("wiseNote").textContent = `${S.wise.survey}, ${S.wise.date || "date not given"}${S.wise.note ? ". " + S.wise.note : ""}`;
+  if (params.get("frame") === "wise" && wiseActive()) S.onWise = true;
+  wiseSlider();
+}
+// the slider gets a position −1 for the WISE frame while it is in the sequence
+function wiseSlider() { $("epoch").min = wiseActive() ? -1 : 0; if (!wiseActive()) S.onWise = false; }
+function drawWise(ctx, nx, ny, z) {
+  const a = S.wise.frames[S.wiseBand], sc = S.wise.scale[S.wiseBand];
+  const s = sc && sc.vmax != null ? { vmin: +sc.vmin, vmax: +sc.vmax, soft: +(sc.soft ?? 0) } : (() => {
+    const [lo, hi] = percentile([a], [1, 99.7]); return { vmin: lo, vmax: hi, soft: (hi - lo) * 0.05 || 1e-6 }; })();
+  off.width = nx; off.height = ny;
+  const oc = off.getContext("2d"), img = oc.createImageData(nx, ny);
+  for (let y = 0; y < ny; y++) {
+    const row = (ny - 1 - y) * nx; // first data row is south
+    for (let x = 0; x < nx; x++) {
+      const t = stretch(a[y * nx + x], s), o = (row + x) * 4;
+      if (t < 0) { img.data.set([40, 18, 22, 255], o); continue; }
+      const g = 255 * t; img.data.set([g, g, g, 255], o);
+    }
+  }
+  oc.putImageData(img, 0, 0); ctx.imageSmoothingEnabled = false; ctx.drawImage(off, 0, 0, nx * z, ny * z);
+  $("scaleSrc").textContent = `WISE ${S.wiseBand}: its own scale from wise.json`;
+}
+function wiseBanner(ctx) {
+  const t = `WISE ${S.wiseBand} · ${S.wise.date || "date not given"} · not SPHEREx`;
+  ctx.font = "bold 13px system-ui";
+  const w = ctx.measureText(t).width + 12, x = (ctx.canvas.width - w) / 2;
+  ctx.fillStyle = "rgba(0,0,0,0.8)"; ctx.fillRect(x, 6, w, 22);
+  ctx.fillStyle = "#79c0ff"; ctx.fillText(t, x + 6, 22);
+}
+
 // ---------- CatWISE2020 layer: {key}/catwise.json (gallery) or /api/catwise?key= (live fields) ----------
 S.catwise = null;
 const CAT_COLOR = "#7ee787", CAT_EPOCH = 2015.4;
@@ -1193,7 +1263,7 @@ function candidateToMarks(c) {
   $("measureBox").scrollIntoView({ block: "nearest" });
 }
 function drawCandidates(ctx, ep) {
-  if (!S.cands || !$("ovCand").checked) return;
+  if (!S.cands || !$("ovCand").checked || ep.id === "wise") return; // candidates are SPHEREx-only
   const z = S.zoom;
   ctx.save(); ctx.font = "11px system-ui";
   for (const c of S.cands.candidates || []) {
@@ -1371,12 +1441,14 @@ function setMode(mode) {
   S.mode = mode; $("mode").value = mode; S.userScale = null;
   if (mode === "rgb" && S.layer !== "image") { S.layer = "image"; $("layer").value = "image"; } // colour uses image frames
   $("rgbBox").hidden = mode !== "rgb";
+  wiseSlider(); // the WISE frame is in the blink only
   draw(); syncUrl(); loadRGB();
 }
 
 function syncUrl() {
   const p = new URLSearchParams(location.search);
-  p.set("band", S.band); p.set("mode", S.mode); p.set("frame", S.epoch); p.set("zoom", S.zoom);
+  p.set("band", S.band); p.set("mode", S.mode); p.set("frame", S.onWise ? "wise" : S.epoch); p.set("zoom", S.zoom);
+  if (S.wise && S.wiseOn) p.set("wise", S.wiseBand); else if (S.wise) p.delete("wise");
   // free position: keep the server's own query.ra/dec in the address (exactly as returned), so a reload or a
   // shared link asks for the same field key and does not land on the other side of the server's rounding
   if (p.has("ra") && S.m?.query?.ra != null) { p.set("ra", String(S.m.query.ra)); p.set("dec", String(S.m.query.dec)); }
@@ -1390,9 +1462,14 @@ function syncUrl() {
 function step(d) {
   if (!S.m?.epochs?.length) return;
   const n = S.m.epochs.length;
-  let e = S.epoch;
-  for (let k = 0; k < n; k++) { e = (e + d + n) % n; if (playable(S.band, e)) break; } // skip low-coverage and empty frames
-  S.epoch = e;
+  // the sequence: [WISE (as −1) if it is in the blink] + the playable SPHEREx epochs
+  const seq = [...(wiseActive() ? [-1] : []), ...[...Array(n).keys()].filter((i) => playable(S.band, i))];
+  if (!seq.length) return;
+  const cur = S.onWise ? -1 : S.epoch;
+  let pos = seq.indexOf(cur);
+  if (pos < 0) pos = d > 0 ? seq.findIndex((v) => v > cur) - 1 : seq.findIndex((v) => v >= cur); // from a skipped frame
+  const next = seq[(((pos + d) % seq.length) + seq.length) % seq.length];
+  if (next === -1) S.onWise = true; else { S.onWise = false; S.epoch = next; }
   draw(); syncUrl();
 }
 function setPlaying(on) {
@@ -1423,11 +1500,15 @@ function wire() {
     } catch (err) { status(`Could not resolve "${name}": ${err.message}`, true); }
   };
   $("play").onclick = () => setPlaying(!S.playing);
+  $("wiseOn").onchange = (e) => { S.wiseOn = e.target.checked; if (!S.wiseOn) S.onWise = false; wiseSlider(); draw(); syncUrl(); };
+  $("wiseBand").onchange = (e) => { S.wiseBand = e.target.value; draw(); syncUrl(); };
   $("copyEmbed").onclick = copyEmbed;
   $("swapBand").onclick = () => S.prevBand && selectBand(S.prevBand);
   $("speed").oninput = () => S.playing && setPlaying(true);
   $("epoch").oninput = (e) => {
     const v = +e.target.value, prev = S.epoch;
+    if (v === -1) { if (wiseActive()) { S.onWise = true; draw(); syncUrl(); } return; } // the WISE frame
+    S.onWise = false;
     S.epoch = v;
     if (!allowed(S.band, v)) { S.epoch = prev; step(v > prev ? 1 : -1); return; } // a skipped frame: move past it
     draw(); syncUrl();
@@ -1463,6 +1544,11 @@ function wire() {
     const cw = catwiseAt((ev.clientX - cr.left) * ck, (ev.clientY - cr.top) * ck, S.m.epochs[S.epoch]?.mjd_mid);
     const catTxt = cw ? `   CatWISE ${cw.name}  W1 ${cw.w1 ?? "—"}  W2 ${cw.w2 ?? "—"}` : "";
     const head = `x ${xi}  y ${yi}   RA ${ra.toFixed(5)}  Dec ${dec.toFixed(5)}${catTxt}\n`;
+    if (S.onWise && wiseActive()) { // the WISE frame's own value
+      const a = S.wise.frames[S.wiseBand], v = inside ? a[yi * nx + xi] : NaN;
+      $("readout").textContent = head + `WISE ${S.wiseBand} value ${fmt(v)} (not SPHEREx)`;
+      return;
+    }
     if (S.mode === "rgb") {
       const c = rgbBands(), ep = S.m.epochs[S.epoch].id;
       $("readout").textContent = head + [["R", c.r], ["G", c.g], ["B", c.b]].map(([k, b]) => {
