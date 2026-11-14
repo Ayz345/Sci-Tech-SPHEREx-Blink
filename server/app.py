@@ -607,6 +607,16 @@ async def api_candidates(key: str):
                   "message": "candidates are searched once every band of the field is built"}, status=202)
 
 
+@app.get("/api/catwise")
+async def api_catwise(key: str):
+    """CatWISE2020 sources of a gallery field: its web/data/<key>/catwise.json as is (scripts/make_catwise.py).
+    Free fields have none yet: 404 + message (a live IRSA fetch is planned after the challenge)."""
+    path = P.GALLERY_DIR / key / "catwise.json"
+    if key not in TARGETS or not path.exists():
+        raise ApiError(404, "no WISE catalogue for this field (CatWISE2020 is served for the gallery targets only)")
+    return Response(path.read_bytes(), media_type="application/json")
+
+
 @app.get("/api/gaia")
 async def api_gaia(key: str):
     fs = await _field(key)
@@ -641,6 +651,12 @@ async def api_spectrum(key: str, ra: float | None = None, dec: float | None = No
             gaia = []
         out = P.spectrum(f, cuts, ra, dec, gaia=gaia)
         out["meta"]["bands_included"] = [f"D{d}" for d in dets]
+        # where it was measured: a fixed point stays put while a fast target moves off it (WISE 0855 at its last
+        # track point: 28 of 255 points flagged, at the target 23 of 255, the gallery's number)
+        out["meta"]["position"] = (
+            "target, moved to each exposure with its proper motion (as the gallery's spectrum.json)" if ra is None else
+            f"fixed point RA {ra:.6f}, Dec {dec:.6f} for every exposure (a moving target is not followed)")
+        out["meta"]["layers"] = list(LIVE_LAYERS)
         out["meta"]["bands_pending"] = [b for b in fs.jobs if b.startswith("D") and f"D{b[1:]}" not in ready]
         return out
     out = await asyncio.to_thread(run)

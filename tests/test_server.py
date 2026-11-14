@@ -534,6 +534,7 @@ def test_spectrum_passes_flag_names_through(client, monkeypatch):
     assert others and all(p["flags"] == [] for p in others)
     assert s["meta"]["flag_legend"][name] == ph.FLAG_LEGEND[name]
     assert set(s["meta"]["flag_legend"]) == {n for p in s["points"] for n in p["flags"]}
+    assert s["meta"]["position"].startswith("target, moved") and s["meta"]["layers"] == ["IMAGE", "FLAGS"]
     if any("masked_fraction" in p for p in s["points"]):        # quality 575c505: passed through as is
         assert all(0.0 <= p["masked_fraction"] <= 1.0 for p in s["points"]) and s["meta"].get("err_note")
 
@@ -645,3 +646,14 @@ def test_candidate_fields_pass_through_unchanged(client, monkeypatch):
         time.sleep(0.05)
     c = _strict(r)["candidates"][0]
     assert {k: c[k] for k in ("n_bands", "grade", "grade_reason", "known")} ==         {"n_bands": 2, "grade": "A", "grade_reason": "two bands", "known": False}
+
+
+def test_catwise_served_for_gallery_targets_only(client):
+    r = client.get("/api/catwise", params={"key": "wise-0855"})
+    if r.status_code == 404:
+        pytest.skip("no web/data/wise-0855/catwise.json")
+    c = _strict(r)
+    assert c["catalog"] == "CatWISE2020" and c["key"] == "wise-0855" and c["sources"]
+    key = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "queue": 0}))["key"]
+    r = client.get("/api/catwise", params={"key": key})
+    assert r.status_code == 404 and "no WISE catalogue" in r.json()["message"]
