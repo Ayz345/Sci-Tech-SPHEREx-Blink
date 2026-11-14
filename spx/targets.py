@@ -8,6 +8,7 @@ WISE 0855 is not in Gaia: CatWISE2020 J085507.96-071439.3 position at MJD 57170 
 proper motion; the image-quality session verified it in SPHEREx DR1 (3 epochs).
 
 Optional per-target fields used by the manifest: default_band, extra_bands, notes, challenge_radec.
+wings: True publishes spx.photometry's PSF-wing flux series in the target's spectrum (only R Dra).
 """
 from __future__ import annotations
 
@@ -52,6 +53,7 @@ TARGETS = {
         "name": "R Draconis", "ra": 248.1673783672889, "dec": 66.75500674547219,
         "pmra": -20.643, "pmdec": 6.149, "parallax": 1.25, "ref_epoch": 2016.0,
         "source": "Gaia DR3 1648328016354496384", "kind": "Mira variable", "fov_arcmin": 7.0,
+        "wings": True,  # saturated in every aperture point: publish the PSF-wing flux series (decision 14 Nov)
     },
 }
 for _k, _t in TARGETS.items():

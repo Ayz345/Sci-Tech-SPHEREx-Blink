@@ -302,3 +302,22 @@ def test_manifest_queue0_starts_no_band(client):
     assert client.calls["fetch"] == 0
     assert client.get("/api/band", params={"key": m["key"], "band": "D4"}).status_code == 200  # still builds on request
     assert client.calls["fetch"] >= 1
+
+
+def test_wings_only_for_r_dra_target(monkeypatch):
+    from server import pipeline as P
+    from spx import photometry as ph
+    seen = []
+    monkeypatch.setattr(ph, "spectrum_points", lambda *a, **k: seen.append(k.get("wings")) or {"meta": {}, "points": []})
+
+    class F:
+        def __init__(self, tinfo):
+            self.tinfo, self.epochs = tinfo, []
+            from astropy.coordinates import SkyCoord
+            self.target = SkyCoord(10, 10, unit="deg")
+    from spx.targets import TARGETS
+    P.spectrum(F(TARGETS["r-dra"]), [])                       # the target: wing series on
+    P.spectrum(F(TARGETS["r-dra"]), [], ra=10.0, dec=10.0)    # a clicked point: off
+    P.spectrum(F(TARGETS["rw-aur"]), [])                      # other targets: off
+    P.spectrum(F(None), [])                                   # free field: off
+    assert seen == [True, False, False, False]

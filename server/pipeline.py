@@ -521,10 +521,17 @@ def gaia_neighbors(coord: SkyCoord, gaia: list[dict] | None, self_match_arcsec: 
     return c[keep], [r for r, k in zip(rows, keep) if k]
 
 
+def wings_for(f: Field, ra: float | None) -> bool:
+    """PSF-wing flux series: only for a gallery target that asks for it (TARGETS[...]["wings"]), and only at
+    the target itself; never for a clicked position or a free field."""
+    return ra is None and bool((f.tinfo or {}).get("wings", False))
+
+
 def spectrum(f: Field, cuts, ra: float | None = None, dec: float | None = None, gaia: list[dict] | None = None) -> dict:
     """spx.photometry.spectrum_points at the target (propagated per exposure) or at a fixed (ra, dec),
     with the Gaia sources around it passed as neighbours (deblended PSF photometry). Returned as is."""
     from spx.photometry import spectrum_points
     coord = f.target if ra is None else SkyCoord(float(ra) * u.deg, float(dec) * u.deg, frame="icrs")
     nb, info = gaia_neighbors(coord, gaia)
-    return spectrum_points(cuts, coord, epochs=f.epochs, neighbors=nb, neighbor_info=info or None)
+    return spectrum_points(cuts, coord, epochs=f.epochs, neighbors=nb, neighbor_info=info or None,
+                           wings=wings_for(f, ra))
