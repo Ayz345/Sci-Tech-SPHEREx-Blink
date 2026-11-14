@@ -94,8 +94,47 @@ def test_logsnr_only_from_calibrated_snr():
     for x in d:
         x.pop("snr_calibrated", None)
         x["snr_fit"] = 20.0
-    txt = mpc.write_ades_psv(d, {"submitter": "I. M. Tester"})
-    assert "logSNR" not in txt
+    assert _row_logsnr(d) == [None, None, None]
+
+
+def _row_logsnr(d):
+    rows = _psv_parse(mpc.write_ades_psv(d, {"submitter": "I. M. Tester"}))[1]
+    return [r.get("logSNR") for r in rows]
+
+
+def test_logsnr_is_the_image_snr():
+    d = _dets()                                     # snr_calibrated 12.5
+    for x in d:
+        x["snr_fit"] = 5.0                          # low fit S/N must not lower logSNR any more
+    d[0]["snr_variance"], d[0]["snr_image"] = 120.0, 120.0
+    d[1]["snr_variance"], d[1]["snr_image"] = 300.0, 12.5
+    d[2]["snr_variance"], d[2]["snr_image"] = 80.0, None    # no calibrated S/N on that row -> no logSNR
+    assert _row_logsnr(d) == ["2.08", "1.10", None]
+    csv_txt = mpc.write_csv(d, {})
+    head = next(ln for ln in csv_txt.splitlines() if ln.startswith("trk_sub"))
+    assert ",snr_calibrated,snr_fit,snr_variance,snr_image," in head
+    assert ",12.5,5.0,120.0,120.0," in csv_txt
+
+
+def test_acceptance_and_logsnr_are_described_apart():
+    txt = mpc.write_ades_psv(_dets(), {"submitter": "I. M. Tester"})
+    lines = [ln[7:] for ln in txt.splitlines() if ln.startswith("! line ")]
+    if mpc.snr_threshold() is not None:
+        assert any(ln.startswith("Reported only if min(fit S/N, calibrated S/N) >= ") for ln in lines)
+        assert "logSNR is another number: S/N of the source in the image (VARIANCE and empty-sky noise)." in lines
+    assert not any("Only detections with S/N" in ln for ln in lines)
+
+
+def test_logsnr_is_the_smaller_of_fit_and_calibrated():
+    """Rows without snr_image (measured before the field existed)."""
+    d = _dets()                                     # snr_calibrated 12.5
+    d[0]["snr_fit"] = 5.0                           # fit lower -> log10(5)
+    d[1]["snr_fit"] = 375.0                         # fit 30x higher -> calibrated
+    d[2]["snr_fit"] = None                          # no fit S/N -> calibrated
+    assert _row_logsnr(d) == ["0.70", "1.10", "1.10"]
+    assert mpc.log_snr_value({"snr_fit": 5.0, "snr_calibrated": None}) is None
+    assert mpc.log_snr_value({"snr_fit": 5.0, "snr_calibrated": 0.0}) is None
+    assert mpc.log_snr_value({"snr_fit": float("nan"), "snr_calibrated": 8.0}) == 8.0
 
 
 def test_validator_catches_errors(telescope):
@@ -198,9 +237,66 @@ def test_ades_selection_rules_and_validation_lines(tmp_path, monkeypatch):
     lines = [ln[7:] for ln in txt.splitlines() if ln.startswith("! line ")]
     assert "Method validated on (433) Eros against JPL Horizons: median offset -0.12, -0.05 arcsec;" in lines
     assert "(31) Euphrosyne +0.01 arcsec (275/350 exposures) = +1.3 +- 2.3 s." in lines
-    assert "A time offset larger than ~5 s is not supported (co-add session's validation)." in lines
+    assert "A time offset larger than ~5 s is not supported (see the tool's Methods page)." in lines
+    assert not any("session" in ln for ln in lines)
     assert "Object-dependent systematics up to 0.15 arcsec remain unexplained." in lines
     assert all(len(x) <= 100 for x in lines) and mpc.validate_psv(txt) == []
+
+
+def _validation_json(tmp_path, drop=()):
+    import json
+    import spx
+    v = {"object": "(433) Eros", "frame_code_hash": spx.frame_code_hash(), "wcs_floor_arcsec": 0.23,
+         "eros": {"median_dra_arcsec": -0.123, "median_ddec_arcsec": -0.053, "scatter_ra_arcsec": 0.175,
+                  "scatter_dec_arcsec": 0.158, "median_along_track_arcsec": -0.146, "n_accepted": 382, "n_total": 450},
+         "second_object": {"object": "(31) Euphrosyne", "n_accepted": 275, "n_total": 350,
+                           "median_along_track_arcsec": 0.009, "median_cross_track_arcsec": 0.142},
+         "timing": {"verified": False, "second_object_time_offset_s": [1.31, 2.34],
+                    "note": "Not verified. ... a time offset larger than ~5 s is not supported."}}
+    for path in drop:
+        *head, last = path.split(".")
+        cur = v
+        for k in head:
+            cur = cur[k]
+        del cur[last]
+    f = tmp_path / "v.json"
+    f.write_text(json.dumps(v), encoding="utf-8")
+    return f
+
+
+def test_validation_without_second_object_keeps_the_first(tmp_path, monkeypatch):
+    monkeypatch.setattr(mpc, "VALIDATION_FILE", _validation_json(tmp_path, drop=["second_object"]))
+    v = mpc.validation_summary()
+    assert v is not None and v["second_available"] is False and v["object2"] is None
+    lines = mpc.validation_lines(v)
+    assert "Method validated on (433) Eros against JPL Horizons: median offset -0.12, -0.05 arcsec;" in lines
+    assert "second object: not available." in lines
+    assert not any("Euphrosyne" in ln or "systematics" in ln for ln in lines)
+    txt = mpc.write_ades_psv(_dets(), {"submitter": "I. M. Tester"})
+    assert "! line second object: not available." in txt and mpc.validate_psv(txt) == []
+    st = mpc.validation_status()
+    assert st["status"] == "partial" and "object2" in st["missing_keys"] and st["same_frame_code"] is True
+    # timing text alone missing: still a full summary, no time-offset line
+    monkeypatch.setattr(mpc, "VALIDATION_FILE", _validation_json(tmp_path, drop=["timing.note"]))
+    lines = mpc.validation_lines(mpc.validation_summary())
+    assert "second object: not available." not in lines and not any("time offset" in ln for ln in lines)
+
+
+def test_validation_status_states(tmp_path, monkeypatch):
+    monkeypatch.setattr(mpc, "VALIDATION_FILE", _validation_json(tmp_path))
+    st = mpc.validation_status()
+    assert st == {"file": "v.json", "status": "complete", "missing_keys": [],
+                  "frame_code_hash": st["frame_code_hash"], "same_frame_code": True}
+    monkeypatch.setattr(mpc, "VALIDATION_FILE", _validation_json(tmp_path, drop=["eros.n_total"]))
+    assert mpc.validation_summary() is None
+    st = mpc.validation_status()
+    assert st["status"] == "incomplete" and st["missing_keys"] == ["n_total"]
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr(mpc, "VALIDATION_FILE", bad)
+    assert mpc.validation_status()["status"] == "unreadable" and mpc.validation_summary() is None
+    monkeypatch.setattr(mpc, "VALIDATION_FILE", tmp_path / "missing.json")
+    assert mpc.validation_status()["status"] == "missing"
 
 
 # ---------------------------------------------------------------- official checks

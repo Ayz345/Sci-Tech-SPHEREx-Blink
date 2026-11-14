@@ -13,8 +13,13 @@ detections: one dict per single exposure (never a co-added frame):
     sc_pos_km  (x, y, z) km, geocentric spacecraft position at mid-exposure (header X_SC, Y_SC, Z_SC)
     sc_vel_kms (vx, vy, vz) km/s, optional (header VX_SC ...)
     exp_s      exposure time [s] (header XPOSURE), optional
-    snr_calibrated  calibrated signal-to-noise (empty-position calibration), optional; the only S/N written
-               (as logSNR). A fit's S/N (snr_fit) is never written.
+    snr_image  S/N of the source in the image = min(snr_variance, snr_calibrated) (spx.astrometry), optional.
+               logSNR = log10(snr_image): ADES defines logSNR as the S/N of the source in the image over the
+               centroid aperture. snr_image None -> no logSNR. Rows without the field at all (older measurements):
+               log10(min(snr_fit, snr_calibrated)), and no logSNR without snr_calibrated.
+    snr_fit, snr_calibrated, snr_variance   the measurement's S/N values (all in the CSV). Acceptance is a
+               different number: min(snr_fit, snr_calibrated) >= the measurement's threshold (spx.astrometry), so a
+               poor PSF fit is not reported; logSNR is not that acceptance S/N.
     finast     FINAST of the exposure; only 0 is accepted for ADES
     obs_id, band, wavelength_um   optional, go into remarks
 context:
@@ -264,7 +269,8 @@ def _comment_lines(context: dict) -> list[str]:
     ]
     thr = snr_threshold()
     if thr is not None:
-        lines.append(f"Only detections with S/N >= {thr:g} are reported (the measurement's acceptance threshold).")
+        lines.append(f"Reported only if min(fit S/N, calibrated S/N) >= {thr:g} (acceptance; a poor fit is out).")
+        lines.append("logSNR is another number: S/N of the source in the image (VARIANCE and empty-sky noise).")
     lines.append(f"At least {MIN_DETECTIONS} positions per {NIGHT_HOURS:g}-hour window (MPC: no single positions per night).")
     lines.append(context.get("schema_line") or SCHEMA_NOT_CHECKED)
     lines.append("Before submitting, check the file with the MPC test form:")
@@ -288,6 +294,27 @@ FIELDS = ["trkSub", "mode", "stn", "sys", "ctr", "pos1", "pos2", "pos3", "vel1",
           "obsTime", "ra", "dec", "rmsRA", "rmsDec", "astCat", "logSNR", "exp", "remarks"]
 
 
+def _pos(x) -> float | None:
+    try:
+        x = float(x)
+    except (TypeError, ValueError):
+        return None
+    return x if math.isfinite(x) and x > 0 else None
+
+
+def log_snr_value(d) -> float | None:
+    """The S/N behind logSNR (None = no logSNR). snr_image when the row has that field (None there -> None);
+    rows from before snr_image: min(snr_fit, snr_calibrated), the calibrated one alone without a fit S/N, and
+    None without a positive snr_calibrated."""
+    if "snr_image" in d:
+        return _pos(d["snr_image"])
+    cal = _pos(d.get("snr_calibrated"))
+    if cal is None:
+        return None
+    fit = _pos(d.get("snr_fit"))
+    return cal if fit is None else min(fit, cal)
+
+
 def ades_rows(detections, trk_sub: str) -> list[dict]:
     rows = []
     for d in detections:
@@ -306,8 +333,9 @@ def ades_rows(detections, trk_sub: str) -> list[dict]:
         r["rmsRA"] = _sig2(float(d["rms_ra"]))
         r["rmsDec"] = _sig2(float(d["rms_dec"]))
         r["astCat"] = UNVERIFIED["astCat"]
-        if d.get("snr_calibrated") and d["snr_calibrated"] > 0:  # only a calibrated S/N; never the fit's S/N
-            r["logSNR"] = f"{math.log10(d['snr_calibrated']):.2f}"
+        snr = log_snr_value(d)
+        if snr is not None:
+            r["logSNR"] = f"{math.log10(snr):.2f}"
         if d.get("exp_s"):
             r["exp"] = f"{float(d['exp_s']):.2f}"[:6].rstrip(".")
         rem = []
@@ -339,12 +367,20 @@ def ades_reason(d) -> str | None:
     return None
 
 
-def validation_summary() -> dict | None:
-    """The co-add session's Horizons validation, read from its test output; None when not available."""
+#: Keys that may be missing without dropping the summary: the second object's group and the timing text.
+VALIDATION_SECOND = ("object2", "n2_accepted", "n2_total", "along_track2", "cross_track2", "dt2")
+VALIDATION_OPTIONAL = VALIDATION_SECOND + ("timing_verified", "timing_note")
+
+
+def _validation_read() -> tuple[dict | None, str]:
+    """(values by VALIDATION_KEYS name, None where absent) and the file state: missing | unreadable | read."""
     import json
-    if VALIDATION_FILE is None or not Path(VALIDATION_FILE).exists() or not VALIDATION_KEYS:
-        return None
-    data = json.loads(Path(VALIDATION_FILE).read_text(encoding="utf-8"))
+    if VALIDATION_FILE is None or not VALIDATION_KEYS or not Path(VALIDATION_FILE).exists():
+        return None, "missing"
+    try:
+        data = json.loads(Path(VALIDATION_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None, "unreadable"
 
     def get(path):
         cur = data
@@ -353,12 +389,39 @@ def validation_summary() -> dict | None:
                 return None
             cur = cur[k]
         return cur
-    out = {name: get(path) for name, path in VALIDATION_KEYS.items()}
-    if any(v is None for v in out.values()):
+    return {name: get(path) for name, path in VALIDATION_KEYS.items()}, "read"
+
+
+def validation_summary() -> dict | None:
+    """The co-add session's Horizons validation, read from its test output. None when the file or one of the first
+    object's values is missing; a missing second object (or timing text) leaves those values None and
+    second_available False, so the first object's lines are still written."""
+    out, _ = _validation_read()
+    if out is None or any(out[k] is None for k in out if k not in VALIDATION_OPTIONAL):
         return None
     from spx import frame_code_hash
+    out["second_available"] = all(out[k] is not None for k in VALIDATION_SECOND)
     out["same_frame_code"] = out["frame_code_hash"] == frame_code_hash()
     return out
+
+
+def validation_status() -> dict:
+    """State of the validation file for /api/health: complete, partial (second object or timing text missing),
+    incomplete (first object missing: drafts carry 'not available'), missing or unreadable."""
+    out, state = _validation_read()
+    st = {"file": None if VALIDATION_FILE is None else Path(VALIDATION_FILE).name, "status": state,
+          "missing_keys": [], "frame_code_hash": None, "same_frame_code": None}
+    if out is None:
+        return st
+    from spx import frame_code_hash
+    missing = [k for k, v in out.items() if v is None]
+    st["missing_keys"] = missing
+    st["status"] = ("complete" if not missing else
+                    "partial" if all(k in VALIDATION_OPTIONAL for k in missing) else "incomplete")
+    st["frame_code_hash"] = out.get("frame_code_hash")
+    if st["frame_code_hash"] is not None:
+        st["same_frame_code"] = st["frame_code_hash"] == frame_code_hash()
+    return st
 
 
 def validation_lines(v: dict | None) -> list[str]:
@@ -366,9 +429,6 @@ def validation_lines(v: dict | None) -> list[str]:
     if v is None:
         return ["Method validation summary not available",
                 "obsTime is the header mid-exposure time (DATE-AVG); not independently verified."]
-    sysmax = max(abs(v["along_track"]), abs(v["cross_track2"]))
-    dt, dte = v["dt2"]
-    m = re.search(r"time offset larger than ~?([0-9.]+) s is not supported", v["timing_note"])
     lines = [
         f"Method validated on {v['object']} against JPL Horizons: median offset {v['median_ra']:+.2f}, "
         f"{v['median_dec']:+.2f} arcsec;",
@@ -377,12 +437,20 @@ def validation_lines(v: dict | None) -> list[str]:
         "obsTime = header DATE-AVG (mid-exposure), uncorrected; timing not independently verified.",
         f"Along-track residual: {v['object']} {v['along_track']:+.2f} arcsec "
         f"({v['n_accepted']}/{v['n_total']} exposures);",
-        f"{v['object2']} {v['along_track2']:+.2f} arcsec ({v['n2_accepted']}/{v['n2_total']} exposures) "
-        f"= {dt:+.1f} +- {dte:.1f} s.",
-        f"Object-dependent systematics up to {sysmax:.2f} arcsec remain unexplained.",
     ]
+    if v.get("second_available", True):
+        dt, dte = v["dt2"]
+        sysmax = max(abs(v["along_track"]), abs(v["cross_track2"]))
+        lines += [
+            f"{v['object2']} {v['along_track2']:+.2f} arcsec ({v['n2_accepted']}/{v['n2_total']} exposures) "
+            f"= {dt:+.1f} +- {dte:.1f} s.",
+            f"Object-dependent systematics up to {sysmax:.2f} arcsec remain unexplained.",
+        ]
+    else:
+        lines.append("second object: not available.")
+    m = re.search(r"time offset larger than ~?([0-9.]+) s is not supported", v.get("timing_note") or "")
     if m:
-        lines.append(f"A time offset larger than ~{m.group(1)} s is not supported (co-add session's validation).")
+        lines.append(f"A time offset larger than ~{m.group(1)} s is not supported (see the tool's Methods page).")
     if not v["same_frame_code"]:
         lines.append(f"Validation made with frame code {v['frame_code_hash']}, not the current one.")
     return lines
@@ -534,8 +602,8 @@ def checked_ades(detections, context: dict, fmt: str = "psv") -> tuple[str, bool
 
 
 CSV_FIELDS = ["trk_sub", "obs_time_utc_mid", "ra_deg", "dec_deg", "rms_ra_arcsec", "rms_dec_arcsec",
-              "snr_calibrated", "snr_fit", "exp_s", "sc_x_km", "sc_y_km", "sc_z_km", "sc_vx_kms", "sc_vy_kms",
-              "sc_vz_kms", "obs_id", "band", "wavelength_um", "finast", "in_ades", "reason"]
+              "snr_calibrated", "snr_fit", "snr_variance", "snr_image", "exp_s", "sc_x_km", "sc_y_km", "sc_z_km",
+              "sc_vx_kms", "sc_vy_kms", "sc_vz_kms", "obs_id", "band", "wavelength_um", "finast", "in_ades", "reason"]
 
 
 def write_csv(detections, context: dict) -> str:
@@ -555,7 +623,8 @@ def write_csv(detections, context: dict) -> str:
         v = d.get("sc_vel_kms") or (None, None, None)
         why = left_out.get(i)
         w.writerow([trk, d.get("obs_time"), d.get("ra"), d.get("dec"), d.get("rms_ra"), d.get("rms_dec"),
-                    d.get("snr_calibrated"), d.get("snr_fit"), d.get("exp_s"), *p, *v, d.get("obs_id"), d.get("band"),
+                    d.get("snr_calibrated"), d.get("snr_fit"), d.get("snr_variance"), d.get("snr_image"),
+                    d.get("exp_s"), *p, *v, d.get("obs_id"), d.get("band"),
                     d.get("wavelength_um"), d.get("finast"), why is None, why or ""])
     return buf.getvalue()
 
