@@ -1,0 +1,172 @@
+{
+ "schema": 1,
+ "key": "barnard",
+ "name": "Barnard's Star",
+ "query": {
+  "ra": 269.44850252543836,
+  "dec": 4.739420051112412,
+  "fov_deg": 0.11666666666666667
+ },
+ "collections": [
+  "spherex_dr1",
+  "spherex_qr3"
+ ],
+ "max_fov_deg": 0.11666666666666667,
+ "data_range": {
+  "mjd_min": 60902.864715,
+  "mjd_max": 61305.629353
+ },
+ "grid": {
+  "ctype": [
+   "RA---TAN",
+   "DEC--TAN"
+  ],
+  "crval": [
+   269.44622196386797,
+   4.768800923747586
+  ],
+  "crpix": [
+   70.5,
+   70.5
+  ],
+  "cdelt": [
+   -0.0008333333333333334,
+   0.0008333333333333334
+  ],
+  "shape": [
+   140,
+   140
+  ]
+ },
+ "epochs": [
+  {
+   "id": 0,
+   "date": "2025-08-27",
+   "mjd_mid": 60914.3823365,
+   "mjd_min": 60902.865381,
+   "mjd_max": 60949.2665805
+  },
+  {
+   "id": 1,
+   "date": "2026-03-17",
+   "mjd_mid": 61116.683802,
+   "mjd_min": 61110.092069,
+   "mjd_max": 61165.083638
+  },
+  {
+   "id": 2,
+   "date": "2026-08-21",
+   "mjd_mid": 61273.6514765,
+   "mjd_min": 61268.631478,
+   "mjd_max": 61305.628687
+  }
+ ],
+ "bands": [
+  {
+   "id": "D1",
+   "label": "0.75–1.09 µm",
+   "wave_um": [
+    0.75,
+    1.09
+   ],
+   "n_exposures": [
+    24,
+    18,
+    18
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D2",
+   "label": "1.10–1.62 µm",
+   "wave_um": [
+    1.1,
+    1.62
+   ],
+   "n_exposures": [
+    18,
+    18,
+    25
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D3",
+   "label": "1.63–2.41 µm",
+   "wave_um": [
+    1.63,
+    2.41
+   ],
+   "n_exposures": [
+    18,
+    24,
+    17
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D4",
+   "label": "2.42–3.82 µm",
+   "wave_um": [
+    2.42,
+    3.82
+   ],
+   "n_exposures": [
+    23,
+    18,
+    18
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D5",
+   "label": "3.83–4.41 µm",
+   "wave_um": [
+    3.83,
+    4.41
+   ],
+   "n_exposures": [
+    18,
+    19,
+    24
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D6",
+   "label": "4.42–5.00 µm",
+   "wave_um": [
+    4.42,
+    5.0
+   ],
+   "n_exposures": [
+    17,
+    24,
+    17
+   ],
+   "status": "ready"
+  }
+ ],
+ "target_track": [
+  {
+   "epoch": 0,
+   "ra": 269.446345718335,
+   "dec": 4.767206637910448
+  },
+  {
+   "epoch": 1,
+   "ra": 269.44622196386797,
+   "dec": 4.768800923747586
+  },
+  {
+   "epoch": 2,
+   "ra": 269.4461259411802,
+   "dec": 4.770037945586226
+  }
+ ],
+ "target_source": "Gaia DR3 4472832130942575872",
+ "processing": "spx 0.1: FLAGS mask, local background, clipped inverse-variance mean per epoch and band, fixed 3 arcsec TAN grid (north up); data spherex_dr1, spherex_qr3",
+ "acknowledgement": "This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration.",
+ "n_images": 358,
+ "mjd_median": 61116.683802
+}

@@ -1,0 +1,13 @@
+{
+ "schema": 1,
+ "targets": [
+  {
+   "key": "barnard",
+   "name": "Barnard's Star"
+  },
+  {
+   "key": "wise-0855",
+   "name": "WISE 0855"
+  }
+ ]
+}

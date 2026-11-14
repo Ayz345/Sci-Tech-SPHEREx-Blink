@@ -1,0 +1,191 @@
+{
+ "schema": 1,
+ "key": "wise-0855",
+ "name": "WISE 0855",
+ "query": {
+  "ra": 133.7831722,
+  "dec": -7.2442516,
+  "fov_deg": 0.11666666666666667
+ },
+ "collections": [
+  "spherex_dr1",
+  "spherex_qr3"
+ ],
+ "max_fov_deg": 0.11666666666666667,
+ "data_range": {
+  "mjd_min": 60800.700028,
+  "mjd_max": 61174.28855
+ },
+ "grid": {
+  "ctype": [
+   "RA---TAN",
+   "DEC--TAN"
+  ],
+  "crval": [
+   133.7593766079248,
+   -7.242273658713223
+  ],
+  "crpix": [
+   70.5,
+   70.5
+  ],
+  "cdelt": [
+   -0.0008333333333333334,
+   0.0008333333333333334
+  ],
+  "shape": [
+   140,
+   140
+  ]
+ },
+ "epochs": [
+  {
+   "id": 0,
+   "date": "2025-05-06",
+   "mjd_mid": 60801.446306,
+   "mjd_min": 60800.7006945,
+   "mjd_max": 60801.51932
+  },
+  {
+   "id": 1,
+   "date": "2025-11-07",
+   "mjd_mid": 60986.9226565,
+   "mjd_min": 60979.723343499994,
+   "mjd_max": 61022.3687715
+  },
+  {
+   "id": 2,
+   "date": "2026-05-02",
+   "mjd_mid": 61162.402944,
+   "mjd_min": 61151.1985995,
+   "mjd_max": 61174.287884
+  }
+ ],
+ "bands": [
+  {
+   "id": "D1",
+   "label": "0.75–1.09 µm",
+   "wave_um": [
+    0.75,
+    1.09
+   ],
+   "n_exposures": [
+    4,
+    18,
+    14
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D2",
+   "label": "1.10–1.62 µm",
+   "wave_um": [
+    1.1,
+    1.62
+   ],
+   "n_exposures": [
+    8,
+    25,
+    15
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D3",
+   "label": "1.63–2.41 µm",
+   "wave_um": [
+    1.63,
+    2.41
+   ],
+   "n_exposures": [
+    3,
+    21,
+    21
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D4",
+   "label": "2.42–3.82 µm",
+   "wave_um": [
+    2.42,
+    3.82
+   ],
+   "n_exposures": [
+    4,
+    18,
+    14
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D5",
+   "label": "3.83–4.41 µm",
+   "wave_um": [
+    3.83,
+    4.41
+   ],
+   "n_exposures": [
+    8,
+    25,
+    15
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "D6",
+   "label": "4.42–5.00 µm",
+   "wave_um": [
+    4.42,
+    5.0
+   ],
+   "n_exposures": [
+    3,
+    21,
+    21
+   ],
+   "status": "ready"
+  },
+  {
+   "id": "W",
+   "label": "4.3–5.0 µm",
+   "wave_um": [
+    4.3,
+    5.0
+   ],
+   "n_exposures": [
+    5,
+    24,
+    23
+   ],
+   "status": "ready"
+  }
+ ],
+ "target_track": [
+  {
+   "epoch": 0,
+   "ra": 133.76057191365928,
+   "dec": -7.242373045020399
+  },
+  {
+   "epoch": 1,
+   "ra": 133.7594176056711,
+   "dec": -7.242277067612799
+  },
+  {
+   "epoch": 2,
+   "ra": 133.7583255084308,
+   "dec": -7.242186260135926
+  }
+ ],
+ "target_source": "CatWISE2020 + Luhman & Esplin 2016; verified in SPHEREx DR1 (3 epochs)",
+ "default_band": "W",
+ "notes": [
+  "At short wavelengths (1.0–2.5 µm) the source next to the marker is NOT WISE 0855: it is a fixed background star, Gaia DR3 5756956644387831296 (G = 16.3, RA 133.75818, Dec −7.24116). WISE 0855 moves towards it (10.5″ → 7.0″ → 3.1″ over the three epochs).",
+  "WISE 0855 itself is seen only at long wavelengths (band W, 4.3–5.0 µm)."
+ ],
+ "processing": "spx 0.1: FLAGS mask, local background, clipped inverse-variance mean per epoch and band, fixed 3 arcsec TAN grid (north up); data spherex_dr1, spherex_qr3",
+ "acknowledgement": "This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration.",
+ "n_images": 258,
+ "mjd_median": 60993.510252
+}
