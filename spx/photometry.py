@@ -24,6 +24,17 @@ from spx.coadd import FLAG_BITS
 _OVF = 1 << FLAG_BITS["OVERFLOW"]
 
 FLUX_UNIT = "mJy"
+# aperture 'flagged' rule (v1.2, 14 Nov; tests/test_coadd_flagged_rule.py -> handoff/results/flagged_rule_v2.json):
+# below 15% masked aperture weight with a clean core, star fluxes agree with unflagged ones (ratio 1.00-1.04)
+FLAG_MASKED_FRAC = 0.15
+FLAG_CORE_PX = 1.0
+# measured by tests/test_coadd_flagged_rule.py (empty sky, unflagged aperture points, 14 Nov)
+ERR_EMPTY_SKY_SCATTER = 1.40
+ERR_EMPTY_SKY_SCATTER_PSF = 1.32  # same test, fixed-position PSF photometry
+ERR_NOTE = (f"Empty-sky test: the scatter of flux/err is {ERR_EMPTY_SKY_SCATTER:.2f}, so the listed errors are too "
+            "small by about that factor.")
+ERR_NOTE_PSF = (f"Empty-sky test (PSF photometry): the scatter of flux/err is {ERR_EMPTY_SKY_SCATTER_PSF:.2f}, so the "
+                "listed errors are too small by about that factor.")
 
 # --------------------------------------------------------------------------- FLAGS names at a point (F3)
 
@@ -123,13 +134,14 @@ def _aperture_weights(shape, x, y, r, oversample=5):
 def aperture_flux(cut, x, y, r_ap=2.0, r_in=4.0, r_out=7.0):
     """Background-subtracted aperture flux on one cutout at pixel (x, y).
 
-    Returns (flux_mJy, err_mJy, flagged, n_bad_in_aperture, saturated, overflow) or None when the aperture is
-    off the cutout. flagged = a pixel in the aperture that is not usable (coadd.usable_pixels); saturated =
-    early overflow or NONLINEAR in the aperture (flux is a lower limit); overflow = recovered-overflow pixels in
-    the aperture (valid; recovered/clean median 1.04 over 10 pairs, range 1.00-1.51).
-    Pixels with HARD_MASK flags (dead, hot, cold, missing...) are excluded and the flux is scaled
-    up by the excluded aperture fraction; any BAD_MASK pixel in the aperture sets flagged=True
-    (saturated cores of bright stars are kept but flagged).
+    Returns (flux_mJy, err_mJy, flagged, n_bad_in_aperture, saturated, overflow, masked_fraction) or None when
+    the aperture is off the cutout. Masked pixels (not coadd.usable_pixels: any non-informational FLAGS bit
+    except recovered overflow; or no data) are LEFT OUT and the flux and its error are scaled by the PSF-weighted
+    aperture fraction (Gaussian with the exposure's PSF_FWHM), except truly saturated pixels, which are kept (a saturated core gives a lower limit, as before).
+    masked_fraction = masked share of the aperture weight. flagged (v1.2, 14 Nov) = masked_fraction > FLAG_MASKED_FRAC,
+    or a masked pixel within FLAG_CORE_PX of the centre, or a lower limit. saturated = early overflow or
+    NONLINEAR in the aperture (flux is a lower limit); overflow = recovered-overflow pixels in the aperture
+    (valid; recovered/clean median 1.04 over 10 pairs, range 1.00-1.51).
     """
     img = np.asarray(cut.image, float)
     flags = np.asarray(cut.flags) if cut.flags is not None else np.zeros(img.shape, np.int32)
@@ -139,7 +151,9 @@ def aperture_flux(cut, x, y, r_ap=2.0, r_in=4.0, r_out=7.0):
         return None
     yy, xx = np.mgrid[0:ny, 0:nx]
     rr = np.hypot(xx - x, yy - y)
-    usable = np.isfinite(img) & ((flags & HARD_MASK) == 0)
+    good_px = usable_pixels(flags)
+    satpx = saturated_pixels(flags)
+    usable = np.isfinite(img) & ((flags & HARD_MASK) == 0) & (good_px | satpx)
     clean = np.isfinite(img) & ((flags & BAD_MASK) == 0)
     ann = clean & (rr >= r_in) & (rr <= r_out)
     if ann.sum() < 10:
@@ -148,23 +162,33 @@ def aperture_flux(cut, x, y, r_ap=2.0, r_in=4.0, r_out=7.0):
     w = _aperture_weights(img.shape, x, y, r_ap)
     wu = np.where(usable, w, 0.0)
     lower_limit = wu.sum() < 0.5 * w.sum()
-    if lower_limit and not (saturated_pixels(flags) & (w > 0)).any() and np.isfinite(img[w > 0]).all():
+    if lower_limit and not (satpx & (w > 0)).any() and np.isfinite(img[w > 0]).all():
         return None  # mostly dead/missing pixels, nothing to say
     # saturated core with missing (NaN) pixels: sum what is there, no area scaling -> a lower limit
-    s = np.nansum(wu * (img - bg)) * (1.0 if lower_limit else w.sum() / wu.sum())
+    # missing pixels: scale by the PSF-weighted aperture fraction (Gaussian, the exposure's PSF_FWHM), not by area:
+    # masked pixels sit mostly in the faint wings, and an area scaling over-corrects a point source
+    fw = getattr(cut, "psf_fwhm_arcsec", float("nan"))
+    sg = ((fw if np.isfinite(fw) else 7.5) / 6.15) / 2.3548
+    P = np.exp(-rr ** 2 / (2 * sg * sg))
+    scale = 1.0 if lower_limit else float(np.sum(w * P) / np.sum(wu * P))
+    s = np.nansum(wu * (img - bg)) * scale
     if var is not None:
         v = np.nansum(wu ** 2 * np.where(np.isfinite(var), var, 0.0))
     else:
         v = (wu ** 2).sum() * bgsig ** 2
     v += (wu.sum() ** 2) * bgsig ** 2 / ann.sum()  # background-estimate error
+    v *= scale ** 2
     omega_sr = proj_plane_pixel_area(cut.wcs) * (np.pi / 180) ** 2
     to_mjy = 1e6 * omega_sr * 1e3  # MJy/sr * sr -> Jy -> mJy
     inap = w > 0
-    n_bad = int((inap & ~usable_pixels(flags)).sum())
-    sat = bool((inap & saturated_pixels(flags)).any()) or bool(lower_limit)
-    n_bad = max(n_bad, int(lower_limit))
-    ovf = bool((inap & ((flags & _OVF) != 0) & usable_pixels(flags)).any())
-    return float(s * to_mjy), float(np.sqrt(v) * to_mjy), n_bad > 0, n_bad, sat, ovf
+    masked = ~(good_px & np.isfinite(img))
+    n_bad = int((inap & masked).sum())
+    mfrac = float(np.sum(w[masked]) / w.sum())
+    sat = bool((inap & satpx).any()) or bool(lower_limit)
+    ovf = bool((inap & ((flags & _OVF) != 0) & good_px).any())
+    core = bool((inap & masked & (rr <= FLAG_CORE_PX)).any())
+    flagged = mfrac > FLAG_MASKED_FRAC or core or bool(lower_limit)
+    return float(s * to_mjy), float(np.sqrt(v) * to_mjy), flagged, n_bad, sat, ovf, round(mfrac, 4)
 
 
 def _pixel_gauss(shape, x, y, fwhm_px):
@@ -309,6 +333,7 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
                 flux, err, flagged, sat, ovf = float(r[0][0]), float(r[1][0]), r[2], r[3], r[4]
                 yy, xx = np.mgrid[0:c.image.shape[0], 0:c.image.shape[1]]
                 region = np.hypot(xx - float(x), yy - float(y)) <= 1.5
+                mfrac = round(float(np.mean(~(usable_pixels(c.flags) & np.isfinite(c.image))[region])), 4)
                 nbf = float(np.sum(r[0][1:]))
         else:
             r = None
@@ -317,12 +342,13 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
             r = aperture_flux(c, float(x), float(y), r_ap, r_in, r_out)
             if r is None:
                 continue
-            flux, err, flagged, _, sat, ovf = r
+            flux, err, flagged, _, sat, ovf, mfrac = r
             region = _aperture_weights(c.image.shape, float(x), float(y), r_ap) > 0
         pts.append({"wavelength_um": round(float(c.wavelength_um), 5), "bandwidth_um": round(float(c.bandwidth_um), 5),
                     "flux": round(flux, 6), "err": round(err, 6), "mjd": round(float(c.mjd), 5),
                     "epoch": int(e), "band": f"D{c.detector}", "flagged": bool(flagged), "saturated": bool(sat),
-                    "overflow": bool(ovf), "flags": flag_names(c.flags, region), "obs_id": c.obs_id})
+                    "overflow": bool(ovf), "flags": flag_names(c.flags, region), "masked_fraction": mfrac,
+                    "obs_id": c.obs_id})
         if wings and f"D{c.detector}" in wr:
             wf = wing_flux(c, float(x), float(y), *wr[f"D{c.detector}"])
             if wf is not None:
@@ -333,7 +359,7 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
             pts[-1]["photometry"] = "aperture"  # PSF fit impossible for this exposure (saturated core)
     pts.sort(key=lambda p: (p["wavelength_um"], p["mjd"]))
     if blend:
-        meta = {"flux_unit": FLUX_UNIT, "photometry": "psf_deblended", "aperture_radius_px": None, "wing": ({"label": "relative brightness from PSF wings", "unit": "MJy/sr",
+        meta = {"flux_unit": FLUX_UNIT, "photometry": "psf_deblended", "aperture_radius_px": None, "err_note": ERR_NOTE_PSF, "wing": ({"label": "relative brightness from PSF wings", "unit": "MJy/sr",
                          "annulus_px": {k: [round(v[0], 2), round(v[1], 2)] for k, v in sorted(wr.items())},
                          "method": "mean of usable pixels (clean or recovered overflow) in a fixed per-band annulus "
                                    "just outside the target's saturated core in 90% of exposures, minus a local "
@@ -349,7 +375,8 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
                 "method": "per-exposure fixed-position PSF photometry (pixel-integrated Gaussian, FWHM = PSF_FWHM of "
                           "the exposure) fitting the target together with the known neighbours within "
                           f"{blend_radius_arcsec:g} arcsec, so their light is removed; total flux, no aperture "
-                          "correction; flagged = non-informational FLAGS bit within 1.5 px; saturated = "
+                          "correction; flagged = non-informational FLAGS bit within 1.5 px (masked_fraction = masked share of "
+                          "those pixels); saturated = "
                           "early overflow (OVERFLOW+SUR_ERROR) or NONLINEAR within 2 px (flux = lower limit; such "
                           "exposures fall back to aperture photometry, point.photometry = 'aperture'); overflow = "
                           "recovered overflow pixels (valid; recovered/clean median 1.04, 10 pairs, range 1.00-1.51); neighbor_flux = fitted flux of the removed "
@@ -369,11 +396,17 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
                                    "x1.20 (median), x1.47 (90th percentile) on unsaturated control stars, so only "
                                    "changes larger than x1.5 are significant. Not a total flux: compare epochs only at similar "
                                    "wavelength (binned_series)"} if wr else None),
-            "aperture_radius_arcsec": round(r_ap * 6.15, 2),
+            "aperture_radius_arcsec": round(r_ap * 6.15, 2), "err_note": ERR_NOTE,
             "background_annulus_px": [r_in, r_out], "aperture_corrected": False,
             "method": "per-exposure circular aperture on the L2 image (MJy/sr x pixel solid angle), "
-                      "sigma-clipped annulus background; flagged = any non-informational FLAGS bit in the aperture "
-                      "(e.g. saturated core), err from VARIANCE (or annulus scatter) + background error; "
+                      "sigma-clipped annulus background; err from VARIANCE (or annulus scatter) + background error; "
+                      "masked pixels (any non-informational FLAGS bit except recovered overflow, or no data) are left "
+                      "out and the flux is scaled by the PSF-weighted aperture fraction (truly saturated pixels are "
+                      "kept: lower limit); flagged = more than 15% of the aperture weight masked, or a masked pixel "
+                      "within 1 px of the centre, or a lower limit (masked_fraction per point; on isolated stars, "
+                      "points below 15% with a clean core agree with unmasked ones to a median ratio 0.99-1.00); "
+                      "where OUTLIER pixels were left out, empty-sky fluxes sit 0.3-0.5 sigma low (the outliers "
+                      "removed are the positive ones); "
                       "saturated = early overflow (OVERFLOW+SUR_ERROR) or NONLINEAR in the aperture: the flux is a "
                       "lower limit; overflow = recovered overflow pixels (OVERFLOW without SUR_ERROR, slope from the "
                       "reads before the threshold; recovered/clean flux on RW Aur D1, same epoch and wavelength: median 1.04 over 10 pairs, eight within 1.00-1.20, two at 1.30 and 1.51 near 0.85 um), usable; "

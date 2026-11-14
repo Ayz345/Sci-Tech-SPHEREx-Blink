@@ -53,6 +53,24 @@ The numbers below are the published ones: `server/pipeline.variability_report` o
   - Possible sources, none established: PSF asymmetry within the trail, or the object's colour across the LVF band.
   - The structural reason the time cannot be separated from a sky offset: SPHEREx scans at ~90° solar elongation, so asteroids almost never move retrograde (1–3% of exposures for the candidates checked). An opposite-direction test is therefore not possible with these data.
 
+## Spectrum points: masked pixels and the 'flagged' rule (v1.2, 14 Nov)
+
+Code: `spx/photometry.py` (`aperture_flux`); validation `tests/test_coadd_flagged_rule.py` → `handoff/results/flagged_rule_v2.json`.
+
+- **Masked pixels are left out.** These are pixels with any non-informational FLAGS bit (recovered overflow kept) or no data. The flux and its error are scaled by the PSF-weighted aperture fraction, a Gaussian with the exposure's PSF_FWHM. Truly saturated pixels are kept, so a saturated core gives a lower limit as before.
+  - Scaling by area instead over-corrects a point source, because masked pixels sit mostly in the faint wings. On isolated stars, the area-scaled ratio was 1.08 at 5–15% masked and 1.18 above 15%.
+- **flagged** = more than 15% of the aperture weight masked, or a masked pixel within 1 px of the centre, or a lower limit. Each point carries `masked_fraction`. Previously any masked pixel flagged the point.
+- **Isolated stars.** G 11–16.5, three fields, 1117 points. Flux relative to unmasked points of the same star, band, epoch and wavelength (median ratio / robust scatter):
+  - none masked: 0.996 / 8.8%;
+  - < 5%: 0.986 / 9.1%;
+  - 5–15%: 0.998 / 9.8%;
+  - > 15%: 0.997 / 11.4%;
+  - masked core: 1.004 / 16.3%.
+- **OUTLIER on empty sky.** OUTLIER (Explanatory Supplement v2.1 §3.2.10) is set per exposure on isolated deviant pixels after the known-source pixels are masked. It therefore never appears on catalogued stars, and its effect is measured on empty sky: 27 746 points at 80 random empty positions.
+  - Flux/err of unflagged points: median −0.10, robust scatter **1.40**. The listed aperture errors are too small by about that factor (fixed-position PSF photometry: 1.32). The page says so; the errors are not rescaled.
+  - Where OUTLIER pixels were left out, the median is −0.35 to −0.53σ: the removed outliers are the positive ones.
+  - Before this change, when those pixels were still summed, masked fractions above 15% and masked cores gave +0.6 to +0.8σ, with 6–7.5% of points beyond 5σ. After the change it is 0–2.4%.
+
 ## Per-exposure astrometry (MPC drafts)
 
 Code: `spx/astrometry.py` (ada328d); validation `tests/test_astrometry.py` → `handoff/results/astrometry_validation_v2.json`.

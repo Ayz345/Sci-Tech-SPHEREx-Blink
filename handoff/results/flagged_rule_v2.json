@@ -1,0 +1,113 @@
+{
+ "code_hash": "a059d78f8d63",
+ "frame_code_hash": "9b6b9ef99d5d",
+ "rule": {
+  "flag_masked_frac": 0.15,
+  "flag_core_px": 1.0,
+  "masked_pixels": "left out of the aperture sum, flux scaled by the aperture fraction; truly saturated pixels kept (lower limit)"
+ },
+ "stars": {
+  "n_points": 1117,
+  "n_flagged": 85,
+  "masked none masked, core clean": {
+   "n": 888,
+   "median_ratio": 0.996,
+   "robust_scatter": 0.088,
+   "frac_off_by_10pct": 0.328
+  },
+  "masked <5%, core clean": {
+   "n": 73,
+   "median_ratio": 0.986,
+   "robust_scatter": 0.091,
+   "frac_off_by_10pct": 0.315
+  },
+  "masked 5-15%, core clean": {
+   "n": 71,
+   "median_ratio": 0.998,
+   "robust_scatter": 0.098,
+   "frac_off_by_10pct": 0.366
+  },
+  "masked >15%, core clean": {
+   "n": 31,
+   "median_ratio": 0.997,
+   "robust_scatter": 0.114,
+   "frac_off_by_10pct": 0.323
+  },
+  "masked core": {
+   "n": 54,
+   "median_ratio": 1.004,
+   "robust_scatter": 0.163,
+   "frac_off_by_10pct": 0.556
+  },
+  "unflagged": {
+   "n": 1032,
+   "median_ratio": 0.995,
+   "robust_scatter": 0.089,
+   "frac_off_by_10pct": 0.329
+  },
+  "flagged": {
+   "n": 85,
+   "median_ratio": 0.998,
+   "robust_scatter": 0.138,
+   "frac_off_by_10pct": 0.471
+  }
+ },
+ "empty_sky": {
+  "n_points": 27746,
+  "n_flagged": 3121,
+  "unflagged": {
+   "n": 24625,
+   "median": -0.1,
+   "robust_scatter": 1.4,
+   "frac_abs_gt_5": 0.0173
+  },
+  "masked <5% with OUTLIER, core clean": {
+   "n": 1274,
+   "median": -0.35,
+   "robust_scatter": 1.32,
+   "frac_abs_gt_5": 0.0047
+  },
+  "masked <5% without OUTLIER, core clean": {
+   "n": 1474,
+   "median": -0.09,
+   "robust_scatter": 1.5,
+   "frac_abs_gt_5": 0.017
+  },
+  "masked 5-15% with OUTLIER, core clean": {
+   "n": 1549,
+   "median": -0.43,
+   "robust_scatter": 1.26,
+   "frac_abs_gt_5": 0.0019
+  },
+  "masked 5-15% without OUTLIER, core clean": {
+   "n": 1527,
+   "median": -0.01,
+   "robust_scatter": 1.42,
+   "frac_abs_gt_5": 0.021
+  },
+  "masked >15% with OUTLIER, core clean": {
+   "n": 212,
+   "median": -0.53,
+   "robust_scatter": 1.29,
+   "frac_abs_gt_5": 0.0
+  },
+  "masked >15% without OUTLIER, core clean": {
+   "n": 581,
+   "median": 0.06,
+   "robust_scatter": 1.33,
+   "frac_abs_gt_5": 0.0241
+  },
+  "masked core": {
+   "n": 2328,
+   "median": -0.22,
+   "robust_scatter": 1.37,
+   "frac_abs_gt_5": 0.0133
+  },
+  "psf_unflagged": {
+   "n": 23400,
+   "median": -0.27,
+   "robust_scatter": 1.32,
+   "frac_abs_gt_5": 0.0141
+  }
+ }
+}

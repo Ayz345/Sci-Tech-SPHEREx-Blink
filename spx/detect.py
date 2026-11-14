@@ -74,6 +74,18 @@ DEFAULT_PARAMS = {
     "merge_rate_tol_px": 1.5,    # ... and motions within this (total over the span)
 }
 
+# First lines of every result's validation: what a reader should know (numbers from tests/test_coadd_detect.py,
+# handoff/results/detect_validation_v2.json: injections at S/N 12 per pass, 5 px = 15" total motion).
+USER_LINES = [
+    "Finds objects that move at least about 10 arcsec (about the width of a star image) over the time covered; "
+    "slower motion is mostly missed.",
+    "In a sparse field an object at S/N 12 per pass moving 15 arcsec was recovered in 18 of 18 injections; "
+    "in a crowded field in 8 of 18.",
+    "Grade A = seen in at least two independent bands, or a known Gaia star; grade B = one band only. A change "
+    "seen in one band only is usually not confirmed in the neighbouring band (it is not explained by the "
+    "wavelengths sampled in each pass, which differ by less than 0.1 um); treat B with caution.",
+]
+
 MJD_J2000 = 51544.5
 
 
@@ -481,6 +493,19 @@ def _near_track(B, m, x, y, r):
 
 # --------------------------------------------------------------------------- field level
 
+def n_independent_bands(bands, waves) -> int:
+    """Number of independent bands: bands whose wavelength ranges overlap (e.g. W 4.3-5.0 um with D5 and D6) share
+    exposures and count once."""
+    groups = []
+    for b in dict.fromkeys(bands):
+        w = waves.get(b)
+        hit = [g for g in groups if w is not None and any(waves.get(o) is not None and w[0] < waves[o][1] and waves[o][0] < w[1]
+                                                        for o in g)]
+        merged = {b}.union(*hit) if hit else {b}
+        groups = [g for g in groups if g not in hit] + [merged]
+    return len(groups)
+
+
 def find_candidates(field: dict, bands: list[str] | None = None, params: dict | None = None) -> dict:
     p = dict(DEFAULT_PARAMS)
     if params:
@@ -540,6 +565,7 @@ def find_candidates(field: dict, bands: list[str] | None = None, params: dict | 
             groups.append([c])
     cands = []
     cd1, cd2 = float(man["grid"]["cdelt"][0]) * 3600, float(man["grid"]["cdelt"][1]) * 3600
+    waves = {b["id"]: b.get("wave_um") for b in man.get("bands", [])}
     for i, g in enumerate(groups):
         h = g[0]
         pos = []
@@ -556,13 +582,18 @@ def find_candidates(field: dict, bands: list[str] | None = None, params: dict | 
                 notes.append("on a Gaia DR3 star whose proper motion does not explain the motion")
         if h["kind"] == "variable" and h["near_gaia"]:
             notes.append("at a Gaia DR3 star")
+        nb = n_independent_bands([c["band"] for c in g], waves)
         cands.append({
             "id": i + 1, "kind": h["kind"], "known": bool(h.get("known")), "snr": round(h["snr"], 1),
+            "n_bands": nb, "grade": "A" if (nb >= 2 or h.get("known")) else "B",
             "bands": [c["band"] for c in g], "positions": pos,
             "rate_arcsec_per_year": ([round(h["vx"] * cd1, 2), round(h["vy"] * cd2, 2)] if h["kind"] == "mover" else None),
             "near_gaia": h["near_gaia"], "notes": notes})
+    cands.sort(key=lambda c: (c["grade"], -c["snr"]))
+    for i, c in enumerate(cands):
+        c["id"] = i + 1
     return {"method": METHOD, "params": p, "bands_searched": searched, "candidates": cands,
-            "rejected": rejected, "validation": validation}
+            "rejected": rejected, "validation": USER_LINES + validation}
 
 
 if __name__ == "__main__":
@@ -575,5 +606,5 @@ if __name__ == "__main__":
         for line in res["validation"]:
             print("  ", line)
         for c in res["candidates"]:
-            print(f"   #{c['id']} {c['kind']}{' (known)' if c['known'] else ''} S/N {c['snr']} bands {c['bands']} "
+            print(f"   #{c['id']} {c['grade']} n{c['n_bands']} {c['kind']}{' (known)' if c['known'] else ''} S/N {c['snr']} bands {c['bands']} "
                   f"rate {c['rate_arcsec_per_year']} gaia {c['near_gaia']} first {c['positions'][0]}")
