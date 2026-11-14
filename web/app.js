@@ -225,7 +225,7 @@ async function loadTarget() {
   if (!params.get("zoom") && S.m.grid.shape[1] > 200) { S.zoom = 2; $("zoom").value = "2"; } // big grid on screen
   const bigField = USE_API && (+S.m.query?.fov_deg || 0) > 0.2;
   status(bigField
-    ? `${S.m.epochs.length} epochs, ${S.m.bands.length} bands. ${(+S.m.query.fov_deg * 60).toFixed(0)}′ field: the server reads about 120 MB ` +
+    ? `${S.m.epochs.length} epochs, ${S.m.bands.length} bands. ${(+S.m.query.fov_deg * 60).toFixed(0)}′ field: the server reads about 120 to 190 MB ` +
       `per band from the archive, so the first band (${S.band}) usually takes 30–70 s; the other bands follow.`
     : `${S.m.epochs.length} epochs, ${S.m.bands.length} bands. Loading ${S.band}…`);
 
@@ -925,7 +925,7 @@ function pointTip(p, yk) {
   if (p.saturated) lines.push("saturated (lower limit)"); else if (p.overflow) lines.push("recovered from overflow");
   if (p.flagged) lines.push("flagged");
   // aperture photometry: masked share of the aperture weight; PSF photometry: of the pixels within 1.5 px
-  if (p.masked_fraction != null && Number.isFinite(+p.masked_fraction)) lines.push(`masked ${Math.round(+p.masked_fraction * 100)}% of the measurement region`);
+  if (p.masked_fraction != null && Number.isFinite(+p.masked_fraction)) lines.push(`masked ${Math.min(99, Math.round(+p.masked_fraction * 100))}% of the measurement region`); // drawn points never fully masked
   if (Array.isArray(p.flags)) lines.push(p.flags.length ? `flags: ${sortFlags(p.flags).join(", ")}` : "flags: none");
   return lines.join("\n");
 }
@@ -957,7 +957,10 @@ function renderFlagLegend(pts, meta) {
 
 function plots() {
   const raw = S.spectrum;
-  const pts = (Array.isArray(raw) ? raw : raw?.points || []).filter((p) => Number.isFinite(p.flux));
+  const all = (Array.isArray(raw) ? raw : raw?.points || []).filter((p) => Number.isFinite(p.flux));
+  // no measurement pixel left (masked_fraction ≈ 1): not drawn, not in the light curve, counted in the note
+  const empty = (p) => p.masked_fraction != null && +p.masked_fraction >= 0.999;
+  const pts = all.filter((p) => !empty(p)), nEmpty = all.length - pts.length;
   const meta = raw?.meta || {}, unit = meta.flux_unit || "flux";
   $("specWhere").textContent = S.specAt === "target" ? "(target position)" : S.specAt ? `(${S.specAt.map((v) => v.toFixed(5)).join(", ")})` : "";
   scatter($("spec"), pts, "wavelength_um", "flux", "µm", unit); // flagged points drawn faint
@@ -1013,6 +1016,7 @@ function plots() {
   $("specNote").textContent = [
     meta.photometry && `photometry: ${meta.photometry}`,
     meta.photometry === "psf_deblended" && `neighbour removed by PSF fit${nb.length ? ": " + nb.join(", ") : ""}`,
+    nEmpty && `${nEmpty} point${nEmpty === 1 ? "" : "s"} without usable pixels left out`,
     nz && `${nz} points consistent with zero (|flux| < 0.15 × removed neighbour flux, drawn faint)`,
     ns && `${ns} saturated (lower limits: open marker with arrow, not in the light curve)`,
     no && `${no} recovered from overflow (reduced accuracy; filled diamond, kept in the light curve)`,
@@ -1264,6 +1268,9 @@ function catwiseAt(sx, sy, mjd) {
 // Places to look at, not detection claims. Without a file the control stays hidden.
 S.cands = null;
 const CAND_COLOR = "#ffd84f";
+// n_bands counts independent wavelength ranges (W overlaps D5/D6), so it is never written next to "bands"
+const NUMW = ["no", "one", "two", "three", "four", "five", "six", "seven"];
+const rangesTxt = (n) => n === 1 ? "one independent wavelength range" : `${NUMW[n] ?? n} independent ranges`;
 // "known" = motion explained by a Gaia DR3 proper motion; near_gaia alone (a star nearby) is only in the tooltip
 function candLabel(c) {
   if (c.known) return `known: Gaia DR3 ${c.near_gaia?.source_id ?? ""}`.trim();
@@ -1297,7 +1304,7 @@ async function loadCandidates() {
     const rate = c.rate_arcsec_per_year ? ` · ${Math.hypot(...c.rate_arcsec_per_year).toFixed(1)}″/yr` : "";
     // grade A/B from the detector (B drawn faint); n_bands = in how many bands it was found
     b.textContent = `${c.id}${c.grade ? ` [${c.grade}${c.grade_reason ? `: ${c.grade_reason}` : ""}]` : ""} ${candLabel(c)} · ${(c.bands || []).join(", ")}` +
-      `${c.n_bands != null ? ` (${c.n_bands} band${c.n_bands === 1 ? "" : "s"})` : ""} · S/N ${(+c.snr).toFixed(1)}${rate}`;
+      `${c.n_bands != null ? ` · ${rangesTxt(c.n_bands)}` : ""} · S/N ${(+c.snr).toFixed(1)}${rate}`;
     if (c.grade === "B") b.classList.add("gradeB");
     const ng = c.near_gaia ? `\nnear Gaia DR3 ${c.near_gaia.source_id} (${(+c.near_gaia.sep_arcsec).toFixed(1)}″, G ${(+c.near_gaia.g_mag).toFixed(1)})` : "";
     b.title = `${c.notes || ""}${ng}\nclick: load its ${c.positions?.length || 0} positions as marks in the measure tool`;
@@ -1446,8 +1453,8 @@ function askBigField(deg) {
   const box = $("fovConfirm");
   box.hidden = false;
   box.replaceChildren(
-    Object.assign(document.createElement("span"), { textContent: "A 15′ field reads about 120 MB per band from the archive, about 730 MB for all six. " +
-      "On a home connection that took 30 to 70 s per band (measured 14 Nov 2026). Larger fields help with fast-moving objects. " }),
+    Object.assign(document.createElement("span"), { textContent: "A 15′ field reads about 120 to 190 MB per band from the archive, 730 to 1100 MB for all six. " +
+      "On a home connection that took 30 to 70 s per band (measured 14–15 Nov 2026). Larger fields help with fast-moving objects. " }),
     Object.assign(document.createElement("button"), { type: "button", textContent: "Open 15′", onclick: () => { box.hidden = true; changeFov(deg); } }),
     Object.assign(document.createElement("button"), { type: "button", textContent: "Keep 7′", onclick: () => { box.hidden = true; } }));
 }

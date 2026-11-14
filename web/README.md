@@ -63,8 +63,8 @@ position without coverage.
 - Field buttons 3′ / 7′ / 15′: need the server; options above `max_fov_deg` (manifest or `/api/health`) are
   disabled with the reason in the tooltip. A gallery target becomes a free field via `/api/resolve`, so the grid
   still follows the moving object. 7′ is the default; 15′ is enabled when the server allows it (`max_fov_deg`
-  0.25) and first shows an in-page confirmation with its cost (about 120 MB and 30–70 s per band, about 730 MB
-  for all six; measured 14 Nov 2026) and "Open 15′" / "Keep 7′". A 15′ field opens at 2× zoom (300 px grid) and
+  0.25) and first shows an in-page confirmation with its cost (about 120 to 190 MB and 30–70 s per band, 730 to 1100 MB
+  for all six; measured 14–15 Nov 2026) and "Open 15′" / "Keep 7′". A 15′ field opens at 2× zoom (300 px grid) and
   the status line says what the wait is for until the first band arrives. Not offered in the embedded view.
 - Links: WiseView reads its state from the URL hash on load (`#ra=&dec=&size=&band=…`, checked in a browser);
   the link uses the object's latest track position and WiseView's own defaults. The IRSA SPHEREx Data Explorer
@@ -134,7 +134,7 @@ note "Automatic candidates are places to look at, not detection claims." Each ca
 position in the current epoch (faint at the nearest epoch when it has none there) with a short label (`mover`,
 `variable`, or `known: Gaia DR3 <id>` when `known` is true; a nearby Gaia star alone is only in the tooltip). The list shows id, label, bands, S/N and rate; clicking
 one loads its positions as marks in the measure tool (and switches to its first band), from where refine and
-report work as usual. The list shows `grade` with its `grade_reason` (e.g. "[A: three passes on a line]"; B rings and entries faint) and `n_bands`. The first three `validation` lines (limit, injection result, what the grades mean) are shown under the toggle; a closed "How candidates
+report work as usual. The list shows `grade` with its `grade_reason` (e.g. "[A: three passes on a line]"; B rings and entries faint) and `n_bands` as independent wavelength ranges ("D5, W · one independent wavelength range"; W overlaps D5/D6). The first three `validation` lines (limit, injection result, what the grades mean) are shown under the toggle; a closed "How candidates
 are found" section shows `method`, `params`, `bands_searched`, the `rejected` counts and the other
 `validation` lines as given. When the live server answers 202 (candidates not computed yet) the toggle is shown faint with "Automatic candidates are being computed…" and the `bands_pending` list, and the page asks again every 5 s; 503 says they are not available right now, with the server's message; 404 or no static file: the control is not shown.
 
@@ -145,7 +145,7 @@ when the spectrum carries them, `flags` (names of the FLAGS bits set in its aper
 "Flags" section lists `meta.flag_legend` as given by the data (names seen in this spectrum first, with counts;
 the others faint). Without `flag_legend` the section is hidden. The fixtures' legend texts are placeholders.
 
-Spectrum points with `masked_fraction` show "masked N% of the measurement region" in the hover text, and
+Points with `masked_fraction` ≥ 0.999 (no usable pixel) are not drawn and not in the light curve; the note says "N points without usable pixels left out". Other spectrum points with `masked_fraction` show "masked N% of the measurement region" in the hover text, and
 `meta.err_note` (the error-bar caveat from the empty-sky test) is shown with the aperture notes.
 
 ## Sky context panel (F5, Aladin Lite)
