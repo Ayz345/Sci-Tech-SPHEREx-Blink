@@ -332,3 +332,26 @@ def test_sia_client_error_is_not_retried(monkeypatch):
     with pytest.raises(access.SiaError, match="HTTP 400"):
         access._sia_query(10.0, 20.0, "spherex_dr1", 0.001)
     assert len(calls) == 1 and sleeps == []
+
+
+def test_empty_sia_answer_is_confirmed_and_kept_one_day(tmp_path, monkeypatch):
+    import os
+    monkeypatch.setattr(access, "CACHE_DIR", tmp_path)
+    row = {"obs_id": "o1", "detector": 1, "collection": "c", "s3_key": "k", "access_url": "", "t_min": 1.0,
+           "t_max": 1.1, "em_min_um": 0.75, "em_max_um": 1.09, "bandpass": "SPHEREx-D1", "exptime_s": 113.6,
+           "s_region": ""}
+    answers = []
+    monkeypatch.setattr(access, "_sia_query", lambda *a, **k: answers.pop(0))
+    answers[:] = [[], [row]]                       # a bad node said "no images", the second answer had them
+    assert [r.obs_id for r in access.find_images(10.0, 20.0, collections=["c"])] == ["o1"] and not answers
+    answers[:] = [[], []]                          # two empty answers: believed and cached
+    assert access.find_images(11.0, 20.0, collections=["c"]) == [] and not answers
+    path = access._sia_cache_path(11.0, 20.0, "c", access.SIA_RADIUS_DEG)
+    assert access.find_images(11.0, 20.0, collections=["c"]) == []            # from the cache, no query
+    old = path.stat().st_mtime - 1.5 * 86400
+    os.utime(path, (old, old))                     # an empty list older than a day is asked again
+    answers[:] = [[row]]
+    assert [r.obs_id for r in access.find_images(11.0, 20.0, collections=["c"])] == ["o1"] and not answers
+    p2 = access._sia_cache_path(10.0, 20.0, "c", access.SIA_RADIUS_DEG)
+    os.utime(p2, (old, old))                       # a non-empty list stays valid for SIA_MAX_AGE_DAYS
+    assert [r.obs_id for r in access.find_images(10.0, 20.0, collections=["c"])] == ["o1"]

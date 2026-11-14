@@ -56,6 +56,9 @@ S3_MAX_CONCURRENCY = 32
 
 CACHE_DIR = Path(os.environ.get("SPX_CACHE") or Path(__file__).resolve().parent.parent / "cache")
 SIA_MAX_AGE_DAYS = 7.0
+#: An empty SIA2 answer is asked a second time before it is believed (14 Nov: IRSA's catalogue service returned
+#: "OK, 0 rows" from a bad node 24 times out of 124), and an empty list is kept 1 day, not SIA_MAX_AGE_DAYS.
+SIA_EMPTY_MAX_AGE_DAYS = 1.0
 
 LAYERS = ("IMAGE", "FLAGS", "VARIANCE", "ZODI")
 DETECTOR_BANDS_UM = {1: (0.75, 1.09), 2: (1.10, 1.62), 3: (1.63, 2.41),
@@ -212,7 +215,7 @@ def _quiet_wcs(*args, **kw) -> WCS:
 _s3_slots = threading.BoundedSemaphore(S3_MAX_CONCURRENCY)
 
 #: Process-wide network counters (read by /api/health and scripts/acceptance.py).
-TOTALS = {"s3_requests": 0, "s3_bytes": 0, "sia_queries": 0, "sia_retries": 0}
+TOTALS = {"s3_requests": 0, "s3_bytes": 0, "sia_queries": 0, "sia_retries": 0, "sia_empty_rechecks": 0}
 _totals_lock = threading.Lock()
 
 
@@ -447,11 +450,17 @@ def find_images(ra: float, dec: float, collections=COLLECTIONS, radius_deg: floa
         rows = None
         if path.exists():
             age_days = (time.time() - path.stat().st_mtime) / 86400
-            if max_age_days is None or age_days <= max_age_days:
-                rows = json.loads(path.read_text())["rows"]
+            cached = json.loads(path.read_text())["rows"]
+            limit = max_age_days if cached else (SIA_EMPTY_MAX_AGE_DAYS if max_age_days is None
+                                                 else min(max_age_days, SIA_EMPTY_MAX_AGE_DAYS))
+            if limit is None or age_days <= limit:
+                rows = cached
         if rows is None:
             try:
                 rows = _sia_query(ra, dec, coll, radius_deg)
+                if not rows:  # confirm "no coverage" with a second answer before believing it
+                    _count("sia_empty_rechecks")
+                    rows = _sia_query(ra, dec, coll, radius_deg)
             except SiaError:
                 if path.exists():  # stale cache beats no answer
                     log.warning("SIA2 failed for %s; using stale cache %s", coll, path)
