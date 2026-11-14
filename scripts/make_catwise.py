@@ -234,7 +234,7 @@ def pm_agrees(row: dict, refs: list[dict]) -> dict | None:
         return None
     frac = math.hypot(row["pmra"] - ref["pmra"], row["pmdec"] - ref["pmdec"]) / math.hypot(ref["pmra"], ref["pmdec"])
     ok = frac <= PM_AGREE_FRAC
-    return {"ok": ok, "text": (f"{'agrees' if ok else 'disagrees'} with {ref['what']}: {ref['pmra']:.0f}, "
+    return {"ok": ok, "kind": ref["kind"], "sep": sep(ref), "text": (f"{'agrees' if ok else 'disagrees'} with {ref['what']}: {ref['pmra']:.0f}, "
                                f"{ref['pmdec']:.0f} mas/yr ({sep(ref):.1f} arcsec away), difference {100 * frac:.1f}% "
                                f"({'within' if ok else 'beyond'} {100 * PM_AGREE_FRAC:.0f}%)")}
 
@@ -258,6 +258,18 @@ def write(key: str, data: Path) -> int:
                     if chk is not None:
                         r["pm_check"] = chk["text"]
                         r["pm_reliable"] = chk["ok"]
+                        if chk["ok"] and chk["kind"] == "target":
+                            r["_target_sep"] = chk["sep"]
+        # rows that are the named target (within 2 arcsec, motion agrees): the nearest is the main row ("target":
+        # key), the others point to it ("same_object_as": main row's source_name) so the page draws one mark
+        tgt_rows = sorted((r for r in rows if "_target_sep" in r), key=lambda r: r["_target_sep"])
+        for i, r in enumerate(tgt_rows):
+            if i == 0:
+                r["target"] = key
+            else:
+                r["same_object_as"] = tgt_rows[0]["source_name"]
+        for r in rows:
+            r.pop("_target_sep", None)
     out = {"schema": 1, "key": key, "catalog": "CatWISE2020",
            "meta": {"source": SOURCE, "retrieved_utc": meta["retrieved_utc"], "radius_deg": meta["radius_deg"],
                     "centre": [meta["ra"], meta["dec"]], "ref_mjd": REF_MJD, "position_columns": "ra_pm, dec_pm",

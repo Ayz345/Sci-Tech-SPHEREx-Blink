@@ -97,3 +97,14 @@ def test_fast_rows_are_trusted_only_when_an_independent_motion_agrees():
     assert mc.pm_agrees(row, [g1])["ok"] is False                                        # Gaia says it stands still
     assert mc.pm_agrees(row, [g1, g2]) is None                                           # two Gaia sources: no verdict
     assert mc.pm_agrees(dict(row, ra=21.0), [g1]) is None                                # nothing within 2 arcsec
+
+
+def test_wise0855_rows_are_one_object_in_the_gallery_file():
+    f = Path(__file__).resolve().parent.parent / "web" / "data" / "wise-0855" / "catwise.json"
+    if not f.exists():
+        pytest.skip("no gallery catwise.json")
+    src = json.loads(f.read_text(encoding="utf-8"))["sources"]
+    main = [s for s in src if s.get("target") == "wise-0855"]
+    dup = [s for s in src if s.get("same_object_as")]
+    assert len(main) == 1 and main[0]["source_name"].endswith("J085507.96-071439.3") and main[0]["pm_reliable"]
+    assert dup and all(s["same_object_as"] == main[0]["source_name"] and s["pm_reliable"] for s in dup)
