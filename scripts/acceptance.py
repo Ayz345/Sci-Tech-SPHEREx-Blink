@@ -793,6 +793,41 @@ def _check_server(rep: Report, api: str, prof: dict, seed: int):
                   detail=f"{a['n_images']} vs {b['n_images']}")
     free_field(rep, sess, api, prof, round(rnd.uniform(0, 360), 4), round(rnd.uniform(85.5, 89.9), 4), "dec>85N")
     free_field(rep, sess, api, prof, round(rnd.uniform(0, 360), 4), round(rnd.uniform(-89.9, -85.5), 4), "dec>85S")
+    check_15arcmin(rep, sess, api, rnd)
+
+
+def check_15arcmin(rep: Report, sess, api: str, rnd):
+    """15' field (fov 0.25), cold, opened like the page: first band, all six bands, S3 MB. INFO only: the time
+    thresholds are for the default 7' view (PLAN.md 17 F4; the page says what a 15' field costs)."""
+    sec = "server:15arcmin"
+    h = strict_json(sess.get(f"{api}/api/health", timeout=10).content)
+    if (h.get("max_fov_deg") or 0) < 0.25 - 1e-6:
+        rep.add(sec, "15' field (fov 0.25)", INFO, measured=None, detail=f"server max_fov_deg {h.get('max_fov_deg')}")
+        return
+    if wait_idle(sess, api) is None:
+        rep.add(sec, "server idle before the 15' field", INFO, measured=None, detail="queue not empty after 300 s")
+    ra, dec = round(rnd.uniform(0, 360), 4), round(rnd.uniform(-60, 60), 4)
+    before = strict_json(sess.get(f"{api}/api/health", timeout=10).content).get("network_totals", {})
+    t0 = time.time()
+    r, t_man = get(sess, f"{api}/api/manifest", ra=ra, dec=dec, fov=0.25)
+    if r.status_code != 200:
+        rep.add(sec, f"15' manifest ({ra}, {dec})", INFO, measured=r.status_code, detail=r.text[:200])
+        return
+    m = strict_json(r.content)
+    if not m["epochs"]:
+        rep.add(sec, f"15' field ({ra}, {dec})", INFO, measured="no coverage")
+        return
+    b0 = m.get("default_band") or m["bands"][0]["id"]
+    r2, t_band = get(sess, f"{api}/api/band", key=m["key"], band=b0)
+    waited = wait_idle(sess, api, timeout=900)
+    t_all = None if waited is None else round(time.time() - t0, 1)
+    after = strict_json(sess.get(f"{api}/api/health", timeout=10).content).get("network_totals", {})
+    mb = round((after.get("s3_bytes", 0) - before.get("s3_bytes", 0)) / 1e6, 1)
+    rep.add(sec, f"15' field ({ra}, {dec}): manifest, first band {b0}, all six bands (s), S3 MB", INFO,
+            measured={"manifest_s": round(t_man, 1), "first_band_s": round(t_band, 1) if r2.status_code == 200 else
+                      r2.status_code, "six_bands_s": t_all, "s3_mb": mb, "grid": m["grid"]["shape"],
+                      "n_images": m.get("n_images")},
+            detail="no threshold: the 7' thresholds above do not apply; handoff/results/fov_timing_v2.json")
 
 
 def check_no_coverage(rep: Report, tmp: Path):

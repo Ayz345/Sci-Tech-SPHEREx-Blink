@@ -1,0 +1,218 @@
+{
+ "fov_deg": 0.25,
+ "fields": [
+  {
+   "label": "wise-0855 position",
+   "ra": 133.7951,
+   "dec": -7.2451,
+   "mode": "per-band",
+   "key": "r133p7951_dm7p2451_f0p250",
+   "grid_shape": [
+    300,
+    300
+   ],
+   "n_images": 258,
+   "manifest_s": 9.5,
+   "manifest_tries": 2,
+   "bands": [
+    {
+     "band": "D1",
+     "status": 200,
+     "seconds": 36.5,
+     "s3_mb": 99.7,
+     "s3_requests": 216,
+     "n_used": [
+      4,
+      18,
+      14
+     ]
+    },
+    {
+     "band": "D2",
+     "status": 200,
+     "seconds": 37.2,
+     "s3_mb": 135.4,
+     "s3_requests": 288,
+     "n_used": [
+      8,
+      25,
+      15
+     ]
+    },
+    {
+     "band": "D3",
+     "status": 200,
+     "seconds": 39.7,
+     "s3_mb": 127.5,
+     "s3_requests": 270,
+     "n_used": [
+      3,
+      21,
+      21
+     ]
+    },
+    {
+     "band": "D4",
+     "status": 200,
+     "seconds": 30.5,
+     "s3_mb": 99.5,
+     "s3_requests": 216,
+     "n_used": [
+      4,
+      18,
+      14
+     ]
+    },
+    {
+     "band": "D5",
+     "status": 200,
+     "seconds": 34.5,
+     "s3_mb": 137.4,
+     "s3_requests": 288,
+     "n_used": [
+      8,
+      25,
+      15
+     ]
+    },
+    {
+     "band": "D6",
+     "status": 200,
+     "seconds": 37.7,
+     "s3_mb": 127.9,
+     "s3_requests": 270,
+     "n_used": [
+      3,
+      21,
+      21
+     ]
+    },
+    {
+     "band": "W",
+     "status": 200,
+     "seconds": 13.6,
+     "s3_mb": 0.0,
+     "s3_requests": 0,
+     "n_used": [
+      5,
+      24,
+      23
+     ]
+    }
+   ],
+   "six_bands_s": 229.9,
+   "s3_mb_total": 727.3,
+   "sia_queries": 16,
+   "sia_retries": 13,
+   "peak_mem_mb": 514.4,
+   "disk_mb_frames": 22.7
+  },
+  {
+   "label": "barnard position",
+   "ra": 269.452,
+   "dec": 4.6934,
+   "mode": "page",
+   "key": "r269p4520_dp4p6934_f0p250",
+   "grid_shape": [
+    300,
+    300
+   ],
+   "n_images": 363,
+   "manifest_s": 8.1,
+   "manifest_tries": 1,
+   "bands": [
+    {
+     "band": "D1",
+     "status": 200,
+     "seconds": 66.3,
+     "s3_mb": 250.4,
+     "s3_requests": 732,
+     "n_used": [
+      24,
+      18,
+      18
+     ]
+    },
+    {
+     "band": "D2",
+     "status": 200,
+     "seconds": 12.9,
+     "s3_mb": 0.0,
+     "s3_requests": 0,
+     "n_used": [
+      19,
+      19,
+      24
+     ]
+    },
+    {
+     "band": "D3",
+     "status": 200,
+     "seconds": 69.8,
+     "s3_mb": 126.8,
+     "s3_requests": 360,
+     "n_used": [
+      18,
+      23,
+      19
+     ]
+    },
+    {
+     "band": "D4",
+     "status": 200,
+     "seconds": 52.5,
+     "s3_mb": 115.7,
+     "s3_requests": 360,
+     "n_used": [
+      23,
+      18,
+      19
+     ]
+    },
+    {
+     "band": "D5",
+     "status": 200,
+     "seconds": 69.7,
+     "s3_mb": 131.6,
+     "s3_requests": 372,
+     "n_used": [
+      19,
+      19,
+      24
+     ]
+    },
+    {
+     "band": "D6",
+     "status": 200,
+     "seconds": 57.7,
+     "s3_mb": 136.0,
+     "s3_requests": 354,
+     "n_used": [
+      17,
+      23,
+      19
+     ]
+    }
+   ],
+   "first_band_s": 66.3,
+   "six_bands_s": 329.4,
+   "s3_mb_total": 760.4,
+   "sia_queries": 5,
+   "sia_retries": 3,
+   "peak_mem_mb": 689.1,
+   "disk_mb_frames": 19.4
+  }
+ ],
+ "server": {
+  "commit": "f1e4ae7",
+  "max_fov_deg": 0.25,
+  "live_layers": [
+   "IMAGE",
+   "FLAGS"
+  ]
+ },
+ "memory_peak_mb": 689.1,
+ "cutout_cache_mb": 308.1,
+ "measured_utc": "2026-11-14T17:32:20+00:00 (file time of f4_15arcmin.json)",
+ "conditions": "cold cache, home connection (~5 MB/s), live layers IMAGE+FLAGS, 3 arcsec grid; one server of its own; IRSA SIA2 retries included in manifest times"
+}
