@@ -1,13 +1,13 @@
 {
- "started_utc": "2026-11-14T09:55:22+00:00",
+ "started_utc": "2026-11-14T10:41:57+00:00",
  "profile": "local",
  "api": "http://127.0.0.1:8000",
- "seed": 1794650122,
+ "seed": 1794652917,
  "summary": {
-  "PASS": 99,
-  "FAIL": 4,
+  "PASS": 105,
+  "FAIL": 3,
   "PENDING": 0,
-  "INFO": 31
+  "INFO": 36
  },
  "thresholds": {
   "MIN_EPOCHS": 3,
@@ -471,6 +471,22 @@
    "detail": ""
   },
   {
+   "section": "target:barnard",
+   "item": "no NaN within 2 px of a +Inf pixel (whole field, every frame, low quality included)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
+   "detail": "{}"
+  },
+  {
+   "section": "target:barnard",
+   "item": "of which in frames marked quality=low",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
    "section": "static:eps-indi-b",
    "item": "band.json quality = low exactly when n_used < 5",
    "status": "PASS",
@@ -522,6 +538,22 @@
    "status": "INFO",
    "measured": 0,
    "threshold": null,
+   "detail": "{}"
+  },
+  {
+   "section": "target:eps-indi-b",
+   "item": "of which in frames marked quality=low",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:eps-indi-b",
+   "item": "no NaN within 2 px of a +Inf pixel (whole field, every frame, low quality included)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
    "detail": "{}"
   },
   {
@@ -597,6 +629,22 @@
    "detail": ""
   },
   {
+   "section": "target:wise-0855",
+   "item": "no NaN within 2 px of a +Inf pixel (whole field, every frame, low quality included)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
+   "detail": "{}"
+  },
+  {
+   "section": "target:wise-0855",
+   "item": "of which in frames marked quality=low",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
    "section": "static:rw-aur",
    "item": "band.json quality = low exactly when n_used < 5",
    "status": "PASS",
@@ -633,20 +681,42 @@
   },
   {
    "section": "target:rw-aur",
-   "item": "core finite, or truly saturated there (> 15% of exposures, saturation_check_v2.json)",
+   "item": "saturation rule holds per grid pixel in every frame (saturation_check_v2.json: rule_violations = 0 and nan_covered = 0)",
    "status": "PASS",
    "measured": {
-    "nonfinite_core_px": 1,
-    "excused": {
-     "1_D4": {
-      "nonfinite_core_px": 1,
-      "sat_fraction_at_target": 0.158
-     }
-    },
-    "not_excused": {}
+    "frames_checked": 18,
+    "rule_violations": {},
+    "nan_covered": {}
    },
-   "threshold": "every non-finite core pixel has sat_fraction_at_target > 0.15",
+   "threshold": "0 and 0",
    "detail": ""
+  },
+  {
+   "section": "target:rw-aur",
+   "item": "grid-pixel saturated fraction at the target, per frame",
+   "status": "INFO",
+   "measured": {
+    "0_D1": 0.0,
+    "1_D1": 0.0,
+    "2_D1": 0.0,
+    "0_D2": 0.0,
+    "1_D2": 0.0,
+    "2_D2": 0.0,
+    "0_D3": 0.0,
+    "1_D3": 0.0,
+    "2_D3": 0.0,
+    "0_D4": 0.105,
+    "1_D4": 0.105,
+    "2_D4": 0.056,
+    "0_D5": 0.0,
+    "1_D5": 0.0,
+    "2_D5": 0.0,
+    "0_D6": 0.0,
+    "1_D6": 0.0,
+    "2_D6": 0.0
+   },
+   "threshold": null,
+   "detail": "non-finite core pixels (within 2 px): {'1_D4': 1}"
   },
   {
    "section": "target:rw-aur",
@@ -662,6 +732,22 @@
    "status": "INFO",
    "measured": 0,
    "threshold": null,
+   "detail": "{}"
+  },
+  {
+   "section": "target:rw-aur",
+   "item": "of which in frames marked quality=low",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:rw-aur",
+   "item": "no NaN within 2 px of a +Inf pixel (whole field, every frame, low quality included)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
    "detail": "{}"
   },
   {
@@ -733,6 +819,22 @@
    "measured": 7,
    "threshold": null,
    "detail": "{\"1_D1\": 7}"
+  },
+  {
+   "section": "target:r-dra",
+   "item": "of which in frames marked quality=low",
+   "status": "INFO",
+   "measured": 0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "section": "target:r-dra",
+   "item": "no NaN within 2 px of a +Inf pixel (whole field, every frame, low quality included)",
+   "status": "PASS",
+   "measured": 0,
+   "threshold": "0",
+   "detail": "{}"
   },
   {
    "section": "target:r-dra",
@@ -1007,7 +1109,7 @@
    "status": "PASS",
    "measured": {
     "commits": [
-     "b6b039d"
+     "8a5c415"
     ],
     "dirty": {}
    },
@@ -1026,7 +1128,7 @@
    "section": "server",
    "item": "health ok",
    "status": "PASS",
-   "measured": "79abd08",
+   "measured": "8a5c415",
    "threshold": null,
    "detail": ""
   },
@@ -1040,25 +1142,17 @@
   },
   {
    "section": "server:random",
-   "item": "waited for the server to be idle (s)",
-   "status": "INFO",
-   "measured": 0.1,
-   "threshold": null,
-   "detail": ""
-  },
-  {
-   "section": "server:random",
-   "item": "manifest seconds, median of 3 cold (343.7276, 7.183)",
+   "item": "manifest seconds, median of 3 cold (30.6897, 14.7949)",
    "status": "PASS",
-   "measured": 4.3,
+   "measured": 4.7,
    "threshold": "<= 5.0",
-   "detail": "each: 4.3, 13.5, 3.9"
+   "detail": "each: 4.0, 11.7, 4.7"
   },
   {
    "section": "server:random",
    "item": "epochs",
    "status": "PASS",
-   "measured": 3,
+   "measured": 4,
    "threshold": ">= 1",
    "detail": ""
   },
@@ -1066,7 +1160,7 @@
    "section": "server:random",
    "item": "first band D1 seconds (cold)",
    "status": "PASS",
-   "measured": 6.7,
+   "measured": 6.8,
    "threshold": "<= 30.0",
    "detail": ""
   },
@@ -1092,13 +1186,13 @@
    "status": "PASS",
    "measured": {
     "before": {
-     "s3_requests": 2292,
-     "s3_bytes": 565903825,
+     "s3_requests": 2004,
+     "s3_bytes": 488696916,
      "sia_queries": 6
     },
     "after": {
-     "s3_requests": 2292,
-     "s3_bytes": 565903825,
+     "s3_requests": 2004,
+     "s3_bytes": 488696916,
      "sia_queries": 6
     }
    },
@@ -1109,17 +1203,17 @@
    "section": "server:random",
    "item": "all six bands ready (seconds from the first request)",
    "status": "INFO",
-   "measured": 174.6,
+   "measured": 169.6,
    "threshold": null,
    "detail": "no threshold in the local profile"
   },
   {
    "section": "server:ra0",
-   "item": "manifest seconds, median of 3 cold (0.0003, 55.0049)",
-   "status": "FAIL",
-   "measured": 7.6,
+   "item": "manifest seconds, median of 3 cold (0.0002, -40.8411)",
+   "status": "PASS",
+   "measured": 4.5,
    "threshold": "<= 5.0",
-   "detail": "each: 7.6, 10.1, 4.9"
+   "detail": "each: 4.5, 15.6, 4.1"
   },
   {
    "section": "server:ra0",
@@ -1131,9 +1225,9 @@
   },
   {
    "section": "server:ra0",
-   "item": "first band D2 seconds (cold)",
-   "status": "FAIL",
-   "measured": 44.2,
+   "item": "first band D1 seconds (cold)",
+   "status": "PASS",
+   "measured": 9.6,
    "threshold": "<= 30.0",
    "detail": ""
   },
@@ -1149,17 +1243,17 @@
    "section": "server:ra360",
    "item": "waited for the server to be idle (s)",
    "status": "INFO",
-   "measured": 141.7,
+   "measured": 150.4,
    "threshold": null,
    "detail": ""
   },
   {
    "section": "server:ra360",
-   "item": "manifest seconds, median of 3 cold (359.9999, 55.0049)",
+   "item": "manifest seconds, median of 3 cold (359.999, -40.8411)",
    "status": "PASS",
-   "measured": 4.3,
+   "measured": 4.0,
    "threshold": "<= 5.0",
-   "detail": "each: 4.3, 7.8, 4.3"
+   "detail": "each: 4.0, 11.0, 3.8"
   },
   {
    "section": "server:ra360",
@@ -1171,9 +1265,9 @@
   },
   {
    "section": "server:ra360",
-   "item": "first band D2 seconds (cold)",
+   "item": "first band D1 seconds (cold)",
    "status": "PASS",
-   "measured": 12.8,
+   "measured": 8.8,
    "threshold": "<= 30.0",
    "detail": ""
   },
@@ -1189,25 +1283,25 @@
    "section": "server:ra0/360",
    "item": "both sides of RA 0 see the same images (relative difference)",
    "status": "PASS",
-   "measured": 0.0,
+   "measured": 0.0027,
    "threshold": "<= 0.01",
-   "detail": "434 vs 434"
+   "detail": "375 vs 374"
   },
   {
    "section": "server:dec>85N",
    "item": "waited for the server to be idle (s)",
    "status": "INFO",
-   "measured": 64.1,
+   "measured": 100.2,
    "threshold": null,
    "detail": ""
   },
   {
    "section": "server:dec>85N",
-   "item": "manifest seconds, median of 3 cold (147.6674, 87.8667)",
-   "status": "PASS",
+   "item": "manifest seconds, median of 3 cold (138.4733, 89.4806)",
+   "status": "FAIL",
    "measured": 5.0,
    "threshold": "<= 5.0",
-   "detail": "each: 5.0, 9.9, 4.3"
+   "detail": "each: 4.7, 10.5, 5.0"
   },
   {
    "section": "server:dec>85N",
@@ -1219,9 +1313,9 @@
   },
   {
    "section": "server:dec>85N",
-   "item": "first band D2 seconds (cold)",
-   "status": "FAIL",
-   "measured": 42.6,
+   "item": "first band D1 seconds (cold)",
+   "status": "PASS",
+   "measured": 13.1,
    "threshold": "<= 30.0",
    "detail": ""
   },
@@ -1237,17 +1331,17 @@
    "section": "server:dec>85S",
    "item": "waited for the server to be idle (s)",
    "status": "INFO",
-   "measured": 117.7,
+   "measured": 142.4,
    "threshold": null,
    "detail": ""
   },
   {
    "section": "server:dec>85S",
-   "item": "manifest seconds, median of 3 cold (324.2531, -89.7394)",
+   "item": "manifest seconds, median of 3 cold (109.313, -86.0064)",
    "status": "FAIL",
-   "measured": 12.2,
+   "measured": 5.4,
    "threshold": "<= 5.0",
-   "detail": "each: 3.7, 12.2, 12.4"
+   "detail": "each: 4.8, 13.8, 5.4"
   },
   {
    "section": "server:dec>85S",
@@ -1260,8 +1354,8 @@
   {
    "section": "server:dec>85S",
    "item": "first band D3 seconds (cold)",
-   "status": "PASS",
-   "measured": 28.2,
+   "status": "FAIL",
+   "measured": 52.8,
    "threshold": "<= 30.0",
    "detail": ""
   },
