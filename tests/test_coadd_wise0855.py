@@ -145,6 +145,8 @@ def run():
     rows, nulls = [], {}
     for f in frames:
         noise_img = (fa[f.epoch].image - fb[f.epoch].image) / 2 if f.epoch in fa and f.epoch in fb else None
+        if noise_img is not None:  # saturated (+inf) pixels in a half carry no noise information
+            noise_img = np.where(np.isfinite(noise_img), noise_img, np.nan)
         snr, sig = snr_map(f.image, fwhm_px, noise_img)
         tx, ty = f.target_xy
         yy, xx = np.mgrid[0:snr.shape[0], 0:snr.shape[1]]

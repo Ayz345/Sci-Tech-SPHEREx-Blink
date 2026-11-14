@@ -1,0 +1,709 @@
+{
+ "rw_aur_D1": {
+  "wing_annulus_px": [
+   2.0,
+   5.0
+  ],
+  "bins": [
+   {
+    "band": "D1",
+    "wave_um": [
+     0.741,
+     0.804
+    ],
+    "epochs": 3,
+    "n": 10,
+    "max_over_min": 1.173
+   },
+   {
+    "band": "D1",
+    "wave_um": [
+     0.804,
+     0.867
+    ],
+    "epochs": 3,
+    "n": 9,
+    "max_over_min": 1.39
+   },
+   {
+    "band": "D1",
+    "wave_um": [
+     0.867,
+     0.93
+    ],
+    "epochs": 3,
+    "n": 7,
+    "max_over_min": 1.185
+   },
+   {
+    "band": "D1",
+    "wave_um": [
+     0.93,
+     0.993
+    ],
+    "epochs": 3,
+    "n": 8,
+    "max_over_min": 1.016
+   },
+   {
+    "band": "D1",
+    "wave_um": [
+     0.993,
+     1.056
+    ],
+    "epochs": 3,
+    "n": 7,
+    "max_over_min": 1.341
+   },
+   {
+    "band": "D1",
+    "wave_um": [
+     1.056,
+     1.119
+    ],
+    "epochs": 3,
+    "n": 4,
+    "max_over_min": 1.375
+   }
+  ]
+ },
+ "controls": [
+  {
+   "field": "rw-aur",
+   "ra": 76.97763,
+   "dec": 30.37559,
+   "g_mag": 11.88,
+   "annulus_px": {
+    "D1": [
+     2.0,
+     5.0
+    ],
+    "D2": [
+     2.0,
+     5.0
+    ],
+    "D3": [
+     2.0,
+     5.0
+    ],
+    "D4": [
+     2.0,
+     5.0
+    ],
+    "D5": [
+     2.0,
+     5.0
+    ],
+    "D6": [
+     2.0,
+     5.0
+    ]
+   },
+   "bins": [
+    {
+     "band": "D1",
+     "wave_um": [
+      0.741,
+      0.804
+     ],
+     "epochs": 3,
+     "n": 8,
+     "max_over_min": 1.065
+    },
+    {
+     "band": "D1",
+     "wave_um": [
+      0.804,
+      0.867
+     ],
+     "epochs": 3,
+     "n": 8,
+     "max_over_min": 1.202
+    },
+    {
+     "band": "D1",
+     "wave_um": [
+      0.867,
+      0.93
+     ],
+     "epochs": 3,
+     "n": 7,
+     "max_over_min": 1.042
+    },
+    {
+     "band": "D1",
+     "wave_um": [
+      0.93,
+      0.993
+     ],
+     "epochs": 3,
+     "n": 7,
+     "max_over_min": 1.09
+    },
+    {
+     "band": "D1",
+     "wave_um": [
+      0.993,
+      1.056
+     ],
+     "epochs": 3,
+     "n": 7,
+     "max_over_min": 1.032
+    },
+    {
+     "band": "D1",
+     "wave_um": [
+      1.056,
+      1.119
+     ],
+     "epochs": 3,
+     "n": 6,
+     "max_over_min": 1.361
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.105,
+      1.196
+     ],
+     "epochs": 3,
+     "n": 8,
+     "max_over_min": 1.028
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.196,
+      1.286
+     ],
+     "epochs": 3,
+     "n": 9,
+     "max_over_min": 1.212
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.286,
+      1.376
+     ],
+     "epochs": 3,
+     "n": 7,
+     "max_over_min": 1.118
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.376,
+      1.466
+     ],
+     "epochs": 3,
+     "n": 8,
+     "max_over_min": 1.124
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.466,
+      1.556
+     ],
+     "epochs": 3,
+     "n": 7,
+     "max_over_min": 1.121
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.556,
+      1.646
+     ],
+     "epochs": 3,
+     "n": 7,
+     "max_over_min": 1.087
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      1.639,
+      1.764
+     ],
+     "epochs": 3,
+     "n": 9,
+     "max_over_min": 1.066
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      1.764,
+      1.888
+     ],
+     "epochs": 3,
+     "n": 8,
+     "max_over_min": 1.094
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      1.888,
+      2.012
+     ],
+     "epochs": 3,
+     "n": 8,
+     "max_over_min": 1.068
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      2.012,
+      2.136
+     ],
+     "epochs": 3,
+     "n": 7,
+     "max_over_min": 1.196
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      2.136,
+      2.261
+     ],
+     "epochs": 3,
+     "n": 5,
+     "max_over_min": 1.087
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      2.261,
+      2.385
+     ],
+     "epochs": 3,
+     "n": 6,
+     "max_over_min": 1.055
+    }
+   ]
+  },
+  {
+   "field": "rw-aur",
+   "ra": 76.94848,
+   "dec": 30.4496,
+   "g_mag": 12.59,
+   "annulus_px": {
+    "D1": [
+     2.0,
+     5.0
+    ],
+    "D2": [
+     2.0,
+     5.0
+    ],
+    "D3": [
+     2.0,
+     5.0
+    ],
+    "D4": [
+     2.0,
+     5.0
+    ],
+    "D5": [
+     2.0,
+     5.0
+    ],
+    "D6": [
+     2.0,
+     5.0
+    ]
+   },
+   "bins": [
+    {
+     "band": "D1",
+     "wave_um": [
+      0.741,
+      0.804
+     ],
+     "epochs": 2,
+     "n": 4,
+     "max_over_min": 1.1
+    },
+    {
+     "band": "D1",
+     "wave_um": [
+      0.804,
+      0.867
+     ],
+     "epochs": 3,
+     "n": 8,
+     "max_over_min": 1.245
+    },
+    {
+     "band": "D1",
+     "wave_um": [
+      0.867,
+      0.93
+     ],
+     "epochs": 3,
+     "n": 5,
+     "max_over_min": 1.316
+    },
+    {
+     "band": "D1",
+     "wave_um": [
+      0.93,
+      0.993
+     ],
+     "epochs": 2,
+     "n": 5,
+     "max_over_min": 1.12
+    },
+    {
+     "band": "D1",
+     "wave_um": [
+      1.056,
+      1.119
+     ],
+     "epochs": 2,
+     "n": 2,
+     "max_over_min": 4.366
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.094,
+      1.186
+     ],
+     "epochs": 3,
+     "n": 10,
+     "max_over_min": 1.297
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.186,
+      1.278
+     ],
+     "epochs": 3,
+     "n": 9,
+     "max_over_min": 1.45
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.278,
+      1.37
+     ],
+     "epochs": 3,
+     "n": 9,
+     "max_over_min": 1.109
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.37,
+      1.462
+     ],
+     "epochs": 3,
+     "n": 7,
+     "max_over_min": 1.175
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.462,
+      1.554
+     ],
+     "epochs": 3,
+     "n": 6,
+     "max_over_min": 1.264
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.554,
+      1.646
+     ],
+     "epochs": 3,
+     "n": 7,
+     "max_over_min": 1.377
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      1.639,
+      1.767
+     ],
+     "epochs": 3,
+     "n": 11,
+     "max_over_min": 1.204
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      1.767,
+      1.895
+     ],
+     "epochs": 3,
+     "n": 7,
+     "max_over_min": 1.778
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      1.895,
+      2.023
+     ],
+     "epochs": 3,
+     "n": 9,
+     "max_over_min": 1.46
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      2.023,
+      2.15
+     ],
+     "epochs": 3,
+     "n": 8,
+     "max_over_min": 1.286
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      2.15,
+      2.278
+     ],
+     "epochs": 3,
+     "n": 7,
+     "max_over_min": 1.213
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      2.278,
+      2.406
+     ],
+     "epochs": 3,
+     "n": 6,
+     "max_over_min": 1.5
+    }
+   ]
+  },
+  {
+   "field": "eps-indi-b",
+   "ra": 331.12956,
+   "dec": -56.77475,
+   "g_mag": 12.95,
+   "annulus_px": {
+    "D1": [
+     2.0,
+     5.0
+    ],
+    "D2": [
+     2.0,
+     5.0
+    ],
+    "D3": [
+     2.0,
+     5.0
+    ],
+    "D4": [
+     2.0,
+     5.0
+    ],
+    "D5": [
+     2.0,
+     5.0
+    ],
+    "D6": [
+     2.0,
+     5.0
+    ]
+   },
+   "bins": [
+    {
+     "band": "D1",
+     "wave_um": [
+      0.767,
+      0.817
+     ],
+     "epochs": 2,
+     "n": 3,
+     "max_over_min": 1.144
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.133,
+      1.219
+     ],
+     "epochs": 3,
+     "n": 14,
+     "max_over_min": 1.25
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.219,
+      1.306
+     ],
+     "epochs": 3,
+     "n": 8,
+     "max_over_min": 1.12
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.306,
+      1.392
+     ],
+     "epochs": 4,
+     "n": 8,
+     "max_over_min": 1.321
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.392,
+      1.479
+     ],
+     "epochs": 3,
+     "n": 4,
+     "max_over_min": 1.264
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.479,
+      1.565
+     ],
+     "epochs": 3,
+     "n": 4,
+     "max_over_min": 1.191
+    },
+    {
+     "band": "D2",
+     "wave_um": [
+      1.565,
+      1.651
+     ],
+     "epochs": 2,
+     "n": 9,
+     "max_over_min": 1.27
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      1.647,
+      1.769
+     ],
+     "epochs": 3,
+     "n": 15,
+     "max_over_min": 2.282
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      1.769,
+      1.89
+     ],
+     "epochs": 2,
+     "n": 8,
+     "max_over_min": 1.31
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      1.89,
+      2.012
+     ],
+     "epochs": 4,
+     "n": 10,
+     "max_over_min": 1.475
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      2.012,
+      2.133
+     ],
+     "epochs": 4,
+     "n": 10,
+     "max_over_min": 1.236
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      2.133,
+      2.255
+     ],
+     "epochs": 2,
+     "n": 6,
+     "max_over_min": 1.406
+    },
+    {
+     "band": "D3",
+     "wave_um": [
+      2.255,
+      2.376
+     ],
+     "epochs": 4,
+     "n": 9,
+     "max_over_min": 1.14
+    }
+   ]
+  }
+ ],
+ "summary": {
+  "controls_n_stars": 3,
+  "controls_n_bins": 48,
+  "controls_median_max_over_min": 1.203,
+  "controls_p90": 1.465,
+  "rw_aur_D1_n_bins": 6,
+  "rw_aur_D1_median_max_over_min": 1.263,
+  "significance_threshold": 1.465
+ },
+ "wing_variability": {
+  "rw-aur": {
+   "D1": {
+    "ratio": 1.559,
+    "n_bins": 8
+   },
+   "D2": {
+    "ratio": 1.48,
+    "n_bins": 8
+   },
+   "D3": {
+    "ratio": 1.18,
+    "n_bins": 8
+   },
+   "D4": {
+    "ratio": 1.346,
+    "n_bins": 8
+   },
+   "D5": {
+    "ratio": 2.642,
+    "n_bins": 8
+   },
+   "D6": {
+    "ratio": 2.173,
+    "n_bins": 6
+   }
+  },
+  "r-dra": {
+   "D1": {
+    "ratio": 1.312,
+    "n_bins": 5
+   },
+   "D2": {
+    "ratio": 2.415,
+    "n_bins": 8
+   },
+   "D3": {
+    "ratio": 1.487,
+    "n_bins": 6
+   },
+   "D6": {
+    "ratio": 1.767,
+    "n_bins": 5
+   }
+  }
+ }
+}

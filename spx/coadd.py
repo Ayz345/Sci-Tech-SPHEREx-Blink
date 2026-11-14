@@ -57,6 +57,8 @@ _OVF, _SUR, _NL = (1 << FLAG_BITS[n] for n in ("OVERFLOW", "SUR_ERROR", "NONLINE
 # bits that may accompany a recovered overflow (bright-star core: late transient, bloom mantle)
 _OVF_COMPANIONS = _OVF | (1 << FLAG_BITS["TRANSIENT"]) | (1 << FLAG_BITS["BLOOM"])
 SATURATION_MASK = _OVF | _NL  # kept for callers; use saturated_pixels() for the exact rule
+# any sign of a bright/saturated source at a pixel: decides +inf when no usable sample is left
+SATURATION_EVIDENCE = _OVF | _NL | (1 << FLAG_BITS["BLOOM"]) | (1 << FLAG_BITS["TRANSIENT"])
 
 
 def saturated_pixels(flags) -> np.ndarray:
@@ -187,10 +189,11 @@ def select_spread(mjd, n: int) -> np.ndarray:
 # --------------------------------------------------------------------------- per exposure
 
 def prepare(cut, min_good: int = 200):
-    """Mask, subtract local background. Returns (clean, soft, sigma, satmask) or None.
+    """Mask, subtract local background. Returns (clean, soft, sigma, satmask, evidence) or None.
 
-    clean: all BAD_MASK pixels NaN. soft: only HARD_MASK pixels NaN (used only to fill
-    saturated cores when saturated="fill"). satmask: float 1 where a saturation-type flag is set.
+    clean: unusable pixels NaN. soft: only HARD_MASK pixels NaN (used only to fill saturated cores when
+    saturated="fill"). satmask: float 1 where the pixel is truly saturated (saturated_pixels). evidence: float 1
+    where any saturation sign is set (SATURATION_EVIDENCE) or the image is NaN on an OVERFLOW pixel.
     """
     img = np.asarray(cut.image, float)
     zodi = getattr(cut, "zodi", None)
@@ -215,7 +218,8 @@ def prepare(cut, min_good: int = 200):
     soft = np.where(np.isfinite(img) & ((flags & HARD_MASK) == 0), d, np.nan)
     d[~good] = np.nan
     sat = saturated_pixels(flags).astype(float)
-    return d, soft, float(std), sat
+    ev = (((flags & SATURATION_EVIDENCE) != 0) | (~np.isfinite(img) & ((flags & _OVF) != 0))).astype(float)
+    return d, soft, float(std), sat, ev
 
 
 def resample(d: np.ndarray, px: np.ndarray, py: np.ndarray, min_cov: float = 0.4):
@@ -354,7 +358,7 @@ def build_frames(cutouts, target: SkyCoord, fov_arcmin: float = 7.0, pix_arcsec:
     for (band, e), idx in sorted(groups.items()):
         if max_exposures:
             idx = [idx[j] for j in select_spread(mjd[idx], max_exposures)]
-        vals, softs, sats, ovl, sig, used = [], [], [], [], [], []
+        vals, softs, sats, evs, ovl, sig, used = [], [], [], [], [], [], []
         for i in idx:
             p = prepare(cuts[i])
             if p is None:
@@ -367,6 +371,7 @@ def build_frames(cutouts, target: SkyCoord, fov_arcmin: float = 7.0, pix_arcsec:
             if saturated != "nan":
                 softs.append(resample(p[1], px, py)[0])
                 sats.append(map_coordinates(p[3], [py, px], order=1, cval=0.0, prefilter=False) > 0.25)
+                evs.append(map_coordinates(p[4], [py, px], order=1, cval=0.0, prefilter=False) > 0.25)
         if len(used) < min_exposures:
             continue
         stack = np.stack(vals)
@@ -375,7 +380,12 @@ def build_frames(cutouts, target: SkyCoord, fov_arcmin: float = 7.0, pix_arcsec:
         mean, wsum, nkeep = combine(stack, sig, clip=clip, rel_tol=rel_tol)
         filled = np.zeros(grid.shape, bool)
         if saturated != "nan":
-            filled = (nkeep == 0) & (overlap > 0) & np.any(sats, axis=0)
+            # +inf where (a) no usable sample is left and some exposure shows saturation there, or (b) more than
+            # 15% of the overlapping exposures are truly saturated there: the recovered rest is then a brightness-
+            # biased subset (Barnard D5: 20% saturated -> recovered core 2373/1882/1353 MJy/sr over three epochs of a
+            # constant star; D6, 0% saturated: 1247/1176/1195)
+            nsat = np.sum(sats, axis=0)
+            filled = (overlap > 0) & (((nkeep == 0) & np.any(evs, axis=0)) | (nsat > 0.15 * overlap))
             if filled.any():
                 if saturated == "fill":
                     with warnings.catch_warnings():

@@ -155,6 +155,8 @@ def run():
                 if f is None:
                     continue
                 noise = (ha[f.epoch].image - hb[f.epoch].image) / 2 if f.epoch in ha and f.epoch in hb else None
+                if noise is not None:
+                    noise = np.where(np.isfinite(noise), noise, np.nan)
                 s = rms(bin2(noise)) if noise is not None else float("nan")
                 sel = [c for c in ec if c.obs_id in set(f.obs_ids)]
                 rows.append({"target": key, "epoch": e["id"], "date": e["date"], "method": "spx.coadd", "window_um": f"{win[0]}-{win[1]} (LVF at target)",

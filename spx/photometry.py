@@ -140,9 +140,65 @@ def psf_flux(cut, xys, fwhm_px, box_px=6, r_bg=(8.0, 12.0)):
     return p * to_mjy, np.sqrt(np.diag(cov)) * to_mjy, flagged, sat, ovf
 
 
+def _saturated_radius(cut, x, y, search_px=3.0):
+    """Radius (px) of the target's own contiguous saturated region (early overflow / NONLINEAR / NaN core)."""
+    from scipy.ndimage import binary_dilation, label
+    img = np.asarray(cut.image, float)
+    yy, xx = np.mgrid[0:img.shape[0], 0:img.shape[1]]
+    rr = np.hypot(xx - x, yy - y)
+    sat = saturated_pixels(cut.flags) | (~np.isfinite(img) & (rr < 25))
+    lab, _ = label(binary_dilation(sat, iterations=1))
+    ids = np.unique(lab[(rr <= search_px) & (lab > 0)])
+    own = np.isin(lab, ids) & sat if len(ids) else np.zeros_like(sat)
+    return float(rr[own].max()) if own.any() else 0.0
+
+
+def wing_flux(cut, x, y, r_in, r_out, bg_gap=4.0, bg_width=6.0):
+    """Mean surface brightness (MJy/sr) of usable pixels in the annulus r_in..r_out around (x, y), minus the local
+    background from r_out+bg_gap .. r_out+bg_gap+bg_width. RELATIVE brightness of a saturated star from its PSF
+    wings (not a total flux). Returns (value, err) or None (annulus off the cutout or < 60 % usable)."""
+    img = np.asarray(cut.image, float)
+    flags = np.asarray(cut.flags)
+    ny, nx = img.shape
+    rb = r_out + bg_gap + bg_width
+    if not (rb <= x <= nx - 1 - rb and rb <= y <= ny - 1 - rb):
+        return None
+    yy, xx = np.mgrid[0:ny, 0:nx]
+    rr = np.hypot(xx - x, yy - y)
+    ok = np.isfinite(img) & usable_pixels(flags)
+    ann = (rr >= r_in) & (rr < r_out)
+    a = ann & ok
+    if a.sum() < 0.6 * ann.sum():
+        return None
+    bgm = ok & ((flags & BAD_MASK) == 0) & (rr >= r_out + bg_gap) & (rr < rb)
+    if bgm.sum() < 20:
+        return None
+    _, bg, bgsig = sigma_clipped_stats(img[bgm], sigma=3.0, maxiters=5, stdfunc="mad_std")
+    val = float(np.mean(img[a]) - bg)
+    var = getattr(cut, "variance", None)
+    if var is not None:
+        v = np.asarray(var, float)[a]
+        v = np.where(np.isfinite(v) & (v > 0), v, bgsig ** 2)
+        err = float(np.sqrt(v.sum()) / a.sum())
+    else:
+        err = float(bgsig / np.sqrt(a.sum()))
+    err = float(np.hypot(err, bgsig / np.sqrt(bgm.sum())))
+    return val, err
+
+
+def wing_radii(cuts, coord, pct=90.0, pad=1.5, width=3.0, r_min=2.0):
+    """Per detector {band: (r_in, r_out)}: just outside the target's saturated core in (almost) every exposure."""
+    rs = {}
+    for c in cuts:
+        x, y = c.wcs.world_to_pixel(target_at(coord, c.mjd))
+        rs.setdefault(f"D{c.detector}", []).append(_saturated_radius(c, float(x), float(y)))
+    return {b: (max(r_min, float(np.percentile(v, pct)) + pad), max(r_min, float(np.percentile(v, pct)) + pad) + width)
+            for b, v in rs.items()}
+
+
 def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_in: float = 4.0,
                     r_out: float = 7.0, max_epoch_days: float | None = 60.0, neighbors: SkyCoord | None = None,
-                    blend_radius_arcsec: float = 25.0, neighbor_info: list | None = None):
+                    blend_radius_arcsec: float = 25.0, neighbor_info: list | None = None, wings: bool = False):
     """One photometric point per exposure at `coord` (propagated per exposure if it has a proper motion).
 
     epochs: the manifest epoch_table (preferred, so ids match the frames); otherwise split_epochs over
@@ -150,6 +206,10 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
     neighbors: known sources (e.g. Gaia DR3 with pm/obstime). If any comes within blend_radius_arcsec of the
     target in any exposure, EVERY point is measured by fixed-position PSF photometry that fits the target and
     those neighbours together (deblended); otherwise by aperture photometry. meta["photometry"] says which.
+    wings: (default False, not yet approved for publication) add wing_flux / wing_err (MJy/sr, RELATIVE brightness
+    from the PSF wings in a fixed per-band annulus just
+    outside the saturated core; meta["wing"] gives the radii). Use it for saturated stars, compare like with like
+    (binned_series) - it is not a total flux.
     neighbor_info: optional list of dicts aligned with `neighbors` (e.g. gaia.json rows); their source_id and
     g_mag are copied into meta["deblended_neighbors"] = [{source_id, g_mag, ra, dec}] (missing keys -> null).
     """
@@ -157,6 +217,7 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
     mjd = np.array([c.mjd for c in cuts])
     ep = assign_epochs(mjd, epochs) if epochs is not None else split_epochs(mjd, max_epoch_days=max_epoch_days)
     blend = _blended(neighbors, coord, mjd, blend_radius_arcsec) if neighbors is not None and len(cuts) else []
+    wr = wing_radii(cuts, coord) if wings else {}
     pts = []
     for c, e in zip(cuts, ep):
         pos = target_at(coord, c.mjd)
@@ -183,13 +244,25 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
                     "flux": round(flux, 6), "err": round(err, 6), "mjd": round(float(c.mjd), 5),
                     "epoch": int(e), "band": f"D{c.detector}", "flagged": bool(flagged), "saturated": bool(sat),
                     "overflow": bool(ovf), "obs_id": c.obs_id})
+        if wings and f"D{c.detector}" in wr:
+            wf = wing_flux(c, float(x), float(y), *wr[f"D{c.detector}"])
+            if wf is not None:
+                pts[-1]["wing_flux"], pts[-1]["wing_err"] = round(wf[0], 6), round(wf[1], 6)
         if nbf is not None:
             pts[-1]["neighbor_flux"] = round(nbf, 6)
         elif blend:
             pts[-1]["photometry"] = "aperture"  # PSF fit impossible for this exposure (saturated core)
     pts.sort(key=lambda p: (p["wavelength_um"], p["mjd"]))
     if blend:
-        meta = {"flux_unit": FLUX_UNIT, "photometry": "psf_deblended", "aperture_radius_px": None,
+        meta = {"flux_unit": FLUX_UNIT, "photometry": "psf_deblended", "aperture_radius_px": None, "wing": ({"label": "relative brightness from PSF wings", "unit": "MJy/sr",
+                         "annulus_px": {k: [round(v[0], 2), round(v[1], 2)] for k, v in sorted(wr.items())},
+                         "method": "mean of usable pixels (clean or recovered overflow) in a fixed per-band annulus "
+                                   "just outside the target's saturated core in 90% of exposures, minus a local "
+                                   "background 4-10 px further out; validated against aperture flux on RW Aur D1 "
+                                   "(tests/test_coadd_wings.py): the wing/aperture ratio changes between epochs by "
+                                   "x1.20 (median), x1.47 (90th percentile) on unsaturated control stars, so only "
+                                   "changes larger than x1.5 are significant. Not a total flux: compare epochs only at similar "
+                                   "wavelength (binned_series)"} if wr else None),
                 "deblended_neighbors": [{"source_id": _info(neighbor_info, i, "source_id"),
                                          "g_mag": _info(neighbor_info, i, "g_mag"),
                                          "ra": round(float(neighbors[i].ra.deg), 6), "dec": round(float(neighbors[i].dec.deg), 6)}
@@ -207,7 +280,15 @@ def spectrum_points(cutouts, coord: SkyCoord, epochs=None, r_ap: float = 2.0, r_
                 "n_points": len(pts), "n_flagged": int(sum(p["flagged"] for p in pts)),
                 "n_saturated": int(sum(p["saturated"] for p in pts)), "n_overflow": int(sum(p["overflow"] for p in pts))}
         return {"meta": meta, "points": pts}
-    meta = {"flux_unit": FLUX_UNIT, "photometry": "aperture", "aperture_radius_px": r_ap,
+    meta = {"flux_unit": FLUX_UNIT, "photometry": "aperture", "aperture_radius_px": r_ap, "wing": ({"label": "relative brightness from PSF wings", "unit": "MJy/sr",
+                         "annulus_px": {k: [round(v[0], 2), round(v[1], 2)] for k, v in sorted(wr.items())},
+                         "method": "mean of usable pixels (clean or recovered overflow) in a fixed per-band annulus "
+                                   "just outside the target's saturated core in 90% of exposures, minus a local "
+                                   "background 4-10 px further out; validated against aperture flux on RW Aur D1 "
+                                   "(tests/test_coadd_wings.py): the wing/aperture ratio changes between epochs by "
+                                   "x1.20 (median), x1.47 (90th percentile) on unsaturated control stars, so only "
+                                   "changes larger than x1.5 are significant. Not a total flux: compare epochs only at similar "
+                                   "wavelength (binned_series)"} if wr else None),
             "aperture_radius_arcsec": round(r_ap * 6.15, 2),
             "background_annulus_px": [r_in, r_out], "aperture_corrected": False,
             "method": "per-exposure circular aperture on the L2 image (MJy/sr x pixel solid angle), "
@@ -252,6 +333,84 @@ def _blended(neighbors: SkyCoord, coord: SkyCoord, mjd, radius_arcsec: float) ->
         sep = _move(neighbors, m).separation(target_at(coord, m)).arcsec
         out |= set(int(i) for i in np.nonzero((sep < radius_arcsec) & (sep > 0.5))[0])
     return sorted(out)
+
+
+def binned_series(points, kind: str = "flux", nbins: int = 8):
+    """Like-with-like series: per band, the band's wavelength range in nbins equal bins; per (band, bin, epoch) the
+    median of the usable points (kind="flux": not flagged; kind="wing": points with wing_flux) and its error
+    (1.2533 x the scatter / sqrt(n), or the point error when n = 1). Returns a list of dicts
+    {kind, band, wave_um: [lo, hi], epoch, mjd, value, err, n}, sorted by band, bin, epoch."""
+    key, ekey = ("flux", "err") if kind == "flux" else ("wing_flux", "wing_err")
+    out = []
+    for band in sorted({p["band"] for p in points}):
+        q = [p for p in points if p["band"] == band and key in p and (kind != "flux" or not p["flagged"])]
+        if not q:
+            continue
+        wl = np.array([p["wavelength_um"] for p in points if p["band"] == band])
+        edges = np.linspace(wl.min(), wl.max() + 1e-9, nbins + 1)
+        for i in range(nbins):
+            for e in sorted({p["epoch"] for p in q}):
+                g = [p for p in q if p["epoch"] == e and edges[i] <= p["wavelength_um"] < edges[i + 1]]
+                if not g:
+                    continue
+                v = np.array([p[key] for p in g])
+                err = float(1.2533 * np.std(v) / np.sqrt(len(v))) if len(v) > 2 else float(np.max([p[ekey] for p in g]))
+                out.append({"kind": kind, "band": band, "wave_um": [round(float(edges[i]), 4), round(float(edges[i + 1]), 4)],
+                            "epoch": int(e), "mjd": round(float(np.median([p["mjd"] for p in g])), 3),
+                            "value": round(float(np.median(v)), 6), "err": round(err, 6), "n": len(g)})
+    return out
+
+
+VARIABILITY_METHOD = (
+    "variability(binned_series(points)): per band, the band's wavelength range in 8 equal bins; per bin the epoch "
+    "medians of the usable (not flagged) points; max/min over epochs (bins with any value <= 3 err skipped); median "
+    "over bins. Significance: compare with control stars measured the SAME way in the SAME cutouts - Gaia DR3 stars "
+    "(select_controls) within 3.5' of the target, G within +-1.5 mag of the target (or G 10-14 when the target is "
+    "saturated or not in Gaia), no other Gaia G < 17 star within 30\", at least 30\" from the target, up to 20 stars. "
+    "A band is variable when its ratio exceeds the 99th percentile of the controls' ratios in that band AND 1.15.")
+
+
+def select_controls(gaia_rows, target_radec, target_g=None, n_max=20, radius_arcmin=3.5):
+    """Control stars for variability() as described in VARIABILITY_METHOD. gaia_rows: dicts with ra, dec, g_mag
+    (gaia.json rows). Returns the selected rows, brightest first."""
+    rows = [r for r in gaia_rows if r.get("g_mag") is not None]
+    if not rows:
+        return []
+    ra = np.array([r["ra"] for r in rows]); dec = np.array([r["dec"] for r in rows]); g = np.array([r["g_mag"] for r in rows])
+    allc = SkyCoord(ra, dec, unit="deg")
+    t = SkyCoord(*target_radec, unit="deg")
+    lo, hi = (target_g - 1.5, target_g + 1.5) if target_g is not None and target_g > 11.5 else (10.0, 14.0)
+    out = []
+    for i in np.argsort(g):
+        if not (lo <= g[i] <= hi):
+            continue
+        sep_t = allc[i].separation(t).arcsec
+        if sep_t < 30 or sep_t > radius_arcmin * 60:
+            continue
+        sep = allc.separation(allc[i]).arcsec
+        if np.any((sep > 0.5) & (sep < 30) & (g < 17)):
+            continue
+        out.append(rows[i])
+        if len(out) >= n_max:
+            break
+    return out
+
+
+def variability(series, min_epochs: int = 2):
+    """{band: dict(ratio, n_bins)}: per wavelength bin with >= min_epochs epochs, max/min of the epoch values
+    (bins with any value <= 3 err are skipped), then the median over bins. 1.0 = constant."""
+    out = {}
+    for band in sorted({r["band"] for r in series}):
+        ratios = []
+        for wv in sorted({tuple(r["wave_um"]) for r in series if r["band"] == band}):
+            g = [r for r in series if r["band"] == band and tuple(r["wave_um"]) == wv]
+            if len(g) < min_epochs or any(r["value"] <= 3 * r["err"] for r in g):
+                continue
+            v = [r["value"] for r in g]
+            ratios.append(max(v) / min(v))
+        if ratios:
+            out[band] = {"ratio": round(float(np.median(ratios)), 3), "n_bins": len(ratios)}
+    return out
 
 
 # --------------------------------------------------------------------------- co-add measurements
