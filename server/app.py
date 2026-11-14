@@ -54,6 +54,7 @@ def _code_hash() -> str:
 
 
 CODE_HASH = _code_hash()
+STARTED_COMMIT = P.spx_commit()  # git HEAD (and uncommitted code) when this process started
 FIELDS_DIR = access.CACHE_DIR / "fields" / f"v{spx.__version__}-{CODE_HASH}"
 MAX_FIELDS_IN_MEMORY = 32
 MAX_CUTOUT_SETS = 2
@@ -564,7 +565,8 @@ async def api_health():
         fields = len(reg.fields)
         queued = {"urgent": len(reg.urgent), "background": len(reg.background)}
         running = sum(j.state == "running" for fs in reg.fields.values() for j in fs.jobs.values())
-    return jresp({"schema": P.SCHEMA, "ok": True, "version": spx.__version__, "commit": P.spx_commit().get("commit"),
+    return jresp({"schema": P.SCHEMA, "ok": True, "version": spx.__version__, "commit": STARTED_COMMIT.get("commit"),
+                  "uncommitted_code_at_start": STARTED_COMMIT.get("uncommitted_code"),
                   "collections": list(access.COLLECTIONS), "max_fov_deg": P.MAX_FOV_DEG,
                   "live_layers": list(LIVE_LAYERS), "fields_in_memory": fields, "bands_queued": queued, "bands_running": running,
                   "s3_max_concurrency": access.S3_MAX_CONCURRENCY, "code_hash": CODE_HASH,

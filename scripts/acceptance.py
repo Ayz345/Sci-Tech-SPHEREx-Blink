@@ -49,7 +49,6 @@ CORE_PX = 2.0                        # "the core": within 2 grid px of the track
 SATURATED_CORE = {"barnard": "inf", "r-dra": "inf", "rw-aur": "finite"}   # expected core per target
 CORE_LINK_ARCSEC = 12.0              # a +Inf group is a star core if it comes this close to the track ...
 CORE_LINK_GMAX = 12.0                # ... or to a Gaia source brighter than this G (propagated to the epoch)
-SAT_FRACTION_MAX = 0.15              # a non-finite "finite" core is allowed only where > 15 % of exposures saturate
 SATURATION_CHECK = ROOT / "handoff" / "results" / "saturation_check_v2.json"
 PROFILES = {  # seconds
     "local": {"manifest": 5.0, "first_band": 30.0, "cached": 3.0, "six_bands": None},
@@ -250,11 +249,7 @@ def check_core(rep: Report, s: Static, key: str):
     yy, xx = np.mgrid[0:ny, 0:nx]
     holes, n_inf, n_core_nonfinite, per = 0, 0, 0, {}
     low_holes = low_inf = 0
-    excused, unexcused = {}, {}
-    satfrac = {}
-    if SATURATION_CHECK.exists():
-        for r_ in strict_json(SATURATION_CHECK):
-            satfrac[(r_["target"], r_["band"], int(r_["epoch"]))] = r_.get("sat_fraction_at_target")
+    nonfinite_frames = {}
     for b in sorted(s.bj):
         for e, (img, ej) in sorted(s.frames(b).items()):
             if e not in s.track:
@@ -276,9 +271,7 @@ def check_core(rep: Report, s: Static, key: str):
             n_inf += i
             n_core_nonfinite += c
             if c:
-                fr = satfrac.get((key, b, int(e)))
-                (excused if fr is not None and fr > SAT_FRACTION_MAX else unexcused)[f"{e}_{b}"] = \
-                    {"nonfinite_core_px": c, "sat_fraction_at_target": fr}
+                nonfinite_frames[f"{e}_{b}"] = c
             low = ej.get("quality") == "low"
             if low:
                 low_holes += h
@@ -294,10 +287,51 @@ def check_core(rep: Report, s: Static, key: str):
         rep.check(sec, "saturated core is +Inf (pixels near the track, all frames)", n_inf > 0, measured=n_inf,
                   threshold="> 0")
     elif want == "finite":
-        rep.check(sec, f"core finite, or truly saturated there (> {SAT_FRACTION_MAX:.0%} of exposures, "
-                       f"{SATURATION_CHECK.name})", not unexcused,
-                  measured={"nonfinite_core_px": n_core_nonfinite, "excused": excused, "not_excused": unexcused},
-                  threshold=f"every non-finite core pixel has sat_fraction_at_target > {SAT_FRACTION_MAX}")
+        # The +Inf rule is per GRID pixel (> 15 % truly saturated, or no usable sample). The co-add session's check
+        # applies it to every pixel of every frame: rule_violations and nan_covered must both be 0.
+        if not SATURATION_CHECK.exists():
+            rep.add(sec, "saturation rule per grid pixel (co-add session's check)", FAIL,
+                    detail=f"missing {SATURATION_CHECK}")
+            return
+        rows = [r_ for r_ in strict_json(SATURATION_CHECK) if r_["target"] == key]
+        viol = {f"{r_['epoch']}_{r_['band']}": r_.get("rule_violations") for r_ in rows if r_.get("rule_violations")}
+        nanc = {f"{r_['epoch']}_{r_['band']}": r_.get("nan_covered") for r_ in rows if r_.get("nan_covered")}
+        rep.check(sec, f"saturation rule holds per grid pixel in every frame ({SATURATION_CHECK.name}: "
+                       "rule_violations = 0 and nan_covered = 0)",
+                  bool(rows) and not viol and not nanc,
+                  measured={"frames_checked": len(rows), "rule_violations": viol, "nan_covered": nanc},
+                  threshold="0 and 0")
+        gsf = {f"{r_['epoch']}_{r_['band']}": r_.get("grid_sat_frac_at_target") for r_ in rows}
+        rep.add(sec, "grid-pixel saturated fraction at the target, per frame", INFO, measured=gsf,
+                detail=f"non-finite core pixels (within {CORE_PX:g} px): {nonfinite_frames or 'none'}")
+
+
+NAN_NEAR_INF_PX = 2                  # NaN within this many grid pixels of a +Inf pixel = a hole at a saturated edge
+
+
+def check_nan_next_to_inf(rep: Report, s: Static, key: str):
+    """A saturated region must not be ringed by NaN: NaN AND (the +Inf map dilated by NAN_NEAR_INF_PX) = 0 over
+    the whole field, every frame (frames marked quality=low counted apart as INFO)."""
+    from scipy.ndimage import binary_dilation
+    sec = f"target:{key}"
+    total, low_total, per = 0, 0, {}
+    for b in sorted(s.bj):
+        for e, (img, ej) in sorted(s.frames(b).items()):
+            inf = np.isposinf(img)
+            if not inf.any():
+                continue
+            ring = binary_dilation(inf, structure=np.ones((3, 3), bool), iterations=NAN_NEAR_INF_PX)
+            n = int((np.isnan(img) & ring).sum())
+            if n:
+                low = ej.get("quality") == "low"
+                per[f"{e}_{b}"] = n if not low else f"{n} (quality low)"
+                if low:
+                    low_total += n
+                else:
+                    total += n
+    rep.check(sec, f"no NaN within {NAN_NEAR_INF_PX} px of a +Inf pixel (whole field, every frame)", total == 0,
+              measured=total, threshold="0", detail=json.dumps(per)[:600])
+    rep.add(sec, "same, in frames marked quality=low", INFO, measured=low_total)
 
 
 def check_empty_sky_inf(rep: Report, s: Static, key: str):
@@ -797,6 +831,7 @@ def main():
             check_quality_flags(rep, sk, k)
             check_core(rep, sk, k)
             check_empty_sky_inf(rep, sk, k)
+            check_nan_next_to_inf(rep, sk, k)
     if st.get("barnard"):
         check_mover(rep, st["barnard"], "barnard")
     if st.get("eps-indi-b"):
