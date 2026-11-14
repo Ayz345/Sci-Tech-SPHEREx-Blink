@@ -65,7 +65,9 @@ def client(tmp_path, monkeypatch):
         return _refs(ra, dec)
 
     def fake_fetch(refs, ra, dec, half_px=50, layers=("IMAGE", "FLAGS", "VARIANCE"), workers=32, progress=None,
-                   stats=None):
+                   stats=None, box_deg=None):
+        calls["box_deg"] = box_deg
+        calls.setdefault("box_by_ra", []).append((round(ra, 1), box_deg))
         calls["fetch"] += 1
         calls["layers"] = tuple(layers)
         rng = np.random.default_rng(len(refs))
@@ -197,3 +199,81 @@ def test_json_safe():
     assert P.dumps({"a": float("nan"), "b": [np.float32(np.inf), 1.5], "c": np.int64(3)}) == \
         '{"a": null, "b": [null, 1.5], "c": 3}'
     assert P.free_key(-0.00001, -0.0, 0.11666) == "r0p0000_dp0p0000_f0p117"
+
+
+def test_free_position_with_proper_motion(client):
+    pmra, pmdec = -3781.7, 769.5
+    r = client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "pmra": pmra, "pmdec": pmdec,
+                                            "ref_epoch": 2000.0, "name": "Mover"})
+    m = _strict(r)
+    assert m["key"].endswith("_pmm3781p70_769p50_e2000p000") and m["name"] == "Mover"
+    tr = m["target_track"]
+    assert len(tr) == 3 and "SIMBAD" in m["target_source"]
+    from astropy.coordinates import SkyCoord
+    import astropy.units as u
+    a = SkyCoord(tr[0]["ra"] * u.deg, tr[0]["dec"] * u.deg)
+    b = SkyCoord(tr[2]["ra"] * u.deg, tr[2]["dec"] * u.deg)
+    dt_yr = (m["epochs"][2]["mjd_mid"] - m["epochs"][0]["mjd_mid"]) / 365.25
+    assert a.separation(b).arcsec == pytest.approx(math.hypot(pmra, pmdec) / 1000 * dt_yr, rel=0.01)
+    # the key reopens the same moving field after a restart
+    client.new_registry()
+    m2 = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "pmra": pmra, "pmdec": pmdec,
+                                                     "ref_epoch": 2000.0}))
+    assert m2["key"] == m["key"] and len(m2["target_track"]) == 3
+    assert client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "pmra": 1e6}).status_code == 400
+
+
+def test_free_field_with_gallery_target_gets_its_bands(client):
+    m = _strict(client.get("/api/manifest", params={"ra": "08h55m10.831s", "dec": "-07d14m42.53s"}))
+    ids = [b["id"] for b in m["bands"]]
+    assert "W" in ids and any("WISE 0855" in n for n in m.get("notes", []))
+
+
+def test_box_cutouts_only_for_free_fields(client):
+    m = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "fov": 0.1}))
+    client.get("/api/band", params={"key": m["key"], "band": "D1"})
+    m = _strict(client.get("/api/manifest", params={"target": "rw-aur"}))
+    client.get("/api/band", params={"key": "rw-aur", "band": "D1"})
+    by_ra = client.calls["box_by_ra"]
+    assert {round(b, 6) for r, b in by_ra if r == round(RA0, 1)} == {0.1}
+    assert {b for r, b in by_ra if abs(r - 77.0) < 0.2} == {None}  # gallery targets reuse their square cutouts
+
+
+@pytest.mark.skipif(__import__("os").environ.get("SPX_NETWORK") != "1", reason="set SPX_NETWORK=1 (Sesame, Gaia, SIA2)")
+def test_proxima_track_matches_gaia():
+    """SIMBAD (J2000 + pm, via /api/resolve) propagated to each epoch == Gaia DR3 (2016.0) propagated."""
+    import csv
+    import io
+    import requests
+    from astropy.coordinates import SkyCoord
+    from astropy.time import Time
+    import astropy.units as u
+    from server import app as A
+    from server import pipeline as P
+    r = A._sesame("Proxima Centauri")
+    assert r and r["pmra"] < -3000
+    f = P.open_field(ra=r["ra"], dec=r["dec"], fov_deg=0.1, pm=(r["pmra"], r["pmdec"], r["ref_epoch"]))
+    m = P.manifest(f)
+    q = ("SELECT TOP 1 source_id, ra, dec, pmra, pmdec, phot_g_mean_mag FROM gaiadr3.gaia_source WHERE "
+         f"1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {r['ra']}, {r['dec']}, 0.05)) AND pmra < -3000 "
+         "ORDER BY phot_g_mean_mag")
+    g = next(csv.DictReader(io.StringIO(requests.get(P.GAIA_TAP, params={"REQUEST": "doQuery", "LANG": "ADQL",
+                                                                         "FORMAT": "csv", "QUERY": q}, timeout=60).text)))
+    gc = SkyCoord(ra=float(g["ra"]) * u.deg, dec=float(g["dec"]) * u.deg, pm_ra_cosdec=float(g["pmra"]) * u.mas / u.yr,
+                  pm_dec=float(g["pmdec"]) * u.mas / u.yr, obstime=Time(2016.0, format="jyear"), frame="icrs")
+    assert len(m["target_track"]) >= 3
+    for t, e in zip(m["target_track"], m["epochs"]):
+        expect = P.target_at(gc, e["mjd_mid"])
+        got = SkyCoord(t["ra"] * u.deg, t["dec"] * u.deg)
+        assert got.separation(expect).arcsec < 0.5, (e, got.separation(expect).arcsec)
+
+
+def test_touch_moves_field_first_in_background():
+    from server import app as A
+    reg = A.Registry.__new__(A.Registry)  # no worker threads
+    import threading
+    reg.lock = threading.RLock()
+    reg.cv = threading.Condition(reg.lock)
+    reg.background = [("a", "D2"), ("a", "D3"), ("b", "D2"), ("b", "D3")]
+    reg.touch("b")
+    assert reg.background == [("b", "D2"), ("b", "D3"), ("a", "D2"), ("a", "D3")]

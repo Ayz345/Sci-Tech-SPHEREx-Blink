@@ -721,11 +721,35 @@ def _bilinear(a: np.ndarray, x: float, y: float) -> float:
     return float(v)
 
 
-def _cutout_path(s3_key: str, x0: int, y0: int, n: int) -> Path:
-    return CACHE_DIR / "cutout" / _key_hash(s3_key) / f"{x0}_{y0}_{n}.npz"
+def _cutout_path(s3_key: str, x0: int, y0: int, w: int, h: int) -> Path:
+    name = f"{x0}_{y0}_{w}" if w == h else f"{x0}_{y0}_{w}x{h}"  # square names unchanged (existing cache)
+    return CACHE_DIR / "cutout" / _key_hash(s3_key) / f"{name}.npz"
 
 
-def _cut_one(ref: ImageRef, ra: float, dec: float, half_px: int, layers: tuple):
+BOX_MARGIN_PX = 4
+
+
+def _sky_box_bounds(w: WCS, ra: float, dec: float, half_deg: float) -> tuple[int, int, int, int]:
+    """Detector pixel bounds (x0, y0, w, h) of a north-up square of half-side half_deg on the sky
+    (tangent plane at ra, dec), plus BOX_MARGIN_PX for the resampling kernel and the background."""
+    t = np.linspace(-1.0, 1.0, 9)
+    u_ = np.concatenate([t, t, -np.ones_like(t), np.ones_like(t)]) * half_deg   # east-west offset (deg)
+    v_ = np.concatenate([-np.ones_like(t), np.ones_like(t), t, t]) * half_deg   # south-north offset (deg)
+    tan = WCS(naxis=2)
+    tan.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+    tan.wcs.crval = [ra, dec]
+    tan.wcs.crpix = [1.0, 1.0]  # pixel p (origin 0) = offset p * cdelt
+    tan.wcs.cdelt = [-1.0, 1.0]
+    sra, sdec = tan.wcs_pix2world(u_, v_, 0)
+    px, py = w.world_to_pixel_values(sra, sdec)
+    x0 = int(np.floor(np.min(px))) - BOX_MARGIN_PX
+    y0 = int(np.floor(np.min(py))) - BOX_MARGIN_PX
+    x1 = int(np.ceil(np.max(px))) + BOX_MARGIN_PX
+    y1 = int(np.ceil(np.max(py))) + BOX_MARGIN_PX
+    return x0, y0, x1 - x0 + 1, y1 - y0 + 1
+
+
+def _cut_one(ref: ImageRef, ra: float, dec: float, half_px: int, layers: tuple, box_deg: float | None = None):
     """Returns (Cutout | None, reason, bytes_downloaded, from_cache)."""
     L, nb = _get_layout(ref)
     url = ref.url
@@ -736,10 +760,12 @@ def _cut_one(ref: ImageRef, ra: float, dec: float, half_px: int, layers: tuple):
     if not (np.isfinite(tx) and np.isfinite(ty)):
         return None, "WCS gives no pixel", nb, False
     xc, yc = int(np.floor(tx + 0.5)), int(np.floor(ty + 0.5))
-    n = 2 * half_px + 1
-    x0, y0 = xc - half_px, yc - half_px
-    xs, xe = max(0, x0), min(nx, x0 + n)
-    ys, ye = max(0, y0), min(ny, y0 + n)
+    if box_deg:
+        x0, y0, cw, ch = _sky_box_bounds(wfull, ra, dec, box_deg / 2)
+    else:
+        x0, y0, cw, ch = xc - half_px, yc - half_px, 2 * half_px + 1, 2 * half_px + 1
+    xs, xe = max(0, x0), min(nx, x0 + cw)
+    ys, ye = max(0, y0), min(ny, y0 + ch)
     if xe <= xs or ye <= ys:
         return None, "position off the detector", nb, False
     if not (0 <= xc < nx and 0 <= yc < ny):
@@ -747,7 +773,7 @@ def _cut_one(ref: ImageRef, ra: float, dec: float, half_px: int, layers: tuple):
         # a wide field, so it is kept; coverage maps show the hole.
         pass
 
-    cpath = _cutout_path(ref.s3_key, x0, y0, n)
+    cpath = _cutout_path(ref.s3_key, x0, y0, cw, ch)
     cached = {}
     if cpath.exists():
         try:
@@ -765,7 +791,7 @@ def _cut_one(ref: ImageRef, ra: float, dec: float, half_px: int, layers: tuple):
     for lay in missing:
         if lay == "FLAGS":
             rows, b = _decode_flag_rows(url, L, ys, ye)
-            arr = np.full((n, n), OFF_DETECTOR_FLAG, np.int32)
+            arr = np.full((ch, cw), OFF_DETECTOR_FLAG, np.int32)
             arr[sl] = rows[:, xs:xe]
         else:
             if lay == "IMAGE":
@@ -776,14 +802,14 @@ def _cut_one(ref: ImageRef, ra: float, dec: float, half_px: int, layers: tuple):
                 nb += _ensure_zodi(url, ref.s3_key, L)
                 hdr, off = fits.Header.fromstring(L.zodi_hdr), L.zodi_data
             rows, b = _read_rows(url, off, hdr, ys, ye)
-            arr = np.full((n, n), np.nan, np.float32)
+            arr = np.full((ch, cw), np.nan, np.float32)
             arr[sl] = rows[:, xs:xe]
         nb += b
         cached[want[lay]] = arr
     if need_wave:
         # wavelength per pixel (WCS-WAVE is in detector coordinates)
-        wl = np.full((n, n), np.nan, np.float32)
-        bw = np.full((n, n), np.nan, np.float32)
+        wl = np.full((ch, cw), np.nan, np.float32)
+        bw = np.full((ch, cw), np.nan, np.float32)
         yy, xx = np.mgrid[ys:ye, xs:xe]
         wv, bv = L.wave().pixel_to_world_values(xx.astype(float), yy.astype(float))
         wl[sl], bw[sl] = wv, bv
@@ -810,8 +836,14 @@ def _cut_one(ref: ImageRef, ra: float, dec: float, half_px: int, layers: tuple):
 
 
 def fetch_cutouts(refs, ra: float, dec: float, half_px: int = 50, layers=("IMAGE", "FLAGS", "VARIANCE"),
-                  workers: int = S3_MAX_CONCURRENCY, progress=None, stats: dict | None = None):
+                  workers: int = S3_MAX_CONCURRENCY, progress=None, stats: dict | None = None,
+                  box_deg: float | None = None):
     """Cut a (2*half_px+1)^2 square around (ra, dec) out of every image in `refs`.
+
+    box_deg: instead of the square, the detector bounding box of a north-up sky square of this side
+    centred on (ra, dec), plus a few pixels. Rows are what costs bytes (they come full width), and this
+    box needs up to ~30% fewer rows than a square sized for the worst rotation. Cutouts are then
+    rectangular; consumers use image.shape.
 
     Returns (cutouts sorted by mjd then detector, n_skipped). Unreadable images and images where the
     square misses the detector are skipped and logged, never raised.
@@ -833,7 +865,7 @@ def fetch_cutouts(refs, ra: float, dec: float, half_px: int = 50, layers=("IMAGE
 
     def work(ref):
         try:
-            return _cut_one(ref, ra, dec, int(half_px), layers)
+            return _cut_one(ref, ra, dec, int(half_px), layers, box_deg)
         except Exception as e:  # never raise for one bad image
             log.warning("skip %s D%s: %r", ref.obs_id, ref.detector, e)
             return None, f"{type(e).__name__}: {e}"[:200], 0, False

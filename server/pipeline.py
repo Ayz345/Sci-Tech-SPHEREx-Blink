@@ -97,12 +97,24 @@ def write_f32(path: Path, a: np.ndarray) -> None:
     os.replace(tmp, path)
 
 
-def free_key(ra: float, dec: float, fov_deg: float) -> str:
-    """r133p7951_dm7p2451_f0p100 (p = decimal point, dp/dm = Dec sign, f = field in degrees)."""
+def _enc(x: float, nd: int) -> str:
+    x = round(float(x), nd) + 0.0
+    return ("m" if x < 0 else "") + f"{abs(x):.{nd}f}".replace(".", "p")
+
+
+def free_key(ra: float, dec: float, fov_deg: float, pm: tuple | None = None) -> str:
+    """r133p7951_dm7p2451_f0p100 (p = decimal point, dp/dm = Dec sign, f = field in degrees).
+
+    With a proper motion (pmra, pmdec mas/yr at ref_epoch, e.g. from /api/resolve) the key gets
+    _pm<pmra>_<pmdec>_e<epoch> (m = minus), e.g. ..._pmm3781p74_769p47_e2000p000.
+    """
     ra = round(float(ra) % 360.0, 4) % 360.0  # 359.99999 -> 0.0000, never 360.0000
     dec = round(float(dec), 4) + 0.0  # -0.0 -> 0.0
     s = "dm" if dec < 0 else "dp"
-    return (f"r{ra:.4f}_{s}{abs(dec):.4f}_f{fov_deg:.3f}").replace(".", "p")
+    key = (f"r{ra:.4f}_{s}{abs(dec):.4f}_f{fov_deg:.3f}").replace(".", "p")
+    if pm is not None:
+        key += f"_pm{_enc(pm[0], 2)}_{_enc(pm[1], 2)}_e{_enc(pm[2], 3)}"
+    return key
 
 
 def spx_commit() -> dict:
@@ -143,6 +155,9 @@ class Field:
     center: SkyCoord
     grid: object
     notes: list = dc_field(default_factory=list)
+    extra_bands: list = dc_field(default_factory=list)   # custom windows (the target's, or a gallery target's in the field)
+    moving: bool = False           # target has a proper motion (named target, or ra/dec given with pm)
+    source: str | None = None      # where the target position / motion comes from
 
     @property
     def fov_arcmin(self) -> float:
@@ -160,8 +175,9 @@ class Field:
 
     def band_defs(self) -> list[dict]:
         out = [dict(b) for b in DETECTOR_BANDS]
-        for b in (self.tinfo or {}).get("extra_bands", []):
-            out.append({"id": b["id"], "label": b["label"], "wave_um": list(b["wave_um"])})
+        for b in self.extra_bands:
+            if all(o["id"] != b["id"] for o in out):
+                out.append({"id": b["id"], "label": b["label"], "wave_um": list(b["wave_um"])})
         return out
 
     def detectors_for(self, band_id: str) -> list[int]:
@@ -175,8 +191,13 @@ class Field:
 
 
 def open_field(target: str | None = None, ra: float | None = None, dec: float | None = None,
-               fov_deg: float | None = None) -> Field:
-    """Resolve the position, list the images (SIA2) and fix epochs, centre and grid. No pixel download."""
+               fov_deg: float | None = None, pm: tuple | None = None, name: str | None = None,
+               source: str | None = None) -> Field:
+    """Resolve the position, list the images (SIA2) and fix epochs, centre and grid. No pixel download.
+
+    pm = (pmra, pmdec, ref_epoch) for a free position (mas/yr, Julian year; e.g. a SIMBAD answer from
+    /api/resolve): the target is then propagated like a named one (grid centred on its mid-data position,
+    target_track per epoch)."""
     fov_deg = float(fov_deg or DEFAULT_FOV_DEG)
     if target is not None:
         t = TARGETS[target]
@@ -189,27 +210,41 @@ def open_field(target: str | None = None, ra: float | None = None, dec: float | 
     else:
         ra = float(ra) % 360.0
         dec = float(dec)
-        tc = SkyCoord(ra * u.deg, dec * u.deg, frame="icrs")
-        refs = access.find_images(ra, dec)
-        key, name, tinfo = free_key(ra, dec, fov_deg), f"RA {ra:.4f}, Dec {dec:+.4f}", None
+        if pm is not None:
+            from astropy.time import Time
+            tc = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, pm_ra_cosdec=float(pm[0]) * u.mas / u.yr,
+                          pm_dec=float(pm[1]) * u.mas / u.yr,
+                          obstime=Time(float(pm[2]), format="jyear", scale="tdb"), frame="icrs")
+            q = target_at(tc, QUERY_MJD)
+            refs = access.find_images(q.ra.deg, q.dec.deg)
+        else:
+            tc = SkyCoord(ra * u.deg, dec * u.deg, frame="icrs")
+            refs = access.find_images(ra, dec)
+        key, tinfo = free_key(ra, dec, fov_deg, pm), None
+        name = name or f"RA {ra:.4f}, Dec {dec:+.4f}"
         qra, qdec = ra, dec
     labels, epochs = access.epochs_for(refs) if refs else (np.zeros(0, int), [])
-    if target is not None and refs:
+    moving = target is not None or pm is not None
+    if moving and refs:
         center = target_at(tc, float(np.median([r.mjd for r in refs])))  # mover stays near the middle
     else:
         center = SkyCoord(qra * u.deg, qdec * u.deg, frame="icrs")
     grid = make_grid(center, fov_deg * 60, PIX_ARCSEC)
-    f = Field(key, name, qra, qdec, fov_deg, tc, tinfo, refs, labels, epochs, center, grid)
+    f = Field(key, name, qra, qdec, fov_deg, tc, tinfo, refs, labels, epochs, center, grid,
+              moving=moving, source=(tinfo or {}).get("source") or source)
     f.notes = list((tinfo or {}).get("notes", []))
+    f.extra_bands = list((tinfo or {}).get("extra_bands", []))
     if target is None and refs:
-        f.notes += _nearby_target_notes(f)
+        notes, extra = _nearby_targets(f)
+        f.notes += notes
+        f.extra_bands += extra
     return f
 
 
-def _nearby_target_notes(f: Field) -> list[str]:
+def _nearby_targets(f: Field) -> tuple[list[str], list[dict]]:
     """A free field that contains a named target: say where the target really is (e.g. WISE 0855 has moved
-    ~2' from the position the challenge page quotes)."""
-    notes = []
+    ~2' from the position the challenge page quotes) and offer its custom bands (WISE 0855: W)."""
+    notes, extra = [], []
     mid = float(np.median([r.mjd for r in f.refs]))
     half = f.fov_deg / 2
     for key, t in TARGETS.items():
@@ -222,7 +257,8 @@ def _nearby_target_notes(f: Field) -> list[str]:
         where = "inside this field" if inside else "just outside this field"
         notes.append(f"{t['name']} is {where}: at mid-data ({pos.ra.deg:.5f}, {pos.dec.deg:+.5f}), "
                      f"{sep * 60:.2f}′ from the centre. Open ?target={key} for the field centred on it.")
-    return notes
+        extra += t.get("extra_bands", [])
+    return notes, extra
 
 
 # --------------------------------------------------------------------------- manifest
@@ -262,10 +298,11 @@ def manifest(f: Field, status: dict | None = None, n_exposures: dict | None = No
         bands.append({**b, "n_exposures": nexp, "status": st})
     m["bands"] = bands
     notes = list(f.notes) + _weak_epoch_notes(f, bands)
-    if f.tinfo is not None:
+    if f.moving:
         m["target_track"] = [{"epoch": e["id"], "ra": p[0], "dec": p[1]}
                              for e in f.epochs for p in [_radec(target_at(f.target, e["mjd_mid"]))]]
-        m["target_source"] = f.tinfo["source"]
+        if f.source:
+            m["target_source"] = f.source
     if f.tinfo and f.tinfo.get("default_band"):
         m["default_band"] = f.tinfo["default_band"]
     if notes:
@@ -309,12 +346,16 @@ def band_refs(f: Field, band_id: str, cap: int = MAX_PER_EPOCH_BAND) -> list:
 
 
 def fetch_band_cutouts(f: Field, band_id: str, layers=("IMAGE", "FLAGS", "VARIANCE"), cap: int = MAX_PER_EPOCH_BAND,
-                       progress=None, stats: dict | None = None, workers: int = access.S3_MAX_CONCURRENCY):
+                       progress=None, stats: dict | None = None, workers: int = access.S3_MAX_CONCURRENCY,
+                       box: bool = False):
+    """box=True: cutouts are the detector bounding box of the grid (fewer rows, used by the live server);
+    False: squares sized for any rotation (half_px_for), which is what the gallery cache holds."""
     refs = band_refs(f, band_id, cap)
     if not refs:
         return [], 0
+    box_deg = f.grid.shape[0] * f.grid.pix_arcsec / 3600 if box else None
     return access.fetch_cutouts(refs, f.center.ra.deg, f.center.dec.deg, half_px=f.half_px, layers=layers,
-                                progress=progress, stats=stats, workers=workers)
+                                progress=progress, stats=stats, workers=workers, box_deg=box_deg)
 
 
 BUILD_PARAMS = {"pix_arcsec": PIX_ARCSEC, "min_exposures": MIN_EXPOSURES, "max_exposures": MAX_PER_EPOCH_BAND,

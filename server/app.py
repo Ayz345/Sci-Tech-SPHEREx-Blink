@@ -225,7 +225,8 @@ class Registry:
         workers = BACKGROUND_S3_WORKERS if job.background else access.S3_MAX_CONCURRENCY
         for d in dets:
             if d not in by_det:
-                c, _ = P.fetch_band_cutouts(f, f"D{d}", LIVE_LAYERS, progress=progress, workers=workers)
+                c, _ = P.fetch_band_cutouts(f, f"D{d}", LIVE_LAYERS, progress=progress, workers=workers,
+                                            box=use_box(f))
                 by_det[d] = c
             cuts += by_det[d]
         bj, _, frames = P.build_band(f, band, fs.out, cuts=cuts)
@@ -250,7 +251,7 @@ class Registry:
         out = []
         for d in detectors:
             if d not in by_det:
-                by_det[d], _ = P.fetch_band_cutouts(fs.field, f"D{d}", LIVE_LAYERS)
+                by_det[d], _ = P.fetch_band_cutouts(fs.field, f"D{d}", LIVE_LAYERS, box=use_box(fs.field))
             out += by_det[d]
         return out
 
@@ -268,6 +269,13 @@ class Registry:
                 b["error"] = j.error
         return m
 
+    def touch(self, key: str) -> None:
+        """The page polls the manifest of the field on screen: its pending bands go first in the background."""
+        with self.cv:
+            mine = [it for it in self.background if it[0] == key]
+            if mine:
+                self.background = mine + [it for it in self.background if it[0] != key]
+
     def wait_band(self, fs: FieldState, band: str, timeout: float) -> BandJob:
         if band not in fs.jobs:
             raise ApiError(404, f"no band {band!r} for {fs.field.key}; bands: {list(fs.jobs)}")
@@ -276,6 +284,12 @@ class Registry:
             self.enqueue(fs.field.key, band, urgent=True)
             job.event.wait(timeout)
         return job
+
+
+def use_box(f: P.Field) -> bool:
+    """Free fields read the grid's detector bounding box (fewer rows). Gallery targets keep the square
+    cutouts their disk cache already holds, so nothing is downloaded again."""
+    return f.tinfo is None
 
 
 REG: Registry | None = None
@@ -290,7 +304,12 @@ def registry() -> Registry:
 
 # --------------------------------------------------------------------------- keys and coordinates
 
-_KEY_RE = re.compile(r"^r(\d+p\d+)_d([pm])(\d+p\d+)_f(\d+p\d+)$")
+_KEY_RE = re.compile(r"^r(\d+p\d+)_d([pm])(\d+p\d+)_f(\d+p\d+)"
+                     r"(?:_pm(m?\d+p\d+)_(m?\d+p\d+)_e(m?\d+p\d+))?$")
+
+
+def _dec_num(s: str) -> float:
+    return (-1 if s.startswith("m") else 1) * float(s.lstrip("m").replace("p", "."))
 
 
 def parse_key(key: str) -> dict:
@@ -303,7 +322,10 @@ def parse_key(key: str) -> dict:
     dec = float(m.group(3).replace("p", ".")) * (-1 if m.group(2) == "m" else 1)
     fov = float(m.group(4).replace("p", "."))
     check_fov(fov)
-    return {"ra": ra, "dec": dec, "fov_deg": fov}
+    out = {"ra": ra, "dec": dec, "fov_deg": fov}
+    if m.group(5):
+        out["pm"] = (_dec_num(m.group(5)), _dec_num(m.group(6)), _dec_num(m.group(7)))
+    return out
 
 
 def parse_coord(ra: str, dec: str) -> tuple[float, float]:
@@ -367,7 +389,10 @@ async def _field(key: str, open_kw: dict | None = None) -> FieldState:
 
 @app.get("/api/manifest")
 async def api_manifest(target: str | None = None, ra: str | None = None, dec: str | None = None,
-                       fov: float | None = None):
+                       fov: float | None = None, pmra: float | None = None, pmdec: float | None = None,
+                       ref_epoch: float | None = None, name: str | None = None):
+    """pmra/pmdec (mas/yr) and ref_epoch (Julian year, default 2000.0) make a free position move like a
+    named target (e.g. pass on what /api/resolve returned)."""
     if target:
         if target not in TARGETS:
             raise ApiError(404, f"unknown target {target!r}; known: {list(TARGETS)}")
@@ -378,8 +403,16 @@ async def api_manifest(target: str | None = None, ra: str | None = None, dec: st
         r, d = parse_coord(ra, dec)
         fv = float(fov) if fov else P.DEFAULT_FOV_DEG
         check_fov(fv)
-        key, kw = P.free_key(r, d, fv), {"ra": r, "dec": d, "fov_deg": fv}
+        pm = None
+        if pmra is not None or pmdec is not None:
+            pm = (float(pmra or 0.0), float(pmdec or 0.0), float(ref_epoch if ref_epoch is not None else 2000.0))
+            if not all(np.isfinite(pm)) or abs(pm[0]) > 2e4 or abs(pm[1]) > 2e4:
+                raise ApiError(400, f"proper motion out of range: {pm}")
+        key = P.free_key(r, d, fv, pm)
+        kw = {"ra": r, "dec": d, "fov_deg": fv, "pm": pm, "name": name,
+              "source": "SIMBAD via CDS Sesame (proper motion given)" if pm else None}
     fs = await _field(key, kw)
+    registry().touch(fs.field.key)
     return jresp(registry().manifest(fs))
 
 
@@ -482,7 +515,7 @@ async def api_resolve(name: str = Query(..., min_length=1, max_length=200)):
 def _sesame(name: str) -> dict | None:
     import requests
     try:
-        resp = requests.get("https://cds.unistra.fr/cgi-bin/nph-sesame/-oxp/SNV?" + quote(name), timeout=30)
+        resp = requests.get("https://cds.unistra.fr/cgi-bin/nph-sesame/-oxp/SNV?" + quote(name), timeout=5)
     except (requests.ConnectionError, requests.Timeout) as e:
         raise ApiError(503, f"name resolver not answering: {e}")
     txt = resp.text

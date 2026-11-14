@@ -160,6 +160,32 @@ def test_cutout_matches_full_read(synthetic, px, py):
     assert max(n for _, n in s["calls"]) < s["size"] // 4
 
 
+@pytest.mark.parametrize("px,py", [(90.0, 100.0), (20.0, 15.0)])
+def test_sky_box_cutout(synthetic, px, py):
+    s = synthetic
+    ra, dec = (float(v) for v in s["wcel"].pixel_to_world_values(px, py))
+    box = 0.02  # deg, about 12 native pixels
+    sq, _ = access.fetch_cutouts([s["ref"]], ra, dec, half_px=int(box * 3600 / 6.15 / 2 * 1.42) + 4)
+    cuts, nskip = access.fetch_cutouts([s["ref"]], ra, dec, box_deg=box, layers=("IMAGE", "FLAGS", "VARIANCE", "ZODI"))
+    assert nskip == 0
+    c = cuts[0]
+    _check(c, s)
+    assert c.image.shape[0] <= sq[0].image.shape[0]  # never more rows than the rotation-proof square
+    # every point of the sky square lies inside the cutout, at least 3 px from its edge
+    from astropy.wcs import WCS as _W
+    t = WCS(naxis=2)
+    t.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+    t.wcs.crval = [ra, dec]
+    t.wcs.crpix = [1.0, 1.0]  # pixel p (origin 0) = offset p * cdelt
+    t.wcs.cdelt = [-1.0, 1.0]
+    g = np.linspace(-box / 2, box / 2, 7)
+    uu, vv = np.meshgrid(g, g)
+    sra, sdec = t.wcs_pix2world(uu.ravel(), vv.ravel(), 0)
+    x, y = c.wcs.world_to_pixel_values(sra, sdec)
+    h, w = c.image.shape
+    assert x.min() >= 3 and y.min() >= 3 and x.max() <= w - 4 and y.max() <= h - 4
+
+
 def test_second_fetch_comes_from_cache(synthetic):
     s = synthetic
     ra, dec = (float(v) for v in s["wcel"].pixel_to_world_values(80.0, 90.0))
