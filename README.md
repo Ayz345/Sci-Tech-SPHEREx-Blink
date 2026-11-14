@@ -32,8 +32,8 @@ the spectrum. The tool does not claim any discovery. It makes looking easier.
 | Co-add per detector | One frame per visit and detector band (D1 to D6) |
 | Use the 102 bands | Your own wavelength window: drag a range on the spectrum and blink only the exposures taken at those wavelengths (50 nm or wider, live server) |
 | Add or subtract images from different times | Blink, difference (one visit minus the mean of the others) and sum |
-| Field of view | 3′ and 7′ on the live server |
-| Other telescopes | Gaia DR3 stars moved to each visit's date with their proper motion; a "Sky context" panel (Aladin Lite) showing AllWISE, 2MASS or DSS2 at the same place; link to WiseView |
+| Field of view | 3′, 7′ and 15′ on the live server. The page states the cost of the large field before opening it: about 120 MB per band, 30 to 70 s per band from a home connection (`handoff/results/fov_timing_v2.json`) |
+| Other telescopes | Gaia DR3 stars moved to each visit's date with their proper motion. For the five gallery targets, stored with the page: the WISE image (AllWISE W1 and W2, about 2010) on the same grid, which can be added to the blink as its first frame, and the CatWISE2020 catalogue as an overlay. A "More surveys" panel (Aladin Lite) shows AllWISE, 2MASS or DSS2 at the same place; link to WiseView |
 | Metadata, contamination flags | Exposure count and dates per frame, coverage map, map of the masked fraction; for a clicked point, the names of the FLAGS bits set in each exposure, with their meaning from the SPHEREx Explanatory Supplement |
 | Spectrum | Click a point: flux against wavelength from the single exposures, and against time |
 | False colour | Three bands as red, green and blue |
@@ -159,7 +159,18 @@ Every source used is listed here, as the Space Apps rules ask.
 
 - IRSA SPHEREx tutorial notebooks: <https://caltech-ipac.github.io/irsa-tutorials/spherex/>.
 - JPL Horizons, for checking the measured asteroid positions (tests only): <https://ssd.jpl.nasa.gov/horizons/>.
-- CatWISE2020 position and AllWISE W2 magnitude of WISE 0855; proper motion from Luhman & Esplin (2016).
+- WISE: AllWISE Atlas images (W1, W2) for the five gallery targets, read from IRSA's open copy on AWS
+  (`nasa-irsa-wise`) and resampled to each target's grid; the CatWISE2020 catalogue from IRSA for the overlay and
+  for the position of WISE 0855 (motion-solution position at MJD 57170); proper motion of WISE 0855 from
+  Luhman & Esplin (2016).
+
+  > AllWISE makes use of data from WISE, which is a joint project of the University of California, Los Angeles,
+  > and the Jet Propulsion Laboratory/California Institute of Technology, and NEOWISE, which is a project of the
+  > Jet Propulsion Laboratory/California Institute of Technology. WISE and NEOWISE are funded by the National
+  > Aeronautics and Space Administration.
+
+  CatWISE: Eisenhardt et al. (2020, ApJS 247, 69) and Marocco et al. (2021, ApJS 253, 8); dataset DOIs
+  10.26131/IRSA126, 10.26131/IRSA133, 10.26131/IRSA551 and 10.26131/IRSA552.
 
 **Space agency partner data and other sources**
 
