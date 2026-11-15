@@ -12,7 +12,7 @@ import argparse, datetime as dt, json, os, shutil, subprocess, sys, threading, t
 from pathlib import Path
 import requests
 
-ROOT = Path(r"C:\SpaceApps")
+ROOT = Path(__file__).resolve().parent.parent
 PORT = 8001
 API = f"http://127.0.0.1:{PORT}"
 CACHE = ROOT / "cache" / "f4_cache"
