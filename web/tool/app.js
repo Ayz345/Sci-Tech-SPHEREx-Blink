@@ -1503,35 +1503,57 @@ function renderBands() {
 // Survey ids are from Aladin's own built-in list / the CDS MocServer (checked 14 Nov 2026).
 const ALADIN_URL = "https://cdn.jsdelivr.net/npm/aladin-lite@3.8.2/dist/aladin.js";
 // Surveys are given to Aladin as HiPS URLs, not ids: the id resolver Aladin 3.8.2 calls (alasky.unistra.fr)
-// does not resolve. The URLs are each survey's hips_service_url mirrors from its CDS MocServer record; the
-// page tries them in this order and uses the first whose "properties" file answers.
+// does not resolve. The URLs are each survey's hips_service_url mirrors from its CDS MocServer record (read
+// 15 Nov 2026), CDS first and IRSA last. All mirrors are asked for their "properties" file at once (5 s each); the
+// first in this order that has answered when the fastest one answers (plus 400 ms) is used, so a mirror that is
+// down or slow is skipped without waiting for it. On 15 Nov 2026 alasky answered "Page unavailable" for every
+// HiPS path and alaskybis did not answer: unWISE, NEOWISE and Pan-STARRS (CDS only) then say so in one line.
 const SURVEY_MIRRORS = {
-  "CDS/P/allWISE/color": ["https://irsa.ipac.caltech.edu/data/hips/CDS/AllWISE/RGB-W4-W2-W1", "https://skies.esac.esa.int/AllWISEColor",
-    "https://hips.china-vo.org/m/CDS_P_allWISE_color", "https://alasky.cds.unistra.fr/AllWISE/RGB-W4-W2-W1"],
-  "CDS/P/allWISE/W2": ["https://irsa.ipac.caltech.edu/data/hips/CDS/AllWISE/W2", "https://alasky.cds.unistra.fr/AllWISE/W2"],
+  "CDS/P/allWISE/color": ["https://alasky.cds.unistra.fr/AllWISE/RGB-W4-W2-W1", "https://alaskybis.cds.unistra.fr/AllWISE/RGB-W4-W2-W1",
+    "https://skies.esac.esa.int/AllWISEColor", "https://hips.china-vo.org/m/CDS_P_allWISE_color",
+    "https://irsa.ipac.caltech.edu/data/hips/CDS/AllWISE/RGB-W4-W2-W1"],
+  "CDS/P/allWISE/W2": ["https://alasky.cds.unistra.fr/AllWISE/W2", "https://alaskybis.cds.unistra.fr/AllWISE/W2",
+    "https://irsa.ipac.caltech.edu/data/hips/CDS/AllWISE/W2"],
   "CDS/P/unWISE/color-W2-W1W2-W1": ["https://alasky.cds.unistra.fr/unWISE/color-W2-W1W2-W1", "https://alaskybis.cds.unistra.fr/unWISE/color-W2-W1W2-W1"],
   "CDS/P/NEOWISER/Color": ["https://alasky.cds.unistra.fr/NEOWISER/W1W2", "https://alaskybis.cds.unistra.fr/NEOWISER/W1W2"],
-  "CDS/P/2MASS/color": ["https://irsa.ipac.caltech.edu/data/hips/CDS/2MASS/Color", "https://alasky.cds.unistra.fr/2MASS/Color"],
-  "CDS/P/DSS2/color": ["https://irsa.ipac.caltech.edu/data/hips/CDS/DSS2/color", "https://skies.esac.esa.int/DSSColor",
-    "https://stpubdata.s3.us-east-1.amazonaws.com/mast/skybackgrounds/DSSColor", "https://alasky.cds.unistra.fr/DSS/DSSColor"],
+  "CDS/P/2MASS/color": ["https://alasky.cds.unistra.fr/2MASS/Color", "https://alaskybis.cds.unistra.fr/2MASS/Color",
+    "https://irsa.ipac.caltech.edu/data/hips/CDS/2MASS/Color"],
+  "CDS/P/DSS2/color": ["https://alasky.cds.unistra.fr/DSS/DSSColor", "https://alaskybis.cds.unistra.fr/DSS/DSSColor",
+    "https://casda.csiro.au/hips/DSS2/color", "https://skies.esac.esa.int/DSSColor",
+    "https://stpubdata.s3.us-east-1.amazonaws.com/mast/skybackgrounds/DSSColor", "https://irsa.ipac.caltech.edu/data/hips/CDS/DSS2/color"],
   "CDS/P/PanSTARRS/DR1/color-z-zg-g": ["https://alasky.cds.unistra.fr/Pan-STARRS/DR1/color-z-zg-g", "https://alaskybis.cds.unistra.fr/Pan-STARRS/DR1/color-z-zg-g"],
 };
-const mirrorCache = {};
-async function pickMirror(id) {
-  if (id in mirrorCache) return mirrorCache[id];
-  for (const u of SURVEY_MIRRORS[id] || []) {
-    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 4000);
-    try { const r = await fetch(`${u}/properties`, { signal: ctl.signal }); if (r.ok) return (mirrorCache[id] = u); }
-    catch { /* try the next mirror */ } finally { clearTimeout(t); }
-  }
-  return (mirrorCache[id] = null);
+const mirrorCache = {}; // id -> a mirror that answered (a failure is not kept: choosing the survey again asks again)
+async function probeMirror(u) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 5000);
+  try {
+    const r = await fetch(`${u}/properties`, { signal: ctl.signal, cache: "no-store" });
+    if (!r.ok || !/hips_/.test(await r.text())) throw new Error("no HiPS here");
+    return u;
+  } finally { clearTimeout(t); }
 }
+async function pickMirror(id) {
+  if (mirrorCache[id]) return mirrorCache[id];
+  const list = SURVEY_MIRRORS[id] || [], ok = new Array(list.length).fill(false);
+  const probes = list.map((u, i) => probeMirror(u).then(() => { ok[i] = true; }));
+  try { await Promise.any(probes); } catch { return null; } // none answered
+  await Promise.race([Promise.allSettled(probes), new Promise((r) => setTimeout(r, 400))]);
+  return (mirrorCache[id] = list[ok.indexOf(true)]);
+}
+let surveyShown = null; // the survey whose image is on screen now
 async function setSurvey() {
-  const id = $("aladinSurvey").value, label = $("aladinSurvey").selectedOptions[0].textContent;
+  const sel = $("aladinSurvey"), id = sel.value, label = sel.selectedOptions[0].textContent;
   $("aladinMsg").textContent = `Looking for a server for ${label}…`;
   const url = await pickMirror(id);
-  if (!url) { $("aladinMsg").textContent = `${label}: none of its servers answers right now; choose another survey.`; return null; }
+  if (sel.value !== id) return null; // another survey was chosen meanwhile
+  if (!url) {
+    const was = surveyShown && [...sel.options].find((o) => o.value === surveyShown.id);
+    $("aladinMsg").textContent = `${label}: this survey's image server is not answering right now; try another survey.`
+      + (was ? ` Still showing ${was.textContent}.` : "");
+    return null;
+  }
   if (aladin) aladin.setBaseImageLayer(url);
+  surveyShown = { id, url };
   $("aladinMsg").textContent = `${label} from ${new URL(url).host}`;
   return url;
 }
@@ -1544,7 +1566,20 @@ async function openAladin() {
     try {
       const A = (await import(ALADIN_URL)).default;
       await A.init; // throws when WebGL2 is not available
-      const first = await setSurvey(); // a reachable mirror of the chosen survey (or null)
+      // a reachable mirror of the chosen survey; when it has none, the next survey in the list that answers
+      // (no black box), and when none answers, one line and no viewer (opening the panel again asks again)
+      const sel = $("aladinSurvey"), asked = sel.value, askedLabel = sel.selectedOptions[0].textContent;
+      let first = await setSurvey();
+      for (const o of [...sel.options]) {
+        if (first || o.value === asked) continue;
+        sel.value = o.value; first = await setSurvey();
+        if (first) msg.textContent = `${askedLabel}: its image server is not answering right now, so this shows ${o.textContent} from ${new URL(first).host}; choose another survey above.`;
+      }
+      if (!first) {
+        sel.value = asked;
+        msg.textContent = "The survey image servers (CDS, IRSA, ESA and others) are not answering right now; close and open this panel to try again.";
+        return;
+      }
       const g = S.m.grid, [ra0, dec0] = pix2world((g.shape[1] - 1) / 2, (g.shape[0] - 1) / 2);
       const fov = Math.max(g.shape[0], g.shape[1]) * Math.abs(g.cdelt[1]) * 1.3;
       aladin = A.aladin("#aladinDiv", { ...(first ? { survey: first } : {}), fov, target: `${ra0} ${dec0}`,

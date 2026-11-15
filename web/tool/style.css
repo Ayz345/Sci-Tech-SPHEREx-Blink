@@ -69,9 +69,9 @@ label { color: var(--fg-2); font-size: 15px; }
 /* ---------- stage: the image large on the left, the plate-screen column on the right; spread over the window ---------- */
 main { display: grid; grid-template-columns: var(--P) minmax(440px, 1fr); gap: clamp(28px, 4vw, 64px); align-items: start; margin-top: 24px; }
 #view { min-width: 0; }
-canvas { display: block; background: #000; image-rendering: pixelated; cursor: crosshair; }
-body:not(.embed) canvas { width: var(--P); height: var(--P); }
-canvas.measuring { cursor: cell; }
+#canvas { display: block; background: #000; image-rendering: pixelated; cursor: crosshair; }
+body:not(.embed) #canvas { width: var(--P); height: var(--P); }
+#canvas.measuring { cursor: cell; }
 /* one thin line under the image: the marks' legend, and the readout while the pointer is on the image */
 #underImage { display: flex; justify-content: space-between; gap: 6px 18px; flex-wrap: wrap; margin-top: 8px; min-height: 22px; }
 #layerLegend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--fg-2); font-size: 13px; }
@@ -267,7 +267,7 @@ body.embed #measureHelp, body.embed #refineWhy, body.embed #measureBox .row, bod
 /* ---------- narrower screens: one column, in the order image, strip, name, bands, data, tools ---------- */
 @media (max-width: 999px) {
   body:not(.embed) main { grid-template-columns: minmax(0, 1fr); }
-  body:not(.embed) canvas { width: 100%; height: auto; }
+  body:not(.embed) #canvas { width: 100%; height: auto; }
   #headRight { margin-left: 0; }
   #tname { font-size: 42px; }
 }

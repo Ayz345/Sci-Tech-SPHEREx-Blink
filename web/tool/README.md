@@ -206,6 +206,14 @@ the embedded view. It shows the player's centre and field (red box = this grid, 
 current epoch) in a chosen survey: AllWISE color, AllWISE W2, unWISE color, NEOWISER color, 2MASS color, DSS2
 color, Pan-STARRS DR1 color. If the script or WebGL2 is missing, one sentence says so and the page is unaffected.
 
+Each survey is given to Aladin as a HiPS URL from its CDS MocServer record, CDS first and IRSA last. All mirrors
+are asked for their `properties` file at once (5 s each); the first in that order that has answered by the time
+the fastest one answers (+400 ms) is used, and the line under the selector names the server the image comes
+from. A survey with no answering mirror says so in one line ("Still showing …" when another survey is on
+screen); on first opening, the next survey that answers is shown instead, never an empty black box. The
+player's own canvas rules are scoped to `#canvas`: a global `canvas { background: #000 }` used to paint
+Aladin's overlay canvas black over its image (15 Nov 2026: the box and ring were drawn, the sky was not).
+
 - Third-party code: Aladin Lite 3.8.2 by CDS (Université de Strasbourg / CNRS), loaded as an ES module from
   `https://cdn.jsdelivr.net/npm/aladin-lite@3.8.2/dist/aladin.js`. Licence: the `LICENSE` file in the npm package
   is the GNU LGPL v3 (the package also ships `COPYING` and `COPYING.LESSER`; its `package.json` for 3.8.2 says

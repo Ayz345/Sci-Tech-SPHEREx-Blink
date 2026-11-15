@@ -39,7 +39,7 @@ label { font-size: 15px; }
 
 /* ---------------------------------------------------------------- stage: image left, one column right, full width */
 main { grid-template-columns: var(--P) minmax(0, 1fr); gap: var(--gap); margin-top: 28px; }
-body:not(.embed) canvas { width: var(--P); height: var(--P); }
+body:not(.embed) #canvas { width: var(--P); height: var(--P); }
 #underImage { margin-top: 10px; }
 #layerLegend, #readout { font-size: 13.5px; }
 
@@ -137,7 +137,7 @@ fieldset label { font-size: 15px; }
    cross-document View Transitions. The names match the start page's (design/release); timing and easing are set there.
    Browsers without support, and reduced motion, get a plain page change. The embed takes no part. */
 @view-transition { navigation: auto; }
-body:not(.embed) canvas { view-transition-name: vt-plate; }
+body:not(.embed) #canvas { view-transition-name: vt-plate; }
 body:not(.embed) #tname { view-transition-name: vt-title; }
 body:not(.embed) #tcoord { view-transition-name: vt-coords; }
 body:not(.embed) #epochMarks { view-transition-name: vt-ruler; }
