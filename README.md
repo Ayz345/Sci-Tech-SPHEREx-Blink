@@ -174,6 +174,12 @@ of three queries; the server retries within a 25 s budget and says so when the a
   targets the index found every image IRSA had listed (none missing, the same S3 keys) and, near the north
   ecliptic pole, about 2,000 more that hold the target and were not in IRSA's answer. The gallery itself is
   still built from IRSA's lists, so its frames did not change.
+- **Bright extended objects** (M31, the Orion Nebula) in the short bands: the SPHEREx pipeline flags 40–90% of
+  each exposure's pixels there as CROSSTALK, and we leave flagged pixels out. Large parts of a pass can then be
+  empty (no usable sample) or shown as saturated (an area without samples next to a saturated core is joined to
+  it, a rule made for the halo of a saturated star). These areas are not sky and not real saturation. D2 and the
+  longer bands are much less affected (M31: 64% of the pixels flagged in D1, 7% in D2, medians per exposure;
+  Centaurus A in D2: none). The tool was built and tested on point sources.
 - Frames built from fewer than 5 exposures are marked low coverage and skipped by default.
 - The automatic finder needs an object to move about 10″ (the width of a star image) over the time covered;
   slower motion is mostly missed. WISE 0855 moved 8.6″ in the year of data, just under that limit, and is found
