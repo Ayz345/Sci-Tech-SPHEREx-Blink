@@ -117,6 +117,7 @@ limit the server answers 429 with `Retry-After`.
 | Script | What it does |
 |---|---|
 | `scripts/precompute.py [--final]` | builds the gallery (`web/data/`); `--final` only from committed code |
+| `scripts/precompute.py --sia-seed-only` | rewrites `web/data/_sia/`: the targets' image lists the server starts with, so they open while IRSA is down |
 | `scripts/make_wise_images.py` | AllWISE W1/W2 images on each gallery grid (IRSA's open S3 copy) |
 | `scripts/make_catwise.py [--fetch]` | CatWISE2020 sources for the gallery (IRSA cone search) |
 | `scripts/make_candidates.py` | automatic candidates for the gallery, from its frames |

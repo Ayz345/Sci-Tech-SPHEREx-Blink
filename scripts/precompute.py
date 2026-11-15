@@ -178,6 +178,37 @@ def _swap(tmp: Path, dest: Path) -> list[str]:
     return warn
 
 
+#: The SIA2 image lists of the gallery targets, as the server's cache holds them (web/data/_sia/<collection>/...).
+#: The server copies them into its cache at start, so the five targets open while IRSA is down.
+SIA_SEED_DIR = "_sia"
+
+
+def sia_seed(key: str, out_root: Path) -> list[Path]:
+    """Open the target as the server does, note the SIA2 list files it reads, copy them to out_root/_sia/."""
+    from spx import access
+    used = []
+    orig = access._sia_cache_path
+
+    def spy(*a, **k):
+        path = orig(*a, **k)
+        used.append(path)
+        return path
+    access._sia_cache_path = spy
+    try:
+        P.open_field(target=key)
+    finally:
+        access._sia_cache_path = orig
+    out = []
+    sia_root = access.CACHE_DIR / "sia"
+    for path in dict.fromkeys(used):
+        if path.exists():
+            dest = out_root / SIA_SEED_DIR / path.relative_to(sia_root)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, dest)
+            out.append(dest)
+    return out
+
+
 def write_index(out_root: Path) -> dict:
     import json
     targets = []
@@ -196,6 +227,8 @@ def main():
     ap.add_argument("keys", nargs="*", default=list(TARGETS))
     ap.add_argument("--out", default=str(ROOT / "web" / "data"))
     ap.add_argument("--bands", nargs="*")
+    ap.add_argument("--sia-seed-only", action="store_true",
+                    help="only (re)write web/data/_sia/ (the gallery targets' image lists), build nothing")
     ap.add_argument("--final", action="store_true",
                     help="the release build: refuses to run unless spx/, server/, scripts/ match the commit")
     a = ap.parse_args()
@@ -207,11 +240,17 @@ def main():
             sys.exit(f"--final refused: code differs from commit {c['commit']}: {c['uncommitted_code']}")
     out_root = Path(a.out)
     out_root.mkdir(parents=True, exist_ok=True)
+    if a.sia_seed_only:
+        for key in a.keys:
+            files = sia_seed(key, Path(a.out))
+            print(key, [f.name for f in files])
+        return
     for key in a.keys:
         if key not in TARGETS:
             sys.exit(f"unknown target {key}; choose from {list(TARGETS)}")
         print(f"{key}: building", flush=True)
         r = build_target(key, out_root, a.bands)
+        r["sia_seed"] = [f.name for f in sia_seed(key, out_root)]
         print(f"{key}: done in {r.get('seconds', 0)}s, {r['n_images']} images", flush=True)
     print("index:", write_index(out_root))
 

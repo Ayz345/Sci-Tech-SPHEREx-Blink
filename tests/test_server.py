@@ -889,3 +889,43 @@ def test_bad_band_ids_rejected_before_the_field_opens(client, monkeypatch):
 def test_health_shows_sia_and_threads(client):
     h = _strict(client.get("/api/health"))
     assert h["sia"]["max_attempts"] >= 1 and h["sia"]["retry_budget_s"] > 0 and h["threads"] >= 5
+
+
+# --------------------------------------------------------------------------- IRSA down: the gallery's SIA2 seed
+
+def test_gallery_targets_open_from_the_seed_with_irsa_down(tmp_path, monkeypatch):
+    from pathlib import Path
+    from server import app as A
+    from server import pipeline as P
+    gallery = Path(__file__).resolve().parent.parent / "web" / "data"
+    if not (gallery / "_sia").is_dir():
+        pytest.skip("no web/data/_sia (scripts/precompute.py --sia-seed-only)")
+
+    def down(*a, **k):
+        raise access.SiaError("SIA2 HTTP 502")
+
+    def fake_fetch(refs, ra, dec, half_px=50, layers=("IMAGE", "FLAGS", "VARIANCE"), workers=32, progress=None,
+                   stats=None, box_deg=None):
+        rng = np.random.default_rng(len(refs))
+        return [_cutout(r, ra, dec, min(half_px, 20), layers, rng) for r in refs], 0
+    monkeypatch.setattr(access, "_sia_query", down)
+    monkeypatch.setattr(access, "fetch_cutouts", fake_fetch)
+    monkeypatch.setattr(access, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(A, "FIELDS_DIR", tmp_path / "fields")
+    monkeypatch.setattr(A, "RATE_ON", False)
+    monkeypatch.setattr(P, "gaia_sources", lambda f, **k: [])
+    assert A.seed_sia_cache(gallery, tmp_path) == 10
+    assert A.seed_sia_cache(gallery, tmp_path) == 0                       # present: not copied again
+    reg = A.Registry()
+    monkeypatch.setattr(A, "REG", reg)
+    try:
+        with TestClient(A.app) as c:
+            for key in ("barnard", "eps-indi-b", "wise-0855", "rw-aur", "r-dra"):
+                m = _strict(c.get("/api/manifest", params={"target": key, "queue": 0}))
+                prov = json.loads((gallery / key / "provenance.json").read_text(encoding="utf-8"))
+                assert m["n_images"] == prov["n_images_sia2"], (key, m["n_images"], prov["n_images_sia2"])
+            b = c.get("/api/band", params={"key": "wise-0855", "band": "w4300_5000"})
+            assert b.status_code == 200, b.text
+            assert sum(b.json()["n_exposures"]) > 0
+    finally:
+        reg.close()

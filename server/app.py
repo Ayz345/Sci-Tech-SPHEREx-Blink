@@ -692,12 +692,34 @@ THREAD_POOL = int(os.environ.get("SPX_THREADS") or 32)
 _pool_set = False
 
 
+def seed_sia_cache(gallery: Path | None = None, cache: Path | None = None) -> int:
+    """Copy the gallery's SIA2 lists (web/data/_sia/, written by scripts/precompute.py) into the cache where they are
+    missing, keeping their file time: the five targets then open without IRSA. A list older than
+    access.SIA_MAX_AGE_DAYS is asked again, and kept if IRSA does not answer."""
+    import shutil
+    src = Path(gallery or P.GALLERY_DIR) / "_sia"
+    dst = Path(cache or access.CACHE_DIR) / "sia"
+    n = 0
+    if src.is_dir():
+        for f in src.rglob("*.json"):
+            d = dst / f.relative_to(src)
+            if not d.exists():
+                d.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, d)
+                n += 1
+    return n
+
+
 @app.middleware("http")
 async def _start_janitor(request: Request, call_next):
     """At the first request (not at import: tests import the app): the default thread pool's size, and the
     disk-cache janitor."""
     global _janitor_started, _pool_set
     if not _pool_set:
+        try:
+            log.info("SIA2 seed: %d gallery image lists copied into the cache", seed_sia_cache())
+        except OSError as e:
+            error_id("SIA2 seed", e)
         from concurrent.futures import ThreadPoolExecutor
         asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=THREAD_POOL,
                                                                            thread_name_prefix="spx"))
