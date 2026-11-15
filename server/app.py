@@ -778,11 +778,36 @@ async def api_manifest(request: Request, target: str | None = None, ra: str | No
     return jresp(registry().manifest(fs))
 
 
+#: Requests waiting for a band at once (B7). The wait itself holds no thread: the job is queued in a thread at once,
+#: then polled from the event loop. (Holding a thread for up to 90 s each would starve the default pool, which has
+#: only CPU + 4 threads: 5 on a one-CPU Cloud Run instance, shared with field opening, spectra and names.)
+MAX_BAND_WAITERS = int(os.environ.get("SPX_MAX_BAND_WAITERS") or 64)
+_band_waiters = 0
+
+
+async def wait_band_async(fs: FieldState, band: str, timeout: float) -> BandJob:
+    global _band_waiters
+    job = await asyncio.to_thread(registry().wait_band, fs, band, 0.0)      # queue it (urgent), no waiting here
+    if job.event.is_set():
+        return job
+    if _band_waiters >= MAX_BAND_WAITERS:
+        raise ApiError(429, f"{_band_waiters} requests are already waiting for bands; try again in a few seconds",
+                       {"Retry-After": "10"})
+    _band_waiters += 1
+    try:
+        t0 = time.monotonic()
+        while not job.event.is_set() and time.monotonic() - t0 < timeout:
+            await asyncio.sleep(0.25)
+    finally:
+        _band_waiters -= 1
+    return job
+
+
 @app.get("/api/band")
 async def api_band(request: Request, key: str, band: str):
     rate_limit(request, "band")
     fs = await _field(key)
-    job = await asyncio.to_thread(registry().wait_band, fs, band, BAND_WAIT_S)
+    job = await wait_band_async(fs, band, BAND_WAIT_S)
     if job.state == "error":
         raise ApiError(503, f"band {band} could not be built (error id {job.error}); try again later")
     if not job.event.is_set():
@@ -798,7 +823,7 @@ async def api_frame(key: str, epoch: int, band: str, kind: str | None = None):
     if kind not in (None, "", "weight", "flagfrac"):
         raise ApiError(400, "kind must be weight or flagfrac (omit it for the image)")
     fs = await _field(key)
-    job = await asyncio.to_thread(registry().wait_band, fs, band, BAND_WAIT_S)
+    job = await wait_band_async(fs, band, BAND_WAIT_S)
     if not job.event.is_set():
         raise ApiError(504, f"band {band} is still being built; try again")
     path = fs.out / (f"{epoch}_{band}" + (f"_{kind}" if kind else "") + ".f32")
@@ -976,6 +1001,7 @@ async def api_health():
                             "checked_utc": None if CACHE_STATE["checked"] is None else
                             time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(CACHE_STATE["checked"])),
                             "last_cleanup": CACHE_STATE["last_cleanup"]},
+                  "band_waiters": {"now": _band_waiters, "max": MAX_BAND_WAITERS},
                   "memory_limits": {"fields_in_memory": MAX_FIELDS_IN_MEMORY, "cutout_sets": MAX_CUTOUT_SETS,
                                     "cutout_sets_in_memory": len(reg.cutouts),
                                     "windows_per_field": MAX_WINDOWS_PER_FIELD},

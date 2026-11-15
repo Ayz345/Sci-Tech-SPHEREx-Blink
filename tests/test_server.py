@@ -854,3 +854,17 @@ def test_restart_mid_build_starts_clean(client):
     _wait_idle()
     assert (out / "D3.json").exists() and _strict(client.get("/api/band", params={"key": m["key"], "band": "D3"}))
     assert client.calls["fetch"] == n_fetch + 1    # only D3's detector downloaded again; D1, D2 ... from disk
+
+
+# --------------------------------------------------------------------------- public server: band waiters (B7)
+
+def test_band_waiters_capped_ready_bands_free(client, monkeypatch):
+    from server import app as A
+    m = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "queue": 0}))
+    monkeypatch.setattr(A, "MAX_BAND_WAITERS", 0)
+    r = client.get("/api/band", params={"key": m["key"], "band": "D1"})        # not built yet: would wait
+    assert r.status_code == 429 and r.headers["retry-after"] == "10"
+    _wait_idle()                                                                 # it was queued all the same
+    assert client.get("/api/band", params={"key": m["key"], "band": "D1"}).status_code == 200   # ready: no wait
+    h = _strict(client.get("/api/health"))
+    assert h["band_waiters"] == {"now": 0, "max": 0}
