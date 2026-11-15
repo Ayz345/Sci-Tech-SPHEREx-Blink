@@ -690,3 +690,26 @@ def test_track_body_must_be_an_object(track_client):
     for body in ([], "x", 3, None):
         r = track_client.post("/api/track", json=body)
         assert r.status_code == 400 and r.json()["schema"] == 1, (body, r.text)
+
+
+# --------------------------------------------------------------------------- public server: /api/track limits (B3)
+
+def test_track_limits(track_client):
+    from server import app as A
+    c = track_client
+    many = [{"ra": 133.76 + 0.0001 * i, "dec": -7.24, "mjd": 60988.99 + 0.001 * i} for i in range(A.TRACK_MAX_MARKS + 1)]
+    r = c.post("/api/track", json={"band": "D6", "marks": many})
+    assert r.status_code == 400 and "at most" in r.json()["message"]
+    pad = "x" * (A.TRACK_MAX_BODY_BYTES + 10)
+    r = c.post("/api/track", json={"band": "D6", "marks": MARKS, "pad": pad})
+    assert r.status_code == 413
+    far = [{"ra": 133.0, "dec": -7.0, "mjd": 60988.0}, {"ra": 143.0, "dec": -7.0, "mjd": 60989.0}]   # 10 deg in a day
+    r = c.post("/api/track", json={"band": "D6", "marks": far})
+    assert r.status_code == 400 and "image searches" in r.json()["message"]
+    assert c.post("/api/track", json={"band": "D6", "marks": MARKS}).status_code == 200      # a normal track still works
+
+
+def test_track_cost_rule():
+    from server import app as A
+    cost = A.track_cost(MARKS)
+    assert cost["within_visit"] and cost["sia_points"] == 2 and cost["window_days"] < 5

@@ -823,11 +823,38 @@ def _track_response(rid: str, rows: list, info: dict, band: str, n_refs: int) ->
             "mpc_test_forms": {"psv": mpc.MPC_PSV_TEST, "xml": mpc.MPC_XML_TEST}}
 
 
+#: /api/track limits for a public server (B3): marks, body size, SIA2 points along the path (cost), and the time
+#: window of a within-visit (Solar System) track. Tracks across survey epochs (proper-motion stars, CSV only) span
+#: up to ~500 days by nature; their path is short, so the SIA2-point limit bounds them.
+TRACK_MAX_MARKS = 20
+TRACK_MAX_BODY_BYTES = 16384
+TRACK_MAX_SIA_POINTS = 12
+TRACK_MAX_WINDOW_DAYS = 60.0
+
+
+def track_cost(marks) -> dict:
+    """The SIA2 points and time window /api/track would use (same rule as pipeline.track_refs), without querying."""
+    import math
+    from spx.astrometry import track_model
+    position, info = track_model(marks)
+    lo, hi = info["window_mjd"]
+    within = bool(np.isfinite(lo) and np.isfinite(hi))
+    if not within:
+        ms = [m["mjd"] for m in marks]
+        lo, hi = min(ms) - 1.0, max(ms) + 1.0
+    sep = position(lo).separation(position(hi)).deg
+    n = max(2, int(math.ceil(sep / P.TRACK_SIA_STEP_DEG)) + 1)
+    return {"sia_points": n, "window_days": float(hi - lo), "within_visit": within, "path_deg": float(sep)}
+
+
 @app.post("/api/track")
 async def api_track(request: Request):
     """Measure a marked moving object on single exposures. Body: {"band": "D1".."D6", "marks": [{ra, dec, mjd}, ...]}
     (>= 2 marks, same object, different times). Downloads the cutouts it needs (S3), never contacts the MPC."""
     import uuid
+    raw = await request.body()
+    if len(raw) > TRACK_MAX_BODY_BYTES:
+        raise ApiError(413, f"body too large ({len(raw)} bytes; at most {TRACK_MAX_BODY_BYTES})")
     try:
         body = await request.json()
     except Exception:
@@ -836,6 +863,8 @@ async def api_track(request: Request):
         raise ApiError(400, "body must be a JSON object: {band, marks: [{ra, dec, mjd}]}")
     band = str(body.get("band") or "")
     marks = body.get("marks") or []
+    if not isinstance(marks, list) or len(marks) > TRACK_MAX_MARKS:
+        raise ApiError(400, f"marks must be a list of at most {TRACK_MAX_MARKS} points")
     try:
         marks = [{"ra": float(m["ra"]) % 360.0, "dec": float(m["dec"]), "mjd": float(m["mjd"])} for m in marks]
     except (KeyError, TypeError, ValueError):
@@ -848,6 +877,16 @@ async def api_track(request: Request):
         P.track_detectors(band)
     except ValueError as e:
         raise ApiError(400, str(e))
+    try:
+        cost = await asyncio.to_thread(track_cost, marks)
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    if cost["sia_points"] > TRACK_MAX_SIA_POINTS:
+        raise ApiError(400, f"the marked path is {cost['path_deg']:.1f} deg long ({cost['sia_points']} image searches); "
+                            f"at most {TRACK_MAX_SIA_POINTS} on this server: mark a shorter stretch")
+    if cost["within_visit"] and cost["window_days"] > TRACK_MAX_WINDOW_DAYS:
+        raise ApiError(400, f"the track spans {cost['window_days']:.0f} days; at most {TRACK_MAX_WINDOW_DAYS:.0f} "
+                            "for a moving object within a visit")
     try:
         rows, info, n_refs = await asyncio.to_thread(P.measure_marks, marks, band)
     except ValueError as e:
