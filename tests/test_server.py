@@ -301,6 +301,7 @@ def test_touch_moves_field_first_in_background():
     import threading
     reg.lock = threading.RLock()
     reg.cv = threading.Condition(reg.lock)
+    reg.seen = {}
     reg.background = [("a", "D2"), ("a", "D3"), ("b", "D2"), ("b", "D3")]
     reg.touch("b")
     assert reg.background == [("b", "D2"), ("b", "D3"), ("a", "D2"), ("a", "D3")]
@@ -743,18 +744,53 @@ def test_new_field_limits(client, monkeypatch):
     assert client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "queue": 0}).status_code == 200   # open: free
     r = client.get("/api/manifest", params={"ra": RA0 + 5, "dec": DEC0, "queue": 0})
     assert r.status_code == 429 and "new fields" in r.json()["message"]
-    # server-wide: fields still building block a new one
+    # server-wide: only fields someone is waiting for count. Bands nobody queued (queue=0) do not: on 15 Nov four
+    # such fields kept every new field out while nothing was being built.
     monkeypatch.setattr(A, "NEW_FIELDS_PER_IP", 100)
     monkeypatch.setattr(A, "MAX_ACTIVE_FIELDS", 1)
     with A.REG.lock:
         fs = next(iter(A.REG.fields.values()))
         job = next(iter(fs.jobs.values()))
-        job.event.clear()
+        assert not job.event.is_set() and job.state == "pending"
+    assert client.get("/api/manifest", params={"ra": RA0 + 6, "dec": DEC0, "queue": 0}).status_code == 200
+    job.state, job.background = "running", False           # a band being built for a request
     try:
         r = client.get("/api/manifest", params={"ra": RA0 + 7, "dec": DEC0, "queue": 0})
-        assert r.status_code == 429 and "building" in r.json()["message"] and r.headers["retry-after"] == "60"
+        assert r.status_code == 429 and "waiting for" in r.json()["message"] and r.headers["retry-after"] == "60"
+        job.background = True                                # built ahead, nobody waiting: no limit
+        assert client.get("/api/manifest", params={"ra": RA0 + 7, "dec": DEC0, "queue": 0}).status_code == 200
+        h = client.get("/api/health").json()
+        assert h["fields_waiting"] == {"now": 0, "max": 1}
     finally:
-        job.event.set()
+        job.state = "pending"
+
+
+def test_bands_are_built_ahead_for_the_newest_fields_only(monkeypatch):
+    from server import app as A
+    reg = A.Registry.__new__(A.Registry)                     # no worker threads: the queue is only looked at
+    import threading
+    from collections import OrderedDict
+    reg.lock = threading.RLock()
+    reg.cv = threading.Condition(reg.lock)
+    reg.fields, reg.urgent, reg.background, reg.seen, reg.recent = OrderedDict(), [], [], {}, []
+    for k in ("a", "b", "c"):
+        reg.fields[k] = A.FieldState(None, None, {b: A.BandJob(b) for b in ("D1", "D2", "D3")})
+    monkeypatch.setattr(A, "PREBUILD_FIELDS", 2)
+    for k in ("a", "b", "c"):
+        reg.enqueue(k, "D1", urgent=True)
+        reg.prebuild(k, ["D2", "D3"])
+    assert reg.recent == ["c", "b"] and {k for k, _ in reg.background} == {"b", "c"}
+    assert [k for k, _ in reg.urgent] == ["c", "b", "a"]     # asked-for bands always stay
+    assert reg.waiting_fields() == set()                       # queued, but nobody asked about them (seen unset)
+    reg.seen["a"] = __import__("time").time()
+    assert reg.waiting_fields() == {"a"}
+    reg.prebuild("a", ["D2", "D3"], asked=True)               # the candidates tab of an older field
+    assert reg.recent == ["a", "c"] and {k for k, _ in reg.background} == {"a", "c"}
+    monkeypatch.setattr(A, "PREBUILD_FIELDS", 0)
+    reg.prebuild("b", ["D2", "D3"])
+    assert reg.recent == [] and reg.background == []
+    reg.prebuild("b", ["D2"], asked=True)
+    assert reg.background == [("b", "D2")]
 
 
 # --------------------------------------------------------------------------- public server: disk cache limit

@@ -189,10 +189,20 @@ def _cache_janitor():
 #: times, 6-7 bands and polls candidates every 5 s). SPX_RATE_LIMIT=0 turns all limits off.
 RATE_ON = (os.environ.get("SPX_RATE_LIMIT") or "1") != "0"
 RATE_PER_MIN = {"manifest": 20, "band": 60, "spectrum": 20, "candidates": 30, "track": 6}
-#: New fields (not yet on the server) per client IP per NEW_FIELD_WINDOW_S, and fields with unfinished bands at once.
-NEW_FIELDS_PER_IP = int(os.environ.get("SPX_NEW_FIELDS_PER_IP") or 10)
+#: New fields (not yet on the server) per client IP per NEW_FIELD_WINDOW_S. Visitors on one school or home network
+#: share an address, and moving around the sky opens a new field at every stop: 40, not 10.
+NEW_FIELDS_PER_IP = int(os.environ.get("SPX_NEW_FIELDS_PER_IP") or 40)
 NEW_FIELD_WINDOW_S = 600.0
-MAX_ACTIVE_FIELDS = int(os.environ.get("SPX_MAX_ACTIVE_FIELDS") or 4)
+#: Fields someone is waiting for at once: a band was asked for (by a page or a frame) and is queued or being built
+#: for that request. Bands built ahead in the background, and bands nobody queued (manifest ?queue=0), do not count:
+#: until 15 Nov they did, so four opened fields kept new ones out for minutes with nothing being built.
+MAX_ACTIVE_FIELDS = int(os.environ.get("SPX_MAX_ACTIVE_FIELDS") or 8)
+#: Bands nobody asked for yet are built ahead for the PREBUILD_FIELDS most recently opened fields only; an older
+#: field's background bands leave the queue and are built when asked for (a band, or the candidates tab, which
+#: asks for all of them). 0 = no building ahead at field opening.
+PREBUILD_FIELDS = int(os.environ.get("SPX_PREBUILD_FIELDS") or 2)
+#: A queued band whose field nobody has asked about for this long no longer counts as someone waiting.
+WAITING_STALE_S = 180.0
 _rate_lock = threading.Lock()
 _rate_hits: dict = {}      # (ip, group) -> deque of times
 
@@ -244,11 +254,10 @@ def new_field_allowed(request, key: str) -> bool:
     with reg.lock:
         if key in reg.fields or key in reg.opening:
             return False
-        active = sum(1 for fs in reg.fields.values()
-                     if any(not j.event.is_set() for b, j in fs.jobs.items() if b not in fs.windows))
+    active = len(reg.waiting_fields())
     if active >= MAX_ACTIVE_FIELDS:
-        raise ApiError(429, f"the server is building {active} fields; try again in a minute (or open a gallery "
-                            "target, which needs no download)", {"Retry-After": "60"})
+        raise ApiError(429, f"the server is building bands that {active} fields are waiting for; try again in a "
+                            "minute (or open a gallery target, which needs no download)", {"Retry-After": "60"})
     wait = _hit(client_ip(request), "new_field", NEW_FIELDS_PER_IP, NEW_FIELD_WINDOW_S)
     if wait is not None:
         raise ApiError(429, f"too many new fields from your address ({NEW_FIELDS_PER_IP} per "
@@ -324,6 +333,8 @@ class Registry:
         self.urgent: list[tuple[str, str]] = []         # requested bands, newest request first
         self.background: list[tuple[str, str]] = []     # the rest, in band order
         self.opening: dict[str, threading.Event] = {}
+        self.seen: dict[str, float] = {}                # key -> last time a request asked about the field
+        self.recent: list[str] = []                     # fields whose bands are built ahead, newest first
         self.cutouts: OrderedDict[str, dict] = OrderedDict()   # key -> {detector: [Cutout]}
         self.closed = False
         self.workers = [threading.Thread(target=self._work, args=(False,), daemon=True, name="band-urgent"),
@@ -390,7 +401,7 @@ class Registry:
         with self.lock:
             self.fields[f.key] = fs
             while len(self.fields) > MAX_FIELDS_IN_MEMORY:
-                self.fields.popitem(last=False)
+                self.seen.pop(self.fields.popitem(last=False)[0], None)
         if not f.refs:
             for j in jobs.values():
                 j.state = "empty"
@@ -402,10 +413,36 @@ class Registry:
             order.insert(0, f.tinfo["default_band"])
         if not queue:
             return fs
+        self.seen[f.key] = time.time()
         self.enqueue(f.key, order[0], urgent=True)  # the page asks for this one first
-        for b in order[1:]:
-            self.enqueue(f.key, b, urgent=False)
+        self.prebuild(f.key, order[1:])
         return fs
+
+    def prebuild(self, key: str, bands, asked: bool = False) -> None:
+        """Queue bands in the background for this field, which becomes the newest of the PREBUILD_FIELDS fields
+        built ahead; the background bands of older fields leave the queue (they are built when asked for).
+        asked=True: someone asked for these bands (the candidates tab), so they are queued even with PREBUILD_FIELDS 0."""
+        keep = max(PREBUILD_FIELDS, 1 if asked else 0)
+        with self.cv:
+            if key in self.recent:
+                self.recent.remove(key)
+            if keep:
+                self.recent.insert(0, key)
+            del self.recent[keep:]
+            self.background = [it for it in self.background if it[0] in self.recent]
+        if keep:
+            for b in bands:
+                self.enqueue(key, b, urgent=False)
+
+    def waiting_fields(self) -> set:
+        """Fields someone is waiting for: a band queued at a request (and asked about within WAITING_STALE_S), or
+        a band being built for a request."""
+        now = time.time()
+        with self.lock:
+            keys = {k for k, _ in self.urgent if now - self.seen.get(k, 0.0) < WAITING_STALE_S}
+            keys |= {k for k, fs in self.fields.items()
+                     if any(j.state == "running" and not j.background for j in fs.jobs.values())}
+        return keys
 
     def close(self) -> None:
         """Stop the workers after their current band (tests, shutdown)."""
@@ -560,6 +597,7 @@ class Registry:
     def touch(self, key: str) -> None:
         """The page polls the manifest of the field on screen: its pending bands go first in the background."""
         with self.cv:
+            self.seen[key] = time.time()
             mine = [it for it in self.background if it[0] == key]
             if mine:
                 self.background = mine + [it for it in self.background if it[0] != key]
@@ -611,6 +649,7 @@ class Registry:
                                     f"w<lo>_<hi> (nm)")
         job = self.window_job(fs, band) if P.is_window(band) else fs.jobs[band]
         if not job.event.is_set():
+            self.seen[fs.field.key] = time.time()
             self.enqueue(fs.field.key, band, urgent=True)
             job.event.wait(timeout)
         return job
@@ -931,8 +970,7 @@ async def api_candidates(request: Request, key: str):
     if st is None:
         reg.maybe_candidates(fs)
     pending = [b for b, j in fs.jobs.items() if b not in fs.windows and not j.event.is_set()]
-    for b in pending:                  # the page waits for these: build them next
-        reg.enqueue(fs.field.key, b, urgent=False)
+    reg.prebuild(fs.field.key, pending, asked=True)   # the page waits for these: build them next
     reg.touch(fs.field.key)
     return jresp({"schema": P.SCHEMA, "key": fs.field.key, "status": "pending", "bands_pending": pending,
                   "message": "candidates are searched once every band of the field is built"}, status=202)
@@ -1110,11 +1148,14 @@ async def api_health():
     with reg.lock:
         fields = len(reg.fields)
         queued = {"urgent": len(reg.urgent), "background": len(reg.background)}
+        built_ahead = list(reg.recent)
         running = sum(j.state == "running" for fs in reg.fields.values() for j in fs.jobs.values())
     return jresp({"schema": P.SCHEMA, "ok": True, "version": spx.__version__, "commit": STARTED_COMMIT.get("commit"),
                   "uncommitted_code_at_start": STARTED_COMMIT.get("uncommitted_code"),
                   "collections": list(access.COLLECTIONS), "max_fov_deg": P.MAX_FOV_DEG,
                   "live_layers": list(LIVE_LAYERS), "fields_in_memory": fields, "bands_queued": queued, "bands_running": running,
+                  "fields_waiting": {"now": len(reg.waiting_fields()), "max": MAX_ACTIVE_FIELDS},
+                  "fields_built_ahead": {"now": len(built_ahead), "max": PREBUILD_FIELDS},
                   "s3_max_concurrency": access.S3_MAX_CONCURRENCY, "code_hash": CODE_HASH,
                   "spx_frame_code_hash": spx.frame_code_hash(), "spx_code_hash": spx.code_hash(),
                   "ades_schema": _ades_schema_available(), "astrometry_validation": _validation_status(),
