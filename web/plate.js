@@ -27,14 +27,14 @@ function littleEndian(buf) {
   return out;
 }
 async function getJSON(u) { const r = await fetch(u); if (!r.ok) throw new Error(`${r.status} ${u.split("?")[0].split("/").pop()}`); return r.json(); }
-async function getF32(u) { const r = await fetch(u); if (!r.ok) return null; return new Float32Array(littleEndian(await r.arrayBuffer())); }
-// the live server: looked for when it is first needed, and again after a failure
+async function getF32(u) { const r = await fetch(u); if (!r.ok) { if (r.status >= 500) throw new Error(`${r.status} frame`); return null; } return new Float32Array(littleEndian(await r.arrayBuffer())); }
+// the live server: looked for when it is first needed, and again after a failure (a cold start can take a few seconds)
 let API = "";
 export async function findServer() {
   if (API) return API;
   const url = (window.SPX_API || "").replace(/\/$/, "");
   if (!url) return "";
-  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 1800);
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 5000);
   try { const r = await fetch(`${url}/api/health`, { signal: ctl.signal }); if (r.ok) API = url; } catch { /* not reachable */ }
   clearTimeout(timer);
   return API;
@@ -192,6 +192,12 @@ export function createTool(c) {
     plateBox = r; platePx = r.width;
     return { cx: (r.left + r.width / 2) / W(), cy: (r.top + r.height / 2) / H() };
   }
+  // the archive behind the live server is sometimes down for a while: say so calmly and offer another try
+  const archiveDown = (err) => /^5[0-9][0-9]/.test(err.message) || err.name === "TypeError";
+  const askRetry = () => new Promise((resolve) => {
+    setStatus(`The archive is not answering right now. Try again in a few minutes; the five targets work meanwhile. <button type="button" class="retry">Try again</button>`);
+    $("status").querySelector(".retry").onclick = () => resolve();
+  });
   // ------------------------------------------------ sky -> zoom -> plate
   // t: { id, name } for a gallery target, or { ra, dec, free: true } for any other position
   async function open(t, { fast = false } = {}) {
@@ -226,7 +232,14 @@ export function createTool(c) {
       const pulse = $("pframe").animate([{ opacity: 1 }, { opacity: .35 }, { opacity: 1 }], { duration: 1400, iterations: Infinity });
       // the archive can be slow; the server keeps asking for up to about half a minute, and the page waits with it
       const slow = setTimeout(() => run === Q.run && setStatus("The archive is slow to answer right now. The server keeps asking; this can take up to half a minute."), 5000);
-      const got = await asked;
+      let got = await asked;
+      while (got.err && archiveDown(got.err) && run === Q.run) {
+        clearTimeout(slow); pulse.pause();
+        await askRetry();
+        if (run !== Q.run) return;
+        setStatus("Asking the archive again."); pulse.play();
+        got = await loadPosition(t.ra, t.dec).then((e) => ({ e }), (err) => ({ err }));
+      }
       clearTimeout(slow); pulse.cancel();
       if (run !== Q.run) return;
       if (got.err) return setStatus(got.err.message === "no-server"
@@ -376,8 +389,16 @@ export function createTool(c) {
     // the spectrum and the Gaia stars come when they come; the frames do not wait for them
     if (!Q.e.spectrum) getJSON(u.spectrum()).then((s) => (Q.e.spectrum = Array.isArray(s) ? { meta: {}, points: s } : s), () => (Q.e.spectrum = { meta: {}, points: [] })).then(() => alive() && Q.ready && drawWave(1));
     if (!Q.e.gaia) getJSON(u.gaia()).then((g) => (Q.e.gaia = g), () => (Q.e.gaia = [])).then(() => alive() && Q.ready && render());
-    try { await Promise.all([loadBand(Q.e, Q.band), wait(700)]); }
-    catch (err) { stop(); return setStatus(`The frames could not be read (${err.message}).`); }
+    for (;;) {
+      try { await Promise.all([loadBand(Q.e, Q.band), wait(700)]); break; }
+      catch (err) {
+        stop();
+        if (!archiveDown(err)) return setStatus(`The frames could not be read (${err.message}).`);
+        await askRetry();
+        if (!alive()) return;
+        setStatus("Asking the archive again.");
+      }
+    }
     stop();
     if (!alive()) return;
     fixLow();

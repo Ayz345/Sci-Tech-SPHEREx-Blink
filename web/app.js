@@ -906,7 +906,12 @@ async function openFree(ra, dec) {
   msg.textContent = "";
   const near = TARGETS.find((t) => radec(t.ra, t.dec).dot(radec(ra, dec)) > Math.cos(.6 * D2R));
   if (near) return tool.open(near, { fast: FAST });
-  if (!(await findServer())) { msg.innerHTML = `This position needs the live server, which is not part of this site. The five targets work here. <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink#run-it" target="_blank" rel="noopener">How to run the server</a>`; return; }
+  if (S.server !== true) {
+    msg.textContent = "Looking for the live server…";
+    S.server = !!(await findServer());
+    msg.textContent = "";
+  }
+  if (!S.server) { msg.innerHTML = `This position needs the live server, which is not part of this site. The five targets work here. <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink#run-it" target="_blank" rel="noopener">How to run the server</a>`; return; }
   tool.open({ ra, dec, free: true }, { fast: FAST });
 }
 // where on the sky a point of the screen looks

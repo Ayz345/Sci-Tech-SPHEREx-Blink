@@ -178,6 +178,7 @@ body.sky #sky { opacity: 1; visibility: visible; }
 #picks button:hover, #picks button:focus-visible { color: var(--fg); }
 .hint { color: var(--fg-2); font-size: 13px; margin: 0; min-height: 1.5em; }
 .hint a { color: var(--fg); text-decoration: underline; text-underline-offset: 3px; }
+.retry { margin-left: .5rem; padding: 0; background: none; border: 0; color: var(--fg); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 
 #markers { position: absolute; inset: 0; transition: opacity .3s; }
 .mk { position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer; background: none; border: 0; padding: 0; transition: opacity .4s; }
