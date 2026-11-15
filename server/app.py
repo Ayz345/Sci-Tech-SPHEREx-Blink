@@ -65,6 +65,108 @@ MAX_WINDOWS_PER_FIELD = int(os.environ.get("SPX_MAX_WINDOWS_PER_FIELD") or 12)
 MAX_CUTOUT_SETS = int(os.environ.get("SPX_MAX_CUTOUT_SETS") or 2)
 
 
+# --------------------------------------------------------------------------- disk cache limit (public server, B4)
+
+#: Size limit of the cache folder's cutouts and built fields (SPX_CACHE_MAX_GB; the Dockerfile sets 5; unset or 0 =
+#: no limit and no janitor, as on a development machine whose cache also holds the gallery's cutouts). When over,
+#: files are removed down to CACHE_LOW_WATER of it: built fields of other code versions first, then the oldest
+#: cutouts, then the oldest fields of this version that are not open. sia/, gaia/, ades/, acceptance/ are kept.
+CACHE_MAX_BYTES = int(float(os.environ.get("SPX_CACHE_MAX_GB") or 0) * 1e9)
+CACHE_LOW_WATER = 0.9
+CACHE_CHECK_S = 600.0
+CACHE_STATE: dict = {"bytes": None, "checked": None, "last_cleanup": None}
+
+
+def _tree_size(path: Path) -> tuple[int, float]:
+    """(bytes, newest mtime) of a folder."""
+    total, newest = 0, 0.0
+    for dirpath, _, files in os.walk(path):
+        for f in files:
+            try:
+                st = os.stat(os.path.join(dirpath, f))
+            except OSError:
+                continue
+            total += st.st_size
+            newest = max(newest, st.st_mtime)
+    return total, newest
+
+
+def cache_cleanup(root: Path, max_bytes: int, current: Path, keep: set) -> dict:
+    """Remove cache files until the managed part (cutout/, layout/, fields/) is under max_bytes * CACHE_LOW_WATER.
+    current = this version's fields folder; keep = field keys that are open (never removed)."""
+    import shutil
+    victims = []   # (order, mtime, bytes, path, is_dir)
+    protected = 0
+    fields_root = root / "fields"
+    if fields_root.exists():
+        for vdir in fields_root.iterdir():
+            if not vdir.is_dir():
+                continue
+            if vdir.resolve() != current.resolve():
+                b, t = _tree_size(vdir)
+                victims.append((0, t, b, vdir, True))
+            else:
+                for fdir in vdir.iterdir():
+                    if fdir.is_dir():
+                        b, t = _tree_size(fdir)
+                        if fdir.name in keep:
+                            protected += b          # counted, never removed
+                        else:
+                            victims.append((2, t, b, fdir, True))
+    for sub in ("cutout", "layout"):
+        d = root / sub
+        if d.exists():
+            for dirpath, _, files in os.walk(d):
+                for f in files:
+                    fp = Path(dirpath) / f
+                    try:
+                        st = fp.stat()
+                    except OSError:
+                        continue
+                    victims.append((1, st.st_mtime, st.st_size, fp, False))
+    total = sum(v[2] for v in victims) + protected
+    kept_total = total
+    removed = {"files": 0, "folders": 0, "bytes": 0}
+    if total > max_bytes:
+        target = max_bytes * CACHE_LOW_WATER
+        for order, mtime, b, path, is_dir in sorted(victims, key=lambda v: (v[0], v[1])):
+            if kept_total <= target:
+                break
+            try:
+                if is_dir:
+                    shutil.rmtree(path)
+                    removed["folders"] += 1
+                else:
+                    path.unlink()
+                    removed["files"] += 1
+            except OSError:
+                continue
+            kept_total -= b
+            removed["bytes"] += b
+    return {"bytes_before": total, "bytes_after": kept_total, "max_bytes": max_bytes, **removed}
+
+
+def cache_check() -> dict:
+    reg = registry()
+    with reg.lock:
+        keep = set(reg.fields) | set(reg.opening)
+    out = cache_cleanup(access.CACHE_DIR, CACHE_MAX_BYTES, FIELDS_DIR, keep)
+    CACHE_STATE.update(bytes=out["bytes_after"], checked=time.time())
+    if out["files"] or out["folders"]:
+        CACHE_STATE["last_cleanup"] = {**out, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        log.warning("cache cleanup: %s", out)
+    return out
+
+
+def _cache_janitor():
+    while True:
+        try:
+            cache_check()
+        except Exception as e:  # never stop the janitor
+            error_id("cache cleanup", e)
+        time.sleep(CACHE_CHECK_S)
+
+
 # --------------------------------------------------------------------------- request limits (public server, B1)
 
 #: Requests per client IP per minute on the expensive endpoints (a page opening one field asks the manifest a few
@@ -559,6 +661,17 @@ def check_fov(fov: float) -> None:
 # --------------------------------------------------------------------------- app
 
 app = FastAPI(title="SPHEREx blink API", version=spx.__version__)
+_janitor_started = False
+
+
+@app.middleware("http")
+async def _start_janitor(request: Request, call_next):
+    """The disk-cache janitor (B4) starts with the first request (not at import: tests import the app)."""
+    global _janitor_started
+    if not _janitor_started and CACHE_MAX_BYTES > 0:
+        _janitor_started = True
+        threading.Thread(target=_cache_janitor, daemon=True, name="cache-janitor").start()
+    return await call_next(request)
 
 
 #: Response headers the browser may read across origins (/api/report: file name, schema check).
@@ -831,6 +944,10 @@ async def api_health():
                   "s3_max_concurrency": access.S3_MAX_CONCURRENCY, "code_hash": CODE_HASH,
                   "spx_frame_code_hash": spx.frame_code_hash(), "spx_code_hash": spx.code_hash(),
                   "ades_schema": _ades_schema_available(), "astrometry_validation": _validation_status(),
+                  "cache": {"bytes": CACHE_STATE["bytes"], "max_bytes": CACHE_MAX_BYTES,
+                            "checked_utc": None if CACHE_STATE["checked"] is None else
+                            time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(CACHE_STATE["checked"])),
+                            "last_cleanup": CACHE_STATE["last_cleanup"]},
                   "memory_limits": {"fields_in_memory": MAX_FIELDS_IN_MEMORY, "cutout_sets": MAX_CUTOUT_SETS,
                                     "cutout_sets_in_memory": len(reg.cutouts),
                                     "windows_per_field": MAX_WINDOWS_PER_FIELD},

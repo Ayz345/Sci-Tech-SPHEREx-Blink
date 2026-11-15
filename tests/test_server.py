@@ -752,3 +752,35 @@ def test_new_field_limits(client, monkeypatch):
         assert r.status_code == 429 and "building" in r.json()["message"] and r.headers["retry-after"] == "60"
     finally:
         job.event.set()
+
+
+# --------------------------------------------------------------------------- public server: disk cache limit (B4)
+
+def test_cache_cleanup_order_and_protection(tmp_path):
+    import os
+    from server import app as A
+    def put(rel, n, age_s):
+        f = tmp_path / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b"x" * n)
+        t = __import__("time").time() - age_s
+        os.utime(f, (t, t))
+    cur = tmp_path / "fields" / "v0.1-new"
+    put("fields/v0.1-old/somefield/D1.json", 400, 10)          # other code version: removed first
+    put("fields/v0.1-new/open/D1.json", 400, 9000)             # open field: never removed
+    put("fields/v0.1-new/closed/D1.json", 400, 8000)           # not open, oldest of this version
+    put("cutout/a/old.npz", 300, 7000)                         # oldest cutout
+    put("cutout/a/new.npz", 300, 5)
+    put("sia/spherex_dr1/x.json", 5000, 9999)                  # image lists: not managed
+    out = A.cache_cleanup(tmp_path, 1500, cur, keep={"open"})
+    assert out["bytes_before"] == 1800 and out["bytes_after"] <= 1500 * A.CACHE_LOW_WATER
+    assert not (tmp_path / "fields/v0.1-old").exists() and not (tmp_path / "cutout/a/old.npz").exists()
+    assert (tmp_path / "fields/v0.1-new/open/D1.json").exists() and (tmp_path / "sia/spherex_dr1/x.json").exists()
+    assert (tmp_path / "cutout/a/new.npz").exists()                    # enough was freed before reaching it
+    out = A.cache_cleanup(tmp_path, 100000, cur, keep=set())             # under the limit: nothing removed
+    assert out["files"] == out["folders"] == 0
+
+
+def test_health_reports_cache(client):
+    h = _strict(client.get("/api/health"))
+    assert set(h["cache"]) == {"bytes", "max_bytes", "checked_utc", "last_cleanup"}
