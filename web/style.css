@@ -426,7 +426,7 @@ body.dark .about-link { border-bottom-color: rgba(180, 180, 176, .45); }
   #search button { width: 40px; height: 40px; }
 }
 
-/* ------------------------------------------------------------ Designn, 15 Nov: the source code in view (Casper). In the
+/* ------------------------------------------------------------ Designn, 15 Nov: the source code in view. In the
    corner: "Source" left of "About", the same small underlined link (same visibility: hidden while Begin plays, in the
    sky and on the plate screen). On the last page: a third framed pill beside "About this project". */
 .about-link.src { right: calc(24px + 3.7em + 4px + 22px); text-decoration: none; }
