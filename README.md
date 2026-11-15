@@ -21,9 +21,14 @@ the spectrum. The tool does not claim any discovery. It makes looking easier.
   and overlay, is at <https://sci-techspherex.com/tool/>.
 - **The API server is online too** (Google Cloud Run, region us-east4, next to the data), so the published site
   takes any coordinate or name, your own wavelength window, the spectrum of a clicked point and the moving-object
-  report. Fields are limited to 7′ there and requests are rate-limited. A new position needs the IRSA image-list
-  service; when IRSA does not answer the page says so, and the five gallery targets keep working. How it is
-  deployed: [`DEPLOY.md`](DEPLOY.md).
+  report. Fields are limited to 7′ there and requests are rate-limited. How it is deployed:
+  [`DEPLOY.md`](DEPLOY.md).
+- **A new position does not wait for IRSA's search services.** On 15 November 2026 IRSA's SIA2 and TAP services
+  (the ones that answer "which images cover this position?") were down for hours, while the image files
+  themselves, in the public bucket on AWS, stayed reachable. We read the pointing and the time of every Level 2
+  file in that bucket, 1,628,230 files, and the server now carries that as its own index
+  (`server/index/spx_index.npz`, 22.5 MB). It answers a position in a few hundredths of a second and says in the
+  page where the list came from. See [How it works](#how-it-works) and [Limits](#limits).
 - `web/` is the site exactly as it is served: the landing page at its root (the story of the project, a sky to
   click, the frames of the five targets), the full tool under `web/tool/`, the gallery under `web/data/`.
 
@@ -88,20 +93,32 @@ Rebuild the gallery from the archive: `python scripts/precompute.py` (all five t
 2. Restart the server. A new collection is asked from IRSA on the next request. Image lists are cached per
    collection for 7 days and built frames are kept on disk, so delete `cache/sia/` and `cache/fields/` to rebuild
    positions that were already built.
-3. Rebuild the gallery: `python scripts/precompute.py`. Each target's `provenance.json` records the collections,
+3. Rebuild our own index so that the new files are found without IRSA: add the release's bucket prefix to
+   `RELEASES` in `scripts/build_s3_index.py` and to `COLLECTIONS` in `server/s3index.py`, run the workflow
+   "Image index of the bucket" (or `python scripts/build_s3_index.py --out cache/s3index` on a fast connection),
+   then `python -m server.s3index cache/s3index server/index/spx_index.npz` and commit the file.
+4. Rebuild the gallery: `python scripts/precompute.py`. Each target's `provenance.json` records the collections,
    the exposure counts and the code version it was built from, and the page shows the date range of the data.
 
 ## How it works
 
 ```
 browser (web/, static)                      server (server/, Python)
-  manifest ───────────────────────────────►  IRSA SIA2 image list → visits, bands
+  manifest ───────────────────────────────►  image list (our index of the bucket; IRSA SIA2 for newer data) → visits, bands
   band, frame ────────────────────────────►  byte-range reads from the public S3 bucket → spx.access → spx.coadd → cache
   gaia, spectrum, resolve, track, report ─►  Gaia DR3 / spx.photometry / CDS Sesame / spx.astrometry, spx.mpc
   no server: the same file names under web/data/ (five targets)
 ```
 
-1. **List.** One SIA2 query to IRSA returns every SPHEREx image that covers the position.
+1. **List.** The server finds every SPHEREx image that covers the position in its own index of the public
+   bucket. The index holds, for each of the 1,628,230 Level 2 files of releases DR1 and QR3, the S3 key, the
+   detector, the pointing (the TAN part of the file's own WCS) and the exposure times. It was made by reading
+   8.6 kB of each file's header with one range request (`scripts/build_s3_index.py`; the whole bucket takes about
+   a minute on 20 parallel CI jobs, `.github/workflows/s3index.yml`) and merged by `python -m server.s3index`.
+   A list that IRSA's SIA2 service gave earlier is used while it is still cached; exposures newer than the
+   index are asked from IRSA in the background and added if it answers. The manifest field `image_list` and
+   the tool's About tab say which source a field's list came from. Without the index file the server asks
+   IRSA, as before.
 2. **Pixels.** Each Level 2 file is about 66 MB. The server reads only the header and the rows it needs with HTTP
    range requests from the public bucket `nasa-irsa-spherex` (image, flags, variance).
 3. **Frames.** Exposures are grouped into visits, masked with the FLAGS layer, background-subtracted, resampled
@@ -116,7 +133,7 @@ Methods and measured numbers: [`handoff/results/methods_v2.md`](handoff/results/
 | Path | Content |
 |---|---|
 | `spx/` | Processing: archive access, co-add, display scale, photometry, single-exposure astrometry, candidate finder, ADES writer, targets |
-| `server/` | FastAPI server and the build pipeline |
+| `server/` | FastAPI server and the build pipeline; `server/s3index.py` and `server/index/` are our own index of the bucket's images |
 | `web/` | The published site: landing page at its root, the full tool in `web/tool/`, the prebuilt gallery in `web/data/` |
 | `scripts/` | Gallery build, acceptance checks, small tools |
 | `tests/` | Offline tests, and network tests that run with `SPX_NETWORK=1` |
@@ -149,6 +166,14 @@ of three queries; the server retries within a 25 s budget and says so when the a
   overflow, which are less accurate than clean ones.
 - **WISE 0855** is faint: it is seen in a custom 4.3–5.0 µm window, not in the short bands. The source seen there
   at short wavelengths is a fixed background star (Gaia DR3 5756956644387831296), and the page says so.
+- **Our image index** ends with the exposure of 5 October 2026, the newest file in the bucket when it was
+  scanned on 15 November 2026. Later exposures appear only if IRSA's SIA2 service answers. The index tests a
+  position with the plain TAN part of each file's WCS and a 40-pixel margin; the distortion terms are left
+  out (they move the position by 2 pixels in the median and 18 at most on the files we compared). An image
+  listed this way that the position just misses is dropped when its pixels are read. On the five gallery
+  targets the index found every image IRSA had listed (none missing, the same S3 keys) and, near the north
+  ecliptic pole, about 2,000 more that hold the target and were not in IRSA's answer. The gallery itself is
+  still built from IRSA's lists, so its frames did not change.
 - Frames built from fewer than 5 exposures are marked low coverage and skipped by default.
 - The automatic finder needs an object to move about 10″ (the width of a star image) over the time covered;
   slower motion is mostly missed. WISE 0855 moved 8.6″ in the year of data, just under that limit, and is found
@@ -170,8 +195,10 @@ Every source used is listed here, as the Space Apps rules ask.
 **NASA data**
 
 - SPHEREx Level 2 spectral images, releases DR1 and QR3, from the NASA/IPAC Infrared Science Archive (IRSA):
-  <https://irsa.ipac.caltech.edu/Missions/spherex.html>. Image lists come from IRSA's SIA2 service; pixels from
-  the public bucket `nasa-irsa-spherex`. Flag and saturation definitions are from the SPHEREx Explanatory
+  <https://irsa.ipac.caltech.edu/Missions/spherex.html>. Pixels are read from IRSA's public bucket
+  `nasa-irsa-spherex` on AWS. Image lists come from our own index of that bucket (the header cards of its
+  1,628,230 Level 2 files, read on 15 November 2026) and from IRSA's SIA2 service; the gallery of the five
+  targets was built from SIA2 lists. Flag and saturation definitions are from the SPHEREx Explanatory
   Supplement: <https://irsa.ipac.caltech.edu/data/SPHEREx/docs/SPHEREx_Expsupp.pdf>.
 
   > This publication makes use of data products from the Spectro-Photometer for the History of the Universe,
