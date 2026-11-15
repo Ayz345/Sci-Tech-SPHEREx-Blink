@@ -1,6 +1,0 @@
-pyvo
-astropy
-numpy
-scipy
-matplotlib
-requests
