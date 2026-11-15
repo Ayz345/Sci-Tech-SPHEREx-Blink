@@ -125,6 +125,37 @@ export function paint(cv, e, band, i, { invert = false, showLow = false } = {}) 
   g.putImageData(img, 0, 0);
   return { saturated: sat };
 }
+// The AllWISE image of 2010 on this field's 3 arcsec grid (gallery targets only): data/<key>/wise.json + wise_W2.f32,
+// row 0 = south, its own brightness scale. Not SPHEREx: it is only shown in the blink and never enters a measurement.
+async function loadWise(e) {
+  if (e.live) return null;
+  if (e.wise !== undefined) return e.wise;
+  e.wise = null;
+  try {
+    const meta = await getJSON(`${DATA}${e.key}/wise.json`);
+    const b = (meta.bands || []).find((x) => x.id === "W2");
+    if (!b || !b.scale) return null;
+    const r = await fetch(`${DATA}${e.key}/${b.file || "wise_W2.f32"}`);
+    if (!r.ok) return null;
+    const f = new Float32Array(littleEndian(await r.arrayBuffer())), [ny, nx] = e.m.grid.shape;
+    if (f.length !== nx * ny) return null;
+    e.wise = { f, scale: b.scale, wave: b.wave_um, date: meta.date || "", survey: String(meta.survey || "AllWISE").replace(/ Atlas$/, "") };
+  } catch { e.wise = null; }
+  return e.wise;
+}
+// draws the WISE frame with its own scale (same stretch as the SPHEREx frames)
+export function paintWise(cv, e, { invert = false } = {}) {
+  const [ny, nx] = e.m.grid.shape, g = cv.getContext("2d"), w = e.wise, s = w.scale;
+  if (cv.width !== nx || cv.height !== ny) { cv.width = nx; cv.height = ny; }
+  const img = g.createImageData(nx, ny), den = Math.asinh((s.vmax - s.vmin) / s.soft), [lo, hi] = invert ? [WHITE, BLACK] : [BLACK, WHITE];
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
+    const v = w.f[y * nx + x], o = ((ny - 1 - y) * nx + x) * 4;
+    if (!Number.isFinite(v)) { img.data[o] = NODATA[0]; img.data[o + 1] = NODATA[1]; img.data[o + 2] = NODATA[2]; img.data[o + 3] = 255; continue; }
+    const t = Math.max(0, Math.min(1, s.soft > 0 ? Math.asinh((v - s.vmin) / s.soft) / den : (v - s.vmin) / (s.vmax - s.vmin)));
+    img.data[o] = lo[0] + (hi[0] - lo[0]) * t; img.data[o + 1] = lo[1] + (hi[1] - lo[1]) * t; img.data[o + 2] = lo[2] + (hi[2] - lo[2]) * t; img.data[o + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+}
 // WCS: plain TAN from manifest.grid; pixel coordinates 0-based, y = 0 south
 export function world2pix(m, ra, dec) {
   const g = m.grid, a0 = g.crval[0] * D2R, d0 = g.crval[1] * D2R, a = ra * D2R, d = dec * D2R;
@@ -178,7 +209,7 @@ export function drawMarker(ov, e, i, ink, animate = false) {
 // ---------------------------------------------------------------- the screen
 export function createTool(c) {
   const { $, S, view, radec, toRaDec, slerpV, tween, E, lerp, clamp, W, H, portrait, REDUCED } = c;
-  const Q = { e: null, t: null, band: null, epoch: 0, showLow: false, invert: false, mark: true, gaia: true, ready: false, playing: false, timer: null, run: 0, open: false, field: FIELD_DEG };
+  const Q = { e: null, t: null, band: null, epoch: 0, wiseOn: false, onWise: false, showLow: false, invert: false, mark: true, gaia: true, ready: false, playing: false, timer: null, run: 0, open: false, field: FIELD_DEG };
   let platePx = 0, plateBox = null;
   const setStatus = (h) => ($("status").innerHTML = h);
   const INK = () => (Q.invert ? "#000" : "#fff");
@@ -187,6 +218,10 @@ export function createTool(c) {
   const ok = (i) => playable(Q.e, Q.band, i, Q.showLow);
   const coords = (ra, dec) => `RA ${ra.toFixed(4)}°  Dec ${(dec < 0 ? "−" : "+") + Math.abs(dec).toFixed(4)}°`;
 
+  const foot0 = $("foot").innerHTML;
+  // is the WISE frame part of the blink (first frame, oldest)? and how many frames the blink has
+  const wiseIn = () => !!(Q.e && Q.e.wise && Q.wiseOn);
+  const nBlink = () => Q.e.m.epochs.filter((_, i) => ok(i)).length + (wiseIn() ? 1 : 0);
   function measurePlate() {
     const r = $("platecol").getBoundingClientRect();
     plateBox = r; platePx = r.width;
@@ -360,7 +395,8 @@ export function createTool(c) {
 
   // ------------------------------------------------ the plate
   function reset() {
-    clearInterval(Q.timer); Q.playing = false; Q.ready = false; Q.epoch = 0;
+    clearInterval(Q.timer); Q.playing = false; Q.ready = false; Q.epoch = 0; Q.wiseOn = false; Q.onWise = false;
+    $("wise").hidden = true; $("wise").setAttribute("aria-pressed", "false"); $("foot").innerHTML = foot0;
     $("plate").style.opacity = 0; $("cv").classList.remove("developing");
     $("ov").replaceChildren(); $("envelope").textContent = ""; $("tnotes").replaceChildren();
     for (const id of ["spec", "timecol", "controls"]) $(id).classList.remove("on");
@@ -393,7 +429,7 @@ export function createTool(c) {
     if (!Q.e.spectrum) getJSON(u.spectrum()).then((s) => (Q.e.spectrum = Array.isArray(s) ? { meta: {}, points: s } : s), () => (Q.e.spectrum = { meta: {}, points: [] })).then(() => alive() && Q.ready && drawWave(1));
     if (!Q.e.gaia) getJSON(u.gaia()).then((g) => (Q.e.gaia = g), () => (Q.e.gaia = [])).then(() => alive() && Q.ready && render());
     for (;;) {
-      try { await Promise.all([loadBand(Q.e, Q.band), wait(700)]); break; }
+      try { await Promise.all([loadBand(Q.e, Q.band), loadWise(Q.e), wait(700)]); break; }
       catch (err) {
         stop();
         if (!archiveDown(err)) return setStatus(`The frames could not be read (${err.message}).`);
@@ -414,15 +450,20 @@ export function createTool(c) {
       await wait(900); if (!alive()) return;
     }
     Q.ready = true; Q.epoch = list[0] ?? 0;
+    if (Q.e.wise) {   // the WISE image of 2010 is the blink's first frame; the button takes it out and puts it back
+      Q.wiseOn = true; Q.onWise = true;
+      $("wise").hidden = false; $("wise").setAttribute("aria-pressed", "true");
+      $("foot").innerHTML = `${foot0} &middot; WISE image: AllWISE, NASA/IPAC (IRSA)`;
+    }
     $("low").hidden = !m.epochs.some((_, i) => isLow(Q.e, Q.band, i));
-    $("play").disabled = list.length < 2; $("controls").classList.add("on");
+    $("play").disabled = nBlink() < 2; $("controls").classList.add("on");
     render(false, true);
     doneStatus();
-    if (list.length > 1) startPlay();
+    if (nBlink() > 1) startPlay();
   }
   function doneStatus() {
     const n = Q.e.m.epochs.filter((_, i) => ok(i)).length, named = !!Q.e.m.target_track?.length;
-    setStatus(`${n > 1 ? `Blinking ${n} passes` : n ? "One pass" : "No usable pass"} at ${bandOf().label}. ${named ? "The circle is where the target should be on each date" : "The four ticks mark the position you chose"}${Q.e.gaia?.length ? "; rings are the brighter Gaia stars, moved to that date" : ""}. Anything ${named ? "else " : ""}that shifts between passes moved on its own.`);
+    setStatus(`${n > 1 ? `Blinking ${n} passes` : n ? "One pass" : "No usable pass"} at ${bandOf().label}. ${named ? "The circle is where the target should be on each date" : "The four ticks mark the position you chose"}${Q.e.gaia?.length ? "; rings are the brighter Gaia stars, moved to that date" : ""}. Anything ${named ? "else " : ""}that shifts between passes moved on its own.${wiseIn() ? " The first frame is the WISE image from 2010 (WISE W2, 4.6 &micro;m, AllWISE): another instrument, with its own brightness scale, not SPHEREx." : ""}`);
   }
   // fewer than two good frames in this band: show the low-coverage ones rather than nothing
   function fixLow() {
@@ -439,7 +480,18 @@ export function createTool(c) {
     const sorted = [...Q.e.gaia].sort((a, b) => (a.g_mag ?? 99) - (b.g_mag ?? 99));
     return (Q.e.rings = sorted.filter((g, i) => i < 48 || near(g)));
   }
+  // the WISE frame of 2010: its own image and scale, labelled as another instrument; no SPHEREx overlays on it
+  function renderWise() {
+    const cv = $("cv"), w = Q.e.wise, ov = $("ov"), [ny, nx] = Q.e.m.grid.shape;
+    paintWise(cv, Q.e, { invert: Q.invert });
+    ov.replaceChildren(); ov.setAttribute("viewBox", `0 0 ${nx} ${ny}`);
+    setUpper($("envelope"), `WISE W2 ${w.wave} µm · ${w.date.slice(0, 4)} · ${w.survey} · not SPHEREx`);
+    el("rect", { x: 0, y: 0, width: nx, height: 9, fill: "#000", opacity: .8 }, ov);
+    el("text", { x: nx / 2, y: 6.3, "font-size": 4.3, "text-anchor": "middle", fill: "#f2f2f0", "font-family": "IBM Plex Mono, monospace", "letter-spacing": ".1" }, ov).textContent = `WISE W2 · ${w.date} · not SPHEREx`;
+    drawTime(nPass()); drawWave(1);
+  }
   function render(develop = false, animateMark = false) {
+    if (Q.onWise && Q.e.wise) return renderWise();
     const cv = $("cv"), i = Q.epoch, b = bandOf();
     const res = paint(cv, Q.e, Q.band, i, { invert: Q.invert, showLow: Q.showLow });
     const ov = $("ov"); ov.replaceChildren();
@@ -482,7 +534,7 @@ export function createTool(c) {
     }
     const b = bandOf(), maxN = Math.max(...m.bands.flatMap((x) => x.n_exposures || [0]), 1);
     m.epochs.slice(0, nShown).forEach((e, i) => {
-      const n = Q.ready ? usedOf(Q.e, Q.band, i) : b?.n_exposures?.[i] || 0, h = 6 + 28 * (n / maxN), cur = Q.ready && i === Q.epoch;
+      const n = Q.ready ? usedOf(Q.e, Q.band, i) : b?.n_exposures?.[i] || 0, h = 6 + 28 * (n / maxN), cur = Q.ready && i === Q.epoch && !Q.onWise;
       const skipped = Q.ready && !ok(i);
       const x0 = X(e.mjd_min), w = Math.max(10, X(e.mjd_max) - x0);
       const anchor = x0 < 40 ? "start" : x0 > Wd - 60 ? "end" : "middle", tx = anchor === "start" ? x0 : anchor === "end" ? x0 + w : x0 + w / 2;
@@ -542,7 +594,7 @@ export function createTool(c) {
       : !pts.length ? "" : `One point per exposure; this pass is bright, the others faint. ${sp.meta?.photometry === "psf_deblended" ? "Measured with a neighbouring star fitted and removed." : ""} Open circles are flagged or saturated (lower limits).`;
   }
 
-  function selectEpoch(i) { Q.epoch = i; render(); }
+  function selectEpoch(i) { Q.epoch = i; Q.onWise = false; render(); }
   let picking = 0;
   async function selectBand(id) {
     if (id === Q.band || !Q.ready) return;
@@ -555,14 +607,18 @@ export function createTool(c) {
     $("low").hidden = !Q.e.m.epochs.some((_, i) => isLow(Q.e, Q.band, i));
     $("low").setAttribute("aria-pressed", Q.showLow);
     render(true); doneStatus();
-    const n = Q.e.m.epochs.filter((_, i) => ok(i)).length;
+    const n = nBlink();
     $("play").disabled = n < 2;
     if (n < 2) stopPlay(); else if (!Q.playing) startPlay();
   }
   function step(d) {
     if (!Q.ready) return;
-    const n = nPass();
-    for (let k = 1; k <= n; k++) { const i = (Q.epoch + d * k + n * k) % n; if (ok(i)) { Q.epoch = i; break; } }
+    const seq = (wiseIn() ? [-1] : []).concat(Q.e.m.epochs.map((_, i) => i).filter(ok));   // -1 = the WISE frame, oldest
+    if (!seq.length) return;
+    let p = seq.indexOf(Q.onWise ? -1 : Q.epoch);
+    p = p < 0 ? (d > 0 ? 0 : seq.length - 1) : (p + d + seq.length) % seq.length;
+    Q.onWise = seq[p] === -1;
+    if (!Q.onWise) Q.epoch = seq[p];
     render();
   }
   function startPlay() { stopPlay(); Q.playing = true; $("play").textContent = "Pause"; Q.timer = setInterval(() => step(1), 1000 / +$("speed").value); }
@@ -625,6 +681,13 @@ export function createTool(c) {
   toggle("invert", "invert", () => render());
   toggle("mark", "mark", () => render());
   toggle("gaia", "gaia", () => render());
+  $("wise").onclick = () => {
+    if (!Q.ready || !Q.e?.wise) return;
+    Q.wiseOn = !Q.wiseOn; Q.onWise = Q.wiseOn;
+    $("wise").setAttribute("aria-pressed", Q.wiseOn);
+    $("play").disabled = nBlink() < 2;
+    render(); doneStatus();
+  };
   toggle("low", "showLow", () => { fixLow(); render(); doneStatus(); });
   // the plate keeps its place on the sky when a phone scrolls the tool
   $("tool").addEventListener("scroll", () => { if (Q.open && $("tool").style.visibility !== "hidden") Object.assign(view, measurePlate()); }, { passive: true });
