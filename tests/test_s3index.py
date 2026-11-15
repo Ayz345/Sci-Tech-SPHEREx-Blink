@@ -150,3 +150,17 @@ def test_no_index_means_no_change(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(access, "find_images", lambda ra, dec, *a, **k: calls.append((ra, dec)) or [])
     assert P.find_images(10.0, 20.0) == [] and calls == [(10.0, 20.0)]
+
+
+def test_health_reports_the_index(index, monkeypatch):
+    from fastapi.testclient import TestClient
+    from server import app as A
+    from server import pipeline as P
+    idx, _ = index
+    monkeypatch.setattr(P, "_index_state", {"loaded": True, "indexes": [idx]})
+    with TestClient(A.app) as c:
+        h = c.get("/api/health").json()
+    assert h["image_index"]["rows"] == idx.n and h["image_index"]["built_utc"].startswith("2026-11-15")
+    monkeypatch.setattr(P, "_index_state", {"loaded": True, "indexes": []})
+    with TestClient(A.app) as c:
+        assert c.get("/api/health").json()["image_index"] is None

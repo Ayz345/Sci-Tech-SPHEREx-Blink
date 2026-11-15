@@ -1092,6 +1092,18 @@ def _validation_status() -> dict:
         return {"status": "error", "message": f"error id {error_id('validation status', e)}"}
 
 
+def _index_status() -> dict | None:
+    """Our own image index (server/s3index.py): files, rows, build time, last exposure; None without one."""
+    idx = P.s3_indexes()
+    if not idx:
+        return None
+    from astropy.time import Time
+    mjd = max(i.meta["mjd_max"] for i in idx)
+    return {"files": [Path(i.meta.get("path", "")).name for i in idx], "rows": sum(i.n for i in idx),
+            "built_utc": min(i.meta["built_utc"] for i in idx), "mjd_max": round(mjd, 4),
+            "last_exposure": Time(mjd, format="mjd").isot[:10]}
+
+
 @app.get("/api/health")
 async def api_health():
     reg = registry()
@@ -1112,6 +1124,7 @@ async def api_health():
                             "last_cleanup": CACHE_STATE["last_cleanup"]},
                   "band_waiters": {"now": _band_waiters, "max": MAX_BAND_WAITERS},
                   "sia": {"retry_budget_s": access.SIA_RETRY_BUDGET_S, "max_attempts": access.SIA_MAX_ATTEMPTS},
+                  "image_index": _index_status(),
                   "threads": THREAD_POOL,
                   "memory_limits": {"fields_in_memory": MAX_FIELDS_IN_MEMORY, "cutout_sets": MAX_CUTOUT_SETS,
                                     "cutout_sets_in_memory": len(reg.cutouts),
