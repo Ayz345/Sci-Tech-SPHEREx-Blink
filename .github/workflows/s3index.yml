@@ -1,0 +1,47 @@
+# Scans the public SPHEREx bucket for our own image index (scripts/build_s3_index.py), in parallel parts.
+# Each part uploads its chunk files as an artifact; server/s3index.py merges them into the file the server loads.
+# Run by hand: Actions > Image index of the bucket > Run workflow, or `gh workflow run s3index.yml`.
+name: Image index of the bucket
+
+on:
+  workflow_dispatch:
+    inputs:
+      parts:
+        description: "Number of parallel parts (1-20)"
+        default: "20"
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - id: m
+        run: |
+          n=${{ github.event.inputs.parts || 20 }}
+          python3 -c "import json; n=min(20, max(1, int('$n'))); print('matrix=' + json.dumps({'part': list(range(n)), 'parts': [n]}))" >> "$GITHUB_OUTPUT"
+
+  scan:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: python3 -m pip install --quiet numpy requests
+      - name: Scan part ${{ matrix.part }} of ${{ matrix.parts }}
+        run: python3 scripts/build_s3_index.py --out chunks --slice ${{ matrix.part }}/${{ matrix.parts }} --procs 4 --threads 96
+      - name: What was written
+        run: ls -la chunks | tail -n +2 | awk '{s+=$5} END {print NR " files, " s/1e6 " MB"}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: s3index-${{ matrix.part }}
+          path: chunks/*.npz
+          retention-days: 7
+          compression-level: 0
