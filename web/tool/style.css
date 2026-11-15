@@ -25,7 +25,12 @@ header { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; margi
 header strong { font: 350 30px/1 var(--display); letter-spacing: -.01em; }
 #home { color: var(--fg); text-decoration: none; }
 #home:hover { text-decoration: underline; text-decoration-color: var(--line-2); }
-#source { font: 400 11.5px var(--mono); letter-spacing: .02em; }
+/* server state: a short badge; the details are in its tooltip */
+.badge { display: inline-flex; align-items: center; gap: 7px; font: 400 11px var(--mono); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--fg-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; cursor: help; }
+.badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--fg-3); }
+.badge.on::before { background: var(--fg); box-shadow: 0 0 0 3px rgba(242, 242, 240, .12); }
+.badge.off::before { background: var(--accent); }
 #pick { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
 #targets { display: flex; gap: 6px; flex-wrap: wrap; }
 
@@ -45,11 +50,26 @@ label { color: var(--fg-2); }
 #notes { margin: 6px 0 12px; padding-left: 0; list-style: none; color: #c9c9c5; }
 #notes li { padding: .3rem 0 .3rem .9rem; border-left: 1px solid var(--line-2); margin-bottom: .35rem; font-size: 13.5px; }
 
-main { display: flex; gap: clamp(24px, 5vw, 96px) clamp(24px, 3vw, 48px); flex-wrap: wrap; align-items: flex-start; }
-#view { max-width: 100%; }
+/* the image large on the left, the controls in groups on the right */
+main { display: grid; grid-template-columns: auto minmax(300px, 440px); gap: clamp(24px, 3vw, 48px); align-items: start; justify-content: start; }
+#view { max-width: 100%; min-width: 0; }
 canvas { display: block; background: #000; max-width: 100%; image-rendering: pixelated; cursor: crosshair; }
 #readout { margin-top: 6px; min-height: 2.8em; white-space: pre; color: var(--fg-2); }
-aside { flex: 1 1 260px; max-width: 390px; }
+aside { min-width: 0; }
+#notesBox { border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; margin-bottom: 14px; background: var(--panel); }
+#notesBox > summary { font: 400 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fg-2); }
+#notesBox[open] > summary { margin-bottom: 6px; }
+#notesBox #notes { margin: 0; }
+#notesBox #notes li { font-size: 13px; line-height: 1.5; }
+/* the WISE image: a clear on/off pill ("2010 · WISE") instead of a small checkbox */
+.toggle { display: inline-flex !important; align-items: center; gap: 6px; border: 1px solid var(--line-2); border-radius: 999px;
+  padding: 4px 13px; font: 400 12.5px var(--mono); letter-spacing: .04em; color: var(--fg); cursor: pointer; margin: 0 !important; }
+.toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.toggle:has(input:checked) { background: var(--fg); color: #000; border-color: var(--fg); }
+.toggle:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; }
+#wiseBox { margin-top: 10px; }
+#wiseShort { margin-top: 6px; font-size: 12.5px; }
+#wiseMore > summary { font-size: 12px; margin-top: 4px; }
 fieldset { border: 0; border-top: 1px solid var(--line); border-radius: 0; margin: 0 0 12px; padding: 8px 0 10px; }
 legend { padding: 0 8px 0 0; font: 400 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fg-3); }
 fieldset label { display: block; margin: 5px 0; }
@@ -70,8 +90,8 @@ fieldset label { display: block; margin: 5px 0; }
 #wiseBox { margin-top: 4px; }
 #wiseBox label { display: inline; }
 #wiseNote, #scaleSrc, #measureHelp, #refineWhy, #winNote, #specNote { font-size: 12px; line-height: 1.5; color: var(--fg-3); }
-#plots { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
-#plots > div { flex: 1 1 360px; max-width: 560px; }
+#plots { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 22px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+#plots > div { min-width: 0; }
 #plots h3 { margin: 4px 0 8px; font: 350 22px/1.1 var(--display); letter-spacing: -.01em; }
 #plots h3 .muted { font: 400 11px var(--mono); letter-spacing: .02em; }
 svg { width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; }
@@ -83,7 +103,10 @@ svg text { font-family: var(--mono); }
 #log .bad { color: var(--bad); }
 details > summary { cursor: pointer; }
 #logBox { margin-top: 14px; }
-#logBox > summary, #aladinBox > summary { font: 400 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fg-3); }
+#metaBox { margin-top: 18px; }
+#specNote details { margin-top: 4px; }
+#specNote summary { color: var(--fg-2); }
+#logBox > summary, #metaBox > summary, #aladinBox > summary { font: 400 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fg-3); }
 footer { margin-top: 22px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.6; }
 footer a { color: var(--fg-2); }
 #credits p { margin: 6px 0; color: var(--fg-3); }
@@ -135,11 +158,11 @@ dialog label { display: block; margin: 8px 0; }
 /* ?embed=1: player and essential controls only; the acknowledgement stays as one small line */
 body.embed { padding: 6px; }
 body.embed header, body.embed #pick, body.embed footer, body.embed #logBox, body.embed #meta,
-body.embed #plots, body.embed #specNote, body.embed #stretchBox, body.embed #overlayBox { display: none; }
+body.embed #plots, body.embed #specNote, body.embed #metaBox, body.embed #stretchBox, body.embed #overlayBox { display: none; }
 body.embed #embedLine { display: block; max-width: 420px; }
 body.embed #readout { white-space: normal; max-width: 420px; }
 body.embed aside select { max-width: 150px; }
-body.embed main { flex-wrap: nowrap; gap: 8px; }
+body.embed main { grid-template-columns: auto 210px; gap: 8px; }
 body.embed #view { flex: 0 1 auto; min-width: 0; }
 body.embed aside { flex: 0 0 210px; max-width: 210px; font-size: 13px; }
 body.embed fieldset { padding: 2px 0 4px; margin-bottom: 4px; }
@@ -148,16 +171,18 @@ body.embed fieldset label { margin: 2px 0; }
 body.embed #bands button { padding: 2px 7px; }
 body.embed #bands button small { display: none; }
 body.embed label:has(#layer), body.embed #swapBand, body.embed #wiseBox, body.embed label:has(#showLow) { display: none; }
-body.embed #notes { margin: 0 0 4px; padding-left: 0; list-style: none; font-size: 12px; }
-body.embed #notes li { border-left: 0; padding: 0; }
-body.embed #notes summary { cursor: pointer; color: var(--warm); }
-body.embed #notes ul { padding-left: 18px; margin: 4px 0; }
+body.embed #notesBox { padding: 3px 8px; margin-bottom: 4px; }
+body.embed #notesBox > summary { color: var(--warm); font-size: 10px; }
+body.embed #notes li { border-left: 0; padding: 0; font-size: 12px; }
 body.embed #status { min-height: 0; font-size: 12px; }
 body.embed #epochLabel, body.embed #readout { font-size: 11px; }
 body.embed #readout { min-height: 0; margin-top: 2px; }
 body.embed #embedLine { font-size: 10px; line-height: 1.25; }
 /* measuring stays in the embed; help text, refine and report are in the full view */
 body.embed #measureHelp, body.embed #refineWhy, body.embed #measureBox .row, body.embed #refineResult { display: none; }
+@media (max-width: 900px) {
+  body:not(.embed) main { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 640px) {
   header strong { font-size: 24px; }
   main { gap: 14px; }

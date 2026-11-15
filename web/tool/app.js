@@ -332,11 +332,13 @@ async function loadTarget() {
   document.title = `${S.m.name || S.key} · SPHEREx Blink`;
   renderMeta();
   const items = (S.m.notes || []).map((n) => Object.assign(document.createElement("li"), { textContent: n }));
-  if (EMBED && items.length) { // embedded: notes fold into one line ("2 notes ▸") so the player fits the frame
-    const det = document.createElement("details"), sum = document.createElement("summary"), ul = document.createElement("ul");
-    sum.textContent = `${items.length} note${items.length > 1 ? "s" : ""}`; ul.append(...items); det.append(sum, ul);
-    $("notes").replaceChildren(det);
-  } else $("notes").replaceChildren(...items);
+  // the target's notes: one box that can be closed (closed in the embed, so the player fits the frame)
+  $("notes").replaceChildren(...items);
+  const syncNotes = () => {
+    const n = $("notes").children.length;
+    $("notesBox").hidden = !n; $("notesSum").textContent = `${n} note${n === 1 ? "" : "s"} on this target`;
+  };
+  $("notesBox").open = !EMBED;
   // opened from a typed position inside this gallery field (no server): say so above the notes
   const typed = (params.get("at") || "").split(",").map(Number);
   if (gallery && typed.length === 2 && typed.every(Number.isFinite)) {
@@ -345,6 +347,7 @@ async function loadTarget() {
       `This position (RA ${typed[0].toFixed(5)}°, Dec ${typed[1].toFixed(5)}°) lies in the ${S.m.name || S.key} gallery field ` +
       `(centre RA ${(+g.crval[0]).toFixed(5)}°, Dec ${(+g.crval[1]).toFixed(5)}°); showing that field.` }));
   }
+  syncNotes();
   if (!S.m.epochs?.length) { status(S.m.message || "No epochs for this position.", true); return; }
 
   $("epoch").max = S.m.epochs.length - 1;
@@ -358,7 +361,10 @@ async function loadTarget() {
   setupRGB();
   renderBands(); renderFov(); updateLinks();
   if (S.mode === "rgb") loadRGB();
-  if (!params.get("zoom") && S.m.grid.shape[1] > 200) { S.zoom = 2; $("zoom").value = "2"; } // big grid on screen
+  if (!params.get("zoom")) { // big image on the left: the largest whole zoom that fits (the embed keeps its compact size)
+    const nx = S.m.grid.shape[1], room = EMBED ? 420 : Math.min(760, Math.max(300, innerWidth - 2 * 40 - 460));
+    S.zoom = Math.max(1, Math.min(6, Math.floor(room / nx))); $("zoom").value = String(S.zoom);
+  }
   const bigField = USE_API && (+S.m.query?.fov_deg || 0) > 0.2;
   status(bigField
     ? `${S.m.epochs.length} epochs, ${S.m.bands.length} bands. ${(+S.m.query.fov_deg * 60).toFixed(0)}′ field: the server reads about 120 to 190 MB ` +
@@ -1047,19 +1053,41 @@ function epochMarker(e, cx, cy, r, open, extra = "") {
   if (shape === "x") return `<path d="M${f(x - r)} ${f(y - r)}L${f(x + r)} ${f(y + r)}M${f(x + r)} ${f(y - r)}L${f(x - r)} ${f(y + r)}" ${paint} ${extra}/>`;
   return `<path d="M${f(x - r * 1.2)} ${f(y)}H${f(x + r * 1.2)}M${f(x)} ${f(y - r * 1.2)}V${f(y + r * 1.2)}" ${paint} ${extra}/>`;
 }
+// about n round tick values between a and b (1, 2 or 5 times a power of ten apart)
+function niceTicks(a, b, n) {
+  if (!(b > a)) return { ticks: [a], step: 1 };
+  const raw = (b - a) / n, p = 10 ** Math.floor(Math.log10(raw)), f = raw / p;
+  const step = (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p, ticks = [];
+  for (let v = Math.ceil(a / step) * step; v <= b + step * 1e-9; v += step) ticks.push(+v.toPrecision(12));
+  return { ticks, step };
+}
 function scatter(svg, pts, xk, yk, xlabel, ylabel) {
-  const W = 460, H = 220, L = 52, B = 30, T = 24, R = 10; // T leaves a row above the plot for the epoch legend
+  const W = 460, H = 236, L = 58, B = 40, T = 24, R = 12; // T leaves a row above the plot for the epoch legend
   if (!pts.length) { svg.innerHTML = `<text x="20" y="30" fill="${INK.fg4}" font-size="13">no data</text>`; return; }
   const xs = pts.map((p) => p[xk]), good = pts.filter((p) => !p.flagged);
   const ys = (good.length ? good : pts).map((p) => p[yk]);
   const [x0, x1] = [Math.min(...xs), Math.max(...xs)], [y0, y1] = percentile([Float32Array.from(ys)], [1, 99]);
   const sx = (x) => L + ((x - x0) / (x1 - x0 || 1)) * (W - L - R);
-  Object.assign(svg.dataset, { x0, x1, L, R, W }); // for the wavelength-window drag on the spectrum
+  Object.assign(svg.dataset, { x0, x1, L, R, W, T, B, H }); // for the wavelength-window drag on the spectrum
   const sy = (y) => H - B - ((y - y0) / (y1 - y0 || 1)) * (H - B - T);
-  let h = `<line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="${INK.rule}"/><line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" stroke="${INK.rule}"/>`;
-  h += `<text x="${L}" y="${H - 8}" fill="${INK.fg4}" font-size="11">${x0.toFixed(2)}</text><text x="${W - R}" y="${H - 8}" fill="${INK.fg4}" font-size="11" text-anchor="end">${x1.toFixed(2)} ${escapeHtml(String(xlabel))}</text>`;
-  h += `<text x="4" y="${T + 10}" fill="${INK.fg4}" font-size="11">${y1.toPrecision(3)}</text><text x="4" y="${H - B}" fill="${INK.fg4}" font-size="11">${y0.toPrecision(3)}</text>`;
-  h += `<text x="4" y="${H / 2}" fill="${INK.fg4}" font-size="11">${escapeHtml(String(ylabel))}</text>`;
+  // axes: light grid at round values, numbers on both axes, and a title for each axis with its unit
+  const fmt = (v, step) => (Math.abs(step) >= 1 ? v.toFixed(0) : v.toFixed(Math.min(4, Math.ceil(-Math.log10(step)))));
+  const xt = niceTicks(x0, x1, 5), yt = niceTicks(y0, y1, 4);
+  let h = `<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - B - T}" fill="none" stroke="${INK.rule}"/>`;
+  for (const v of yt.ticks) {
+    const y = sy(v).toFixed(1);
+    h += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="rgba(242,242,240,0.07)"/>` +
+      `<text x="${L - 5}" y="${(+y + 4).toFixed(1)}" fill="${INK.fg3}" font-size="11" text-anchor="end">${fmt(v, yt.step)}</text>`;
+  }
+  for (const v of xt.ticks) {
+    const x = sx(v).toFixed(1);
+    h += `<line x1="${x}" x2="${x}" y1="${T}" y2="${H - B}" stroke="rgba(242,242,240,0.07)"/>` +
+      `<text x="${x}" y="${H - B + 15}" fill="${INK.fg3}" font-size="11" text-anchor="middle">${fmt(v, xt.step)}</text>`;
+  }
+  const xTitle = xlabel === "µm" ? "wavelength (µm)" : xlabel === "MJD" ? "date (MJD)" : String(xlabel);
+  const yTitle = /^flux|brightness/i.test(String(ylabel)) ? String(ylabel) : `flux (${ylabel})`;
+  h += `<text x="${((L + W - R) / 2).toFixed(0)}" y="${H - 6}" fill="${INK.fg2}" font-size="11.5" text-anchor="middle">${escapeHtml(xTitle)}</text>`;
+  h += `<text transform="translate(13 ${((T + H - B) / 2).toFixed(0)}) rotate(-90)" fill="${INK.fg2}" font-size="11.5" text-anchor="middle">${escapeHtml(yTitle)}</text>`;
   for (const p of pts) {
     const c = epochTone(p.epoch);
     // faint: flagged, or (psf_deblended) consistent with zero given the neighbour residual (|flux| < 0.15 × neighbor_flux)
@@ -1077,7 +1105,7 @@ function scatter(svg, pts, xk, yk, xlabel, ylabel) {
     }
   }
   // epoch legend in its own row above the plot, so it never covers data points
-  const step = Math.min(68, (W - L - R) / Math.max(1, S.m.epochs.length));
+  const step = Math.min(96, (W - L - R) / Math.max(1, S.m.epochs.length));
   h += S.m.epochs.map((e, i) => epochMarker(e.id, L + i * step + 3, 8.5, 2.6, false) +
     `<text x="${(L + i * step + 9).toFixed(0)}" y="12" fill="${INK.fg3}" font-size="10">${escapeHtml(String(e.date))}</text>`).join("");
   svg.innerHTML = h;
@@ -1203,22 +1231,35 @@ function plots() {
   const nb = [].concat(meta.deblended_neighbors || []).map((n) => typeof n !== "object" || !n ? String(n)
     : n.source_id != null ? `Gaia DR3 ${n.source_id}${n.g_mag != null ? ` (G = ${(+n.g_mag).toFixed(1)})` : ""}`
     : `Gaia DR3 star at RA ${(+n.ra).toFixed(5)}, Dec ${(+n.dec).toFixed(5)}`);
-  $("specNote").textContent = [
+  const gaiaMissing = typeof meta.gaia === "string" && /not available|NOT removed/i.test(meta.gaia);
+  // what a reader needs stays visible; how it was measured goes into a closed section
+  const shown = [
     meta.position && `position: ${meta.position}`, // "target, moved to each exposure …" or "fixed point …"
-    meta.photometry && `photometry: ${meta.photometry}`,
-    meta.photometry === "psf_deblended" && `neighbour removed by PSF fit${nb.length ? ": " + nb.join(", ") : ""}`,
+    // without Gaia the server cannot remove neighbours: then its own sentence (meta.gaia) is shown, never "removed"
+    gaiaMissing ? String(meta.gaia)
+      : meta.photometry === "psf_deblended" && `neighbour removed by PSF fit${nb.length ? ": " + nb.join(", ") : ""}`,
+    !gaiaMissing && typeof meta.gaia === "string" && meta.gaia,
+    `${pts.length} points, ${nf} flagged (faint in the spectrum, left out of the light curve)`,
     nEmpty && `${nEmpty} point${nEmpty === 1 ? "" : "s"} without usable pixels left out`,
     nz && `${nz} points consistent with zero (|flux| < 0.15 × removed neighbour flux, drawn faint)`,
     ns && `${ns} saturated (lower limits: open marker with arrow, not in the light curve)`,
     no && `${no} recovered from overflow (reduced accuracy; filled diamond, kept in the light curve)`,
     meta.bands_pending?.length && `bands still being built (not in this spectrum yet): ${meta.bands_pending.join(", ")}`,
+    meta.err_note, // the error-bar caveat from the empty-sky test (co-add session), shown as it is
+  ].filter(Boolean);
+  const secs = meta.seconds && typeof meta.seconds === "object"
+    ? "server time: " + Object.entries(meta.seconds).map(([k, v]) => `${k} ${(+v).toFixed(1)} s`).join(", ") : "";
+  const how = [
+    meta.photometry && `photometry: ${meta.photometry}`,
     meta.method && `method: ${meta.method}`,
     meta.aperture_radius_px != null && `aperture ${meta.aperture_radius_px} px` +
       (meta.background_annulus_px ? `, background annulus ${[].concat(meta.background_annulus_px).join("–")} px` : ""),
     meta.aperture_corrected === false && "fluxes are NOT aperture-corrected",
-    meta.err_note, // the error-bar caveat from the empty-sky test (co-add session), shown as it is
-    `${pts.length} points, ${nf} flagged (faint in the spectrum, left out of the light curve)`,
-  ].filter(Boolean).join(" · ");
+    secs,
+  ].filter(Boolean);
+  const det = document.createElement("details"), sum = document.createElement("summary"), body = document.createElement("div");
+  sum.textContent = "How this spectrum was measured"; body.textContent = how.join(" · "); det.append(sum, body);
+  $("specNote").replaceChildren(Object.assign(document.createElement("div"), { textContent: shown.join(" · ") }), ...(how.length ? [det] : []));
 }
 
 // ---------- UI ----------
@@ -1338,6 +1379,9 @@ async function loadWise() {
   $("wiseBox").hidden = false; $("wiseOn").checked = S.wiseOn; $("wiseBand").value = S.wiseBand;
   [...$("wiseBand").options].forEach((o) => { o.disabled = !frames[o.value]; });
   const unit = bands.find((b) => b.id === S.wiseBand)?.unit;
+  const yr = (S.wise.date || "").slice(0, 4);
+  $("wiseLabel").textContent = `${yr ? yr + " · " : ""}WISE`;
+  $("wiseShort").textContent = `${S.wise.survey}${yr ? ` from ${yr}` : ""}: switch it on to blink it with the SPHEREx epochs (a moving object sits ${yr ? "where it was in " + yr : "where it was then"}).`;
   $("wiseNote").textContent = [`${S.wise.survey}, ${S.wise.date || "date not given"}`, meta.epoch_source, unit && `unit: ${unit}`, S.wise.note]
     .filter(Boolean).map((t) => String(t).trim().replace(/([^.])$/, "$1.")).join(" ");
   if (params.get("frame") === "wise" && wiseActive()) S.onWise = true;
@@ -1863,7 +1907,7 @@ function wire() {
     spec.querySelector("#winSel")?.remove();
     const d = spec.dataset, px = (um) => +d.L + ((um - +d.x0) / (+d.x1 - +d.x0)) * (+d.W - +d.L - +d.R);
     const x = Math.min(px(a), px(b)), w = Math.abs(px(b) - px(a));
-    spec.insertAdjacentHTML("beforeend", `<rect id="winSel" x="${x}" y="24" width="${w}" height="166" fill="${INK.ember}" opacity="0.2"/>`);
+    spec.insertAdjacentHTML("beforeend", `<rect id="winSel" x="${x}" y="${d.T}" width="${w}" height="${+d.H - +d.B - +d.T}" fill="${INK.ember}" opacity="0.2"/>`);
   };
   let selFrom = null;
   spec.addEventListener("mousedown", (ev) => { selFrom = umAt(ev); });
@@ -1931,7 +1975,7 @@ function wire() {
     else if (e.key === "t" && S.prevBand) selectBand(S.prevBand);
     else if (e.key === "m") setMeasuring(!S.measuring);
     else if (e.key === "b" || e.key === "d" || e.key === "s" || e.key === "c") setMode({ b: "blink", d: "diff", s: "sum", c: "rgb" }[e.key]); else if (e.key === "+" || e.key === "-") {
-      const zs = [1, 2, 3, 4, 6], i = zs.indexOf(S.zoom);
+      const zs = [1, 2, 3, 4, 5, 6], i = zs.indexOf(S.zoom);
       S.zoom = zs[Math.max(0, Math.min(zs.length - 1, (i < 0 ? 2 : i) + (e.key === "+" ? 1 : -1)))];
       $("zoom").value = String(S.zoom); draw(); syncUrl();
     }
@@ -1941,12 +1985,17 @@ function wire() {
 if (params.get("embed") === "1") document.body.classList.add("embed");
 if (params.get("ra")) { const f = $("coordForm"); f.ra.value = params.get("ra"); f.dec.value = params.get("dec"); f.fov.value = params.get("fov") || "0.1"; }
 // header: which source the page uses (gallery files, live server or both)
+// header: a short badge for the server; the details (address, version, data folder) are in its tooltip
 function renderSource(probing) {
   const h = S.health, srv = API ? `live server ${API}` + (h ? ` (${h.version ?? ""} ${h.commit ?? ""}, max field ${(+h.max_fov_deg * 60).toFixed(1)}′)` : "") : "";
   const rej = PARAM_REJECTS.length ? " · " + PARAM_REJECTS.join(" · ") : "";
-  if (NO_SERVER) { $("source").textContent = "source: gallery of five targets (no live server on this site)" + rej; return; }
-  $("source").textContent = "source: " + (FORCED ? `${srv} (all targets)`
-    : [`static gallery ${DATA}/`, probing ? "looking for the live server…" : srv || "live server not reachable"].join(" · ")) + rej;
+  const full = NO_SERVER ? "gallery of five targets (no live server on this site)"
+    : FORCED ? `${srv} (all targets)` : [`gallery files ${DATA}/`, probing ? "looking for the live server…" : srv || "live server not reachable"].join(" · ");
+  const [txt, cls] = NO_SERVER ? ["gallery only", "off"] : probing ? ["checking server…", "wait"]
+    : API ? ["live server", "on"] : ["server offline · gallery only", "off"];
+  const b = $("source");
+  b.textContent = txt + (PARAM_REJECTS.length ? " · parameter ignored" : ""); b.className = `badge ${cls}`;
+  b.title = full + rej;
 }
 const serverReady = probeServer(); // one quick check; nothing below waits for it except free positions and names
 renderSource(true);
