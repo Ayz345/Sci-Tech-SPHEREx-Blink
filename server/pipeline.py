@@ -292,7 +292,7 @@ def open_field(target: str | None = None, ra: float | None = None, dec: float | 
         tc = target_coord(target)
         fov_deg = float(fov_deg if fov_deg else t.get("fov_arcmin", 7.0) / 60)
         q = target_at(tc, QUERY_MJD)
-        refs = access.find_images(q.ra.deg, q.dec.deg)
+        refs = find_images(q.ra.deg, q.dec.deg)
         key, name, tinfo = target, t["name"], t
         qra, qdec = float(t["ra"]), float(t["dec"])
     else:
@@ -304,10 +304,10 @@ def open_field(target: str | None = None, ra: float | None = None, dec: float | 
                           pm_dec=float(pm[1]) * u.mas / u.yr,
                           obstime=Time(float(pm[2]), format="jyear", scale="tdb"), frame="icrs")
             q = target_at(tc, QUERY_MJD)
-            refs = access.find_images(q.ra.deg, q.dec.deg)
+            refs = find_images(q.ra.deg, q.dec.deg)
         else:
             tc = SkyCoord(ra * u.deg, dec * u.deg, frame="icrs")
-            refs = access.find_images(ra, dec)
+            refs = find_images(ra, dec)
         key, tinfo = free_key(ra, dec, fov_deg, pm), None
         name = name or f"RA {ra:.4f}, Dec {dec:+.4f}"
         qra, qdec = ra, dec
@@ -388,6 +388,9 @@ def manifest(f: Field, status: dict | None = None, n_exposures: dict | None = No
          "query": {"ra": f.query_ra, "dec": f.query_dec, "fov_deg": f.fov_deg},
          "collections": list(access.COLLECTIONS),
          "max_fov_deg": MAX_FOV_DEG}
+    note = index_note()
+    if note:
+        m["image_list"] = note
     if not f.refs:
         m.update({"data_range": None, "grid": f.grid.to_manifest(), "epochs": [], "bands": [],
                   "message": "No SPHEREx images cover this position in " + ", ".join(access.COLLECTIONS) + ".",
@@ -850,6 +853,115 @@ def track_detectors(band: str) -> list[int]:
     raise ValueError(f"band must be one of D1..D6 for a track, got {band!r}")
 
 
+# --------------------------------------------------------------------------- image lists without IRSA
+
+#: Our own index of the public bucket (server/s3index.py): server/index/*.npz, or SPX_INDEX (a file or folder;
+#: "off" = not used). Absent: image lists come from IRSA SIA2 as before.
+INDEX_PATH = os.environ.get("SPX_INDEX") or str(Path(__file__).resolve().parent / "index")
+_index_state: dict = {"loaded": False, "indexes": []}
+
+
+def s3_indexes() -> list:
+    """The loaded indexes (one per file: dr1 and qr3 may be separate); [] when there is none."""
+    if not _index_state["loaded"]:
+        _index_state["loaded"] = True
+        if INDEX_PATH.lower() != "off":
+            from server.s3index import S3Index
+            p = Path(INDEX_PATH)
+            files = sorted(p.glob("*.npz")) if p.is_dir() else ([p] if p.exists() else [])
+            for f in files:
+                try:
+                    _index_state["indexes"].append(S3Index.load(f))
+                    log.info("image index %s: %d images", f.name, _index_state["indexes"][-1].n)
+                except Exception as e:
+                    log.warning("image index %s not loaded: %r", f, e)
+    return _index_state["indexes"]
+
+
+def index_note() -> str | None:
+    """The manifest's sentence about where image lists come from, when the index is in use."""
+    idx = s3_indexes()
+    if not idx:
+        return None
+    n = sum(i.n for i in idx)
+    built = min(i.meta["built_utc"] for i in idx)[:10]
+    mjd = max(i.meta["mjd_max"] for i in idx)
+    from astropy.time import Time
+    last = Time(mjd, format="mjd").isot[:10]
+    return (f"image list: our own index of the public SPHEREx bucket (built {built}, {n:,} images up to {last}), "
+            "not IRSA SIA2; a list IRSA gave earlier is used where it is still cached")
+
+
+def _fresh(path: Path) -> bool:
+    if not path.exists():
+        return False
+    age = (time.time() - path.stat().st_mtime) / 86400
+    rows = json.loads(path.read_text(encoding="utf-8")).get("rows")
+    return age <= (access.SIA_MAX_AGE_DAYS if rows else access.SIA_EMPTY_MAX_AGE_DAYS)
+
+
+def find_images(ra: float, dec: float):
+    """spx.access.find_images, fed from our index when there is one: for each collection the index covers, a list
+    still cached (the gallery seed, or an earlier IRSA answer) is kept; otherwise the index's list is written into
+    the same cache file, so spx reads it and asks IRSA nothing. Exposures newer than the index are asked of IRSA
+    in the background (index_late_refs); if IRSA does not answer, nothing waits for it."""
+    idxs = s3_indexes()
+    if idxs:
+        ra_n, dec_n = float(ra) % 360.0, float(dec)
+        for coll in access.COLLECTIONS:
+            path = access._sia_cache_path(ra_n, dec_n, coll, access.SIA_RADIUS_DEG)
+            mine = [i for i in idxs if i.covers(coll)]
+            if not mine or _fresh(path):
+                continue
+            rows = [r for i in mine for r in i.rows_at(ra_n, dec_n, coll)]
+            access._atomic_write_bytes(path, json.dumps({"ra": ra_n, "dec": dec_n, "collection": coll,
+                                                         "radius_deg": access.SIA_RADIUS_DEG, "queried": time.time(),
+                                                         "source": "s3index", "rows": rows}).encode())
+            _later_from_irsa(ra_n, dec_n, coll, path, max(i.meta["mjd_max"] for i in mine))
+        # collection by collection: one the index does not cover is asked of IRSA and skipped if IRSA fails
+        out = {}
+        for coll in access.COLLECTIONS:
+            try:
+                refs = access.find_images(ra, dec, collections=[coll])
+            except access.SiaError as e:
+                if any(i.covers(coll) for i in idxs):
+                    raise
+                log.info("%s not in the index and IRSA did not answer (%r): left out", coll, e)
+                continue
+            for r in refs:
+                out.setdefault((r.obs_id, r.detector), r)     # the earlier collection wins, as in spx
+        return sorted(out.values(), key=lambda r: (r.t_min, r.detector, r.obs_id))
+    return access.find_images(ra, dec)
+
+
+LATE_SIA_BUDGET_S = 20.0
+
+
+def _later_from_irsa(ra: float, dec: float, coll: str, path: Path, mjd_max: float) -> None:
+    """In the background: exposures after the index's last one, from IRSA; merged into the cached list. Silent when
+    IRSA does not answer (the list from the index stays)."""
+    import threading
+
+    def run():
+        try:
+            rows = access._sia_query(ra, dec, coll, access.SIA_RADIUS_DEG, budget_s=LATE_SIA_BUDGET_S)
+        except Exception as e:
+            log.info("later exposures for %.4f %+.4f %s not fetched: %r", ra, dec, coll, e)
+            return
+        late = [r for r in rows if r["t_min"] > mjd_max]
+        if not late:
+            return
+        try:
+            d = json.loads(path.read_text(encoding="utf-8"))
+            have = {(r["obs_id"], r["detector"]) for r in d["rows"]}
+            d["rows"] += [r for r in late if (r["obs_id"], r["detector"]) not in have]
+            d["source"] = "s3index + IRSA SIA2 (later exposures)"
+            access._atomic_write_bytes(path, json.dumps(d).encode())
+        except Exception as e:
+            log.warning("merging later exposures into %s failed: %r", path, e)
+    threading.Thread(target=run, daemon=True, name="sia-late").start()
+
+
 _gallery_field_cache: dict = {}
 
 
@@ -893,7 +1005,7 @@ def track_refs(marks, band: str):
     for t in np.linspace(lo, hi, n):
         c = position(float(t))
         here = gallery_images_at(float(c.ra.deg), float(c.dec.deg))
-        for r in (here if here is not None else access.find_images(float(c.ra.deg), float(c.dec.deg))):
+        for r in (here if here is not None else find_images(float(c.ra.deg), float(c.dec.deg))):
             k = (r.obs_id, r.detector)
             if k in seen or r.detector not in dets:
                 continue
