@@ -435,3 +435,36 @@ a.pill { display: inline-block; text-decoration: none; }
   .about-link.src { right: calc(16px + 3.7em + 4px + 18px); }
   .pill.alt + .pill.alt { margin-left: 8px; }
 }
+
+/* ------------------------------------------------------------ Designn, 15 Nov night (jury review) */
+/* 1. a pressed pill keeps its dark words on hover (the generic hover turned them white on white) */
+.ghost[aria-pressed="true"]:hover:not(:disabled) { color: #000; background: #fff; border-color: #fff; }
+/* 4. nothing jumps under the pointer: Pause/Play keep one width; the status keeps room for five lines on desktop */
+#play { min-width: 6.4em; justify-content: center; }
+@media (min-width: 1000px) { #tool #status { min-height: 7.5em; } }
+/* 8. the sky's star field is a backdrop: said on the credit line while the sky is open */
+#credit .skyonly { display: none; }
+body.sky:not(.tool) #credit .skyonly { display: inline; }
+/* 9. the first screen names the project */
+#hero .hero-k { margin: 0 0 1.4rem; }
+/* 12. the plate screen's side column scrolls inside itself: while more is below, a quiet line at its foot says so
+   (on #tool, so the column's fade does not hide it) */
+#tool::after { content: "more below \2193"; grid-column: 2; grid-row: 2; align-self: end; justify-self: end; position: relative; z-index: 2;
+  margin-right: 10px; padding: 2px 8px; border-radius: 4px; background: rgba(5, 8, 12, .85); font: 400 11px/1.4 var(--mono);
+  letter-spacing: .14em; text-transform: uppercase; color: var(--fg-2); opacity: 0; transition: opacity .3s; pointer-events: none; }
+#tool:has(#side.more)::after { opacity: 1; }
+#side { scrollbar-color: rgba(242, 242, 240, .45) transparent; }
+/* 13. phones: the About sheet's close sits above its first line */
+@media (max-width: 640px) { #about { padding-top: 64px; } }
+@media (max-width: 999px) { #tool::after { display: none; } }
+/* 11. the last page: the acknowledgements scroll in their own box (11.5 px, never scaled down), with a fade at its foot */
+.acks { margin-top: 1.4rem; overflow-y: auto; overscroll-behavior: contain; padding-right: 10px;
+  scrollbar-width: thin; scrollbar-color: rgba(13, 13, 15, .35) transparent;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 26px), transparent); mask-image: linear-gradient(#000 calc(100% - 26px), transparent); padding-bottom: 20px; }
+.acks .ack:first-child { margin-top: 0; }
+.page .acks p.ack { font-size: 12px; }
+.acks-h { margin: 1.6rem 0 0; font: 400 11px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--c3); }
+.acks { margin-top: .7rem; }
+.acks:focus-visible { outline-offset: 4px; }
+/* 10. phones: the line above the plate may take two lines instead of being cut */
+@media (max-width: 640px) { #envelope { white-space: normal; line-height: 1.45; } #platecol { margin-top: 4.6rem; } }

@@ -10,7 +10,8 @@
 //   plate    a click anywhere on the sky (or a target, or typed RA Dec, or ?target= / ?ra=&dec=) -> zoom into
 //            the field and the plate screen on real data (plate.js): gallery files (data/) for the five challenge targets,
 //            the live server (config.js) for any other spot
-// The craft is an illustration. The sky stars are decorative, not catalogue data, and fade before a frame shows.
+// The craft is an illustration. The sky stars are the Yale Bright Star Catalogue (real positions and V brightness);
+// the Milky Way glow behind them is illustrative. They fade before a frame shows.
 // URL keys: ?page=N (start at page 0-8), ?p=0.5 (freeze the Begin sequence), ?stage=sky, ?target=<key>, ?ra=&dec=,
 //           ?fast=1 (no waits in the plate screen), ?speed=2 (a faster Begin sequence).
 import * as THREE from "three";
@@ -193,7 +194,7 @@ function applyView() {
   camera.updateProjectionMatrix();
 }
 
-// ---------------------------------------------------------------- sky: procedural decorative stars, Milky Way weighted, RA/Dec grid
+// ---------------------------------------------------------------- sky: catalogue stars (Yale BSC5), an illustrative Milky Way glow, RA/Dec grid
 const R_SKY = 500;
 const NGP = radec(192.859, 27.128), GC = radec(266.405, -28.936);
 function skyPoint() { const z = rnd() * 2 - 1, ph = rnd() * Math.PI * 2, r = Math.sqrt(1 - z * z); return new THREE.Vector3(r * Math.cos(ph), z, r * Math.sin(ph)); }
@@ -207,22 +208,30 @@ function makeStars(n, weight, lumFn, sizeK, alphaK) {
     pos[i * 3] = v.x * R_SKY; pos[i * 3 + 1] = v.y * R_SKY; pos[i * 3 + 2] = v.z * R_SKY;
     lum[i] = lumFn(); sd[i] = rnd(); i++;
   }
+  return starPoints(pos, lum, sd, null, sizeK, alphaK);
+}
+// one Points object: positions on the sky sphere, a 0..1 brightness, a twinkle seed and (optional) a colour per star
+function starPoints(pos, lum, sd, col, sizeK, alphaK) {
+  const n = lum.length;
+  if (!col) col = new Float32Array(n * 3).fill(1);
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   g.setAttribute("lum", new THREE.BufferAttribute(lum, 1));
   g.setAttribute("sd", new THREE.BufferAttribute(sd, 1));
+  g.setAttribute("col", new THREE.BufferAttribute(col, 3));
   const m = new THREE.ShaderMaterial({
     uniforms: { ...starU, uSize: { value: sizeK }, uAlpha: { value: alphaK } },
-    vertexShader: `uniform float uTime, uPx, uFade, uSize, uAlpha; attribute float lum; attribute float sd; varying float vA;
+    vertexShader: `uniform float uTime, uPx, uFade, uSize, uAlpha; attribute float lum; attribute float sd; attribute vec3 col; varying float vA; varying vec3 vC;
       void main(){
+        vC = col;
         float tw = .78 + .22 * sin(uTime * (.6 + sd * 2.4) + sd * 61.);
         vA = (.16 + .84 * lum) * tw * .65 * uFade * uAlpha;
         vec4 mv = modelViewMatrix * vec4(position, 1.);
         gl_Position = projectionMatrix * mv;
         gl_PointSize = (1. + 3.4 * lum * lum) * uSize * uPx;
       }`,
-    fragmentShader: `varying float vA;
-      void main(){ float r = length(gl_PointCoord - .5); float a = smoothstep(.5, .0, r); gl_FragColor = vec4(vec3(1.), a * a * vA); }`,
+    fragmentShader: `varying float vA; varying vec3 vC;
+      void main(){ float r = length(gl_PointCoord - .5); float a = smoothstep(.5, .0, r); gl_FragColor = vec4(vC, a * a * vA); }`,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   });
   const p = new THREE.Points(g, m);
@@ -236,7 +245,24 @@ const hazeW = (v) => {
   return clamp(Math.exp(-sb * sb / .004) * (.35 + 1.4 * bul) * lane, 0, 1);
 };
 const skyG = new THREE.Group();
-skyG.add(makeStars(42000, galW, () => Math.pow(rnd(), 4.6), 1.1, 1), makeStars(60000, hazeW, () => .2 + .2 * rnd(), 4.2, .04));
+// the glow along the Milky Way stays, fainter, as an illustration; the stars themselves are the catalogue's
+skyG.add(makeStars(60000, hazeW, () => .2 + .2 * rnd(), 4.2, .025));
+// Yale Bright Star Catalogue, 5th rev. ed. (Hoffleit & Warren 1991): 9,096 stars, J2000, brightest first. Position from
+// RA/Dec (the same transform as the target marks), size and brightness from V (compressed), a light tint from B-V.
+// If the file cannot be read, the old drawn stars stand in, so the sky is never empty.
+fetch(new URL("assets/stars-bsc5.json", import.meta.url)).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status)))).then((j) => {
+  const st = j.stars.filter((s) => Number.isFinite(s[0]) && Number.isFinite(s[1]) && Number.isFinite(s[2])), n = st.length;
+  if (!n) throw new Error("empty");
+  const pos = new Float32Array(n * 3), lum = new Float32Array(n), sd = new Float32Array(n), col = new Float32Array(n * 3);
+  st.forEach(([ra, dec, v, bv], i) => {
+    const p = radec(ra, dec).multiplyScalar(R_SKY);
+    pos[i * 3] = p.x; pos[i * 3 + 1] = p.y; pos[i * 3 + 2] = p.z;
+    lum[i] = clamp((7 - v) / 8.5, 0, 1); sd[i] = rnd();
+    const t = Number.isFinite(bv) ? clamp((bv + .3) / 2, 0, 1) : .45;            // blue-white .. orange, kept mild
+    col[i * 3] = .86 + .14 * t; col[i * 3 + 1] = .9 + .02 * t - .1 * t * t; col[i * 3 + 2] = 1 - .3 * t;
+  });
+  skyG.add(starPoints(pos, lum, sd, col, 1.9, 1.7));
+}).catch(() => skyG.add(makeStars(42000, galW, () => Math.pow(rnd(), 4.6), 1.1, 1)));
 const gridMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false });
 {
   const pts = [], Rg = R_SKY * .96;
@@ -562,7 +588,16 @@ function measurePages() {
     for (const el of all) el.style.transform = "none";
     // stacked (phone): the heights add up; side by side (page 4's words and plate on a wide screen): the taller one
     const stacked = els.length > 1 && els[1].offsetTop >= els[0].offsetTop + els[0].offsetHeight - 1;
-    const h = els.length > 1 && !stacked ? Math.max(...els.map((el) => el.offsetHeight)) : els.reduce((a, el) => a + el.offsetHeight, 0) + (els.length > 1 ? 26 : 0);
+    const measure = () => (els.length > 1 && !stacked ? Math.max(...els.map((el) => el.offsetHeight)) : els.reduce((a, el) => a + el.offsetHeight, 0) + (els.length > 1 ? 26 : 0));
+    // the last page: its acknowledgements box takes the room that is left (it scrolls inside), so the page is not scaled
+    // down and its small print stays at its own size
+    const ac = PAGES[j].querySelector(".acks");
+    if (ac) {
+      ac.style.maxHeight = "none";
+      const over = measure() - (innerHeight - 2 * pad + 40);
+      if (over > 0) ac.style.maxHeight = Math.max(96, ac.offsetHeight - over - 8) + "px";
+    }
+    const h = measure();
     all.forEach((el, k) => (el.style.transform = prev[k]));
     pageFit[j] = Math.min(1, (innerHeight - 2 * pad + 40) / Math.max(1, h));
     // a page taller than the screen overflows its grid (downwards on a wide screen, both ways on a phone), so after the
@@ -946,12 +981,16 @@ async function lookupName(name) {
   msg.textContent = "";
   const hit = TARGETS.find((x) => x.id === j.target);
   const shown = String(j.name || name).replace(/^(V\*|\*\*?|NAME)\s+/, "");   // SIMBAD prefixes ("V* TW Hya") are not part of the name
-  if (hit) lookAt(hit); else openFree(j.ra, j.dec, shown);
+  // the title keeps the name as typed; the name SIMBAD knows goes on the coordinate line
+  const typed = name.trim(), simbad = String(j.name || "").trim();
+  if (hit) lookAt(hit); else openFree(j.ra, j.dec, typed || shown, simbad && simbad.toLowerCase() !== typed.toLowerCase() ? simbad : "");
 }
 // any spot of sky: the live server builds its frames (the five challenge targets come from the gallery files)
 // is the live server there? one quick health check at start (none when config.js sets SPX_API to ""); the hover hint reads it
 findServer().then((u) => { S.server = !!u; });
-async function openFree(ra, dec, name = "") {
+// 13. on a touch screen the sky is tapped, not clicked (and the shorter line fits a phone)
+if (matchMedia("(pointer: coarse)").matches) $("q").placeholder = "Tap the sky, or type a name";
+async function openFree(ra, dec, name = "", simbad = "") {
   const msg = $("askmsg");
   msg.textContent = "";
   const near = TARGETS.find((t) => radec(t.ra, t.dec).dot(radec(ra, dec)) > Math.cos(.6 * D2R));
@@ -964,11 +1003,11 @@ async function openFree(ra, dec, name = "") {
   }
   if (!S.server && window.SPX_API) {   // a server is configured but did not answer (it can be starting up)
     msg.innerHTML = `The live server is not answering right now. Try again in a moment; the five targets work meanwhile. <button type="button" class="retry">Try again</button>`;
-    msg.querySelector(".retry").onclick = () => openFree(ra, dec, name);
+    msg.querySelector(".retry").onclick = () => openFree(ra, dec, name, simbad);
     return;
   }
   if (!S.server) { msg.innerHTML = `This copy of the site has no live server configured. The five targets work here. <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink#run-it" target="_blank" rel="noopener">How to run the server</a>`; return; }
-  tool.open({ ra, dec, free: true, name }, { fast: FAST });
+  tool.open({ ra, dec, free: true, name, simbad }, { fast: FAST });
 }
 // where on the sky a point of the screen looks
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();

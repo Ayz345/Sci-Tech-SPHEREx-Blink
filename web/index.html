@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sci-Tech: SPHEREx Blink</title>
-<link rel="icon" href="data:,">
+<title>SPHEREx Blink · Team Sci-Tech · NASA Space Apps Challenge 2026</title>
+<meta name="description" content="SPHEREx Blink by Team Sci-Tech (NASA Space Apps Challenge 2026): a blink comparator for NASA's SPHEREx. It stacks every SPHEREx pass over a spot of sky and plays them, so what moved or changed stands out.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0d0f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f2f2f0' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23f2f2f0'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=DM+Sans:opsz,wght@9..40,300..500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -41,12 +42,13 @@
   <!-- 0 · paper -->
   <section id="stage" class="page" aria-label="Sci-Tech: SPHEREx Blink">
     <div id="hero">
+      <p class="k hero-k">Sci-Tech: SPHEREx Blink &middot; NASA Space Apps Challenge 2026</p>
       <h1>Blink the <em>infrared</em><br>sky, pass <em>after</em> pass.</h1>
       <p class="sub">Every look NASA&rsquo;s SPHEREx took at one spot of sky, flipped like Tombaugh&rsquo;s plates in 1930.
         Whatever moved stands out.</p>
       <button id="begin" class="pill" type="button">Begin</button>
     </div>
-    <p id="credit">Data: NASA/IPAC SPHEREx via IRSA &middot; spacecraft model is AI-generated (3D Jutsu)</p>
+    <p id="credit">Data: NASA/IPAC SPHEREx via IRSA &middot; spacecraft model is AI-generated (3D Jutsu)<span class="skyonly"> &middot; Stars: Yale Bright Star Catalogue (real positions and brightness); the Milky Way glow is illustrative.</span></p>
     <!-- AI-generated imagery carries a visible mark; shown while the model is on screen -->
     <p id="aimark">Spacecraft model: AI-generated (3D Jutsu), an illustration, not data</p>
     <p id="more" aria-hidden="true">Scroll</p>
@@ -234,6 +236,9 @@
       <button class="pill" type="button" data-top>Back to the top &uarr;</button>
       <button class="pill alt" type="button" data-about aria-haspopup="dialog">About this project</button>
       <a class="pill alt" href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink" target="_blank" rel="noopener">Source code</a>
+      <!-- the acknowledgements scroll in their own box, so the page is not scaled down to fit them -->
+      <p class="acks-h" aria-hidden="true">Acknowledgements &middot; scroll &darr;</p>
+      <div class="acks" tabindex="0" role="region" aria-label="Acknowledgements">
       <p class="ack">This publication makes use of data products from the Spectro-Photometer for the History of the
         Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion
         Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space
@@ -248,9 +253,10 @@
         Aeronautics and Space Administration.</p>
       <p class="ack">CatWISE2020: Eisenhardt et al. (2020), Marocco et al. (2021).</p>
       <p class="ack mono">Built with three.js (MIT); fonts Fraunces, DM Sans and IBM Plex Mono (SIL OFL); coastlines from Natural Earth; world-atlas (ISC); noise shader after Ashima Arts / S. Gustavson (MIT); Aladin Lite, CDS (LGPL v3) in the tool; spacecraft model generated with 3D Jutsu (AI).</p>
-      <p class="ack">Name lookup: Sesame name resolver, CDS, Strasbourg. Also used: Luhman &amp; Esplin 2016 (proper motion of WISE&nbsp;0855).<br>
+      <p class="ack">Name lookup: Sesame name resolver, CDS, Strasbourg. Also used: Luhman &amp; Esplin 2016 (proper motion of WISE&nbsp;0855); Yale Bright Star Catalogue, 5th rev. ed. (Hoffleit &amp; Warren 1991) for the sky&rsquo;s stars.<br>
         <!-- Team: no personal names, photos or voices on this page. -->
         Sci-Tech: SPHEREx Blink &middot; Team Sci-Tech &middot; NASA Space Apps Challenge 2026, &ldquo;Planet X and SPHEREx&rdquo;.</p>
+      </div>
     </div>
   </section>
 </main>
@@ -369,12 +375,13 @@
   <p class="fine">SPHEREx images and spectra: NASA/IPAC Infrared Science Archive (IRSA), releases DR1 and QR3. Image lists: our own index of IRSA&rsquo;s public bucket on AWS (1,628,230 Level&nbsp;2
     files, read 15 Nov 2026); IRSA&rsquo;s SIA2 service for newer exposures. WISE:
     the AllWISE Atlas image of 2010 and the CatWISE2020 catalogue (IRSA). Star positions and motions: ESA Gaia DR3.
-    Names: CDS, Strasbourg (SIMBAD, Sesame). Built with three.js (MIT); fonts Fraunces, DM Sans and IBM Plex Mono
+    Names: CDS, Strasbourg (SIMBAD, Sesame). Stars of the sky: Yale Bright Star Catalogue, 5th rev. ed. (Hoffleit &amp; Warren 1991). Built with three.js (MIT); fonts Fraunces, DM Sans and IBM Plex Mono
     (SIL OFL); coastlines from Natural Earth. The full acknowledgements are on the last page.</p>
   <h3>Use of AI</h3>
   <p class="fine">The code was written with Claude Code (Anthropic). The spacecraft model was generated with 3D Jutsu
     (AI) and is labelled wherever it appears. No sky image, frame, spectrum or number on this site is AI-generated:
-    they all come from the archives above.</p>
+    they all come from the archives above. The stars of the sky search are the Yale Bright Star Catalogue, 5th rev. ed.
+    (Hoffleit &amp; Warren 1991); only the Milky Way glow behind them is drawn.</p>
 </dialog>
 <script type="module" src="app.js"></script>
 </body>

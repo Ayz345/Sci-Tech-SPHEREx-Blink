@@ -274,6 +274,10 @@ The landing page (`web/`) uses:
 
 - three.js 0.160.0 (MIT), loaded from `cdn.jsdelivr.net/npm/three@0.160.0`, not modified and not stored here.
 - Fonts from Google Fonts: Fraunces, DM Sans and IBM Plex Mono (SIL Open Font License as published there).
+- The stars of the sky stage: Yale Bright Star Catalogue, 5th revised edition (Hoffleit & Warren 1991), 9,096
+  stars with their J2000 positions, V magnitudes and B−V colours, from `bsc5.dat` of the Harvard-Smithsonian
+  Telescope Data Center; stored as `web/assets/stars-bsc5.json`. The catalogue is in the public domain. The
+  faint Milky Way glow behind them is drawn, not data.
 - Coastlines: Natural Earth 1:110m land (public domain), through the npm package world-atlas 2.0.2 (ISC);
   stored as `web/assets/land-110m.json`.
 - The simplex-noise function in its shaders follows the widely used "webgl-noise" code by Ashima Arts and

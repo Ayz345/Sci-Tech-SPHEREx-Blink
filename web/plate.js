@@ -97,6 +97,8 @@ export async function loadBand(e, band) {
     e.frames.set(k, f);
   }));
 }
+// the data files count epochs from 0; the page counts passes from 1
+const passWords = (s) => String(s).replace(/\bEpoch (\d+)/g, (_, d) => `Pass ${+d + 1}`).replace(/\bepochs\b/g, "passes").replace(/\bepoch\b/g, "pass");
 export const bandEpoch = (e, band, i) => e.bandJson[band]?.epochs?.find((x) => x.id === e.m.epochs[i].id) || null;
 export const isLow = (e, band, i) => bandEpoch(e, band, i)?.quality === "low";
 export const isEmpty = (e, band, i) => e.m.bands.find((b) => b.id === band)?.n_exposures?.[i] === 0 || bandEpoch(e, band, i)?.n_used === 0 || e.frames.get(`${band}|${e.m.epochs[i].id}`) === null;
@@ -319,7 +321,8 @@ export function createTool(c) {
       S.sky.fov = Q.field * H() / platePx;
       landFrame();
     }
-    Q.band = Q.e.m.default_band || (Q.e.m.bands.find((b) => b.status === "ready") || Q.e.m.bands[0]).id; Q.showLow = false;
+    Q.band = (Q.e.live && Q.e.m.bands.some((b) => b.id === "D2") ? "D2" : null) || Q.e.m.default_band || (Q.e.m.bands.find((b) => b.status === "ready") || Q.e.m.bands[0]).id; Q.showLow = false;
+    Q.building = null;
     reveal(run, fast).catch((err) => { if (run === Q.run) setStatus(`This field could not be shown (${err.message}).`); });
   }
   function fail(msg) {
@@ -438,7 +441,7 @@ export function createTool(c) {
     $("tname").textContent = live && !m.target_track?.length ? Q.t?.name || sexa(m.query.ra, m.query.dec) : m.name || sexa(m.query.ra, m.query.dec);
     $("tcoord").textContent = coords(m.query.ra, m.query.dec);
     $("tfull").href = live ? `${FULL_TOOL}?ra=${m.query.ra}&dec=${m.query.dec}&fov=${FIELD_DEG}` : `${FULL_TOOL}?target=${enc(Q.e.key)}`;
-    $("tnotes").replaceChildren(...(m.notes || []).map((n) => Object.assign(document.createElement("li"), { textContent: n })));
+    $("tnotes").replaceChildren(...(m.notes || []).map((n) => Object.assign(document.createElement("li"), { textContent: passWords(n) })));
     // the way to the full tool leaves a note, so the tool can put the name in place on its first frame
     $("tfull").onclick = () => { try { sessionStorage.setItem("spx-vt", JSON.stringify({ to: "tool", key: live ? null : Q.e.key, ra: m.query.ra, dec: m.query.dec, name: $("tname").textContent, coord: coords(m.query.ra, m.query.dec), t: Date.now() })); } catch {} };
     if (!Q.keep) for (const x of [$("tback"), $("tname"), $("tcoord"), $("status")]) x.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: REDUCED ? 1 : 700, easing: "cubic-bezier(.2,.7,.2,1)", fill: "backwards" });
@@ -446,7 +449,7 @@ export function createTool(c) {
     drawTime(0); drawWave(0);
     // A. what there is: the passes drop onto the ruler at their real dates
     const total = m.n_images ?? m.bands.filter((b) => /^D\d$/.test(b.id)).reduce((s, b) => s + b.n_exposures.reduce((a, x) => a + x, 0), 0);
-    $("tcoord").textContent = `${coords(m.query.ra, m.query.dec)}  ·  ${nPass()} ${nPass() === 1 ? "pass" : "passes"}, ${total} exposures, ${fmtDate(m.epochs[0].date)} to ${fmtDate(m.epochs.at(-1).date)}`;
+    $("tcoord").textContent = `${coords(m.query.ra, m.query.dec)}${Q.t?.simbad ? `  ·  SIMBAD: ${Q.t.simbad}` : ""}  ·  ${nPass()} ${nPass() === 1 ? "pass" : "passes"}, ${total} exposures, ${fmtDate(m.epochs[0].date)} to ${fmtDate(m.epochs.at(-1).date)}`;
     const span = `<strong>${total} SPHEREx exposures</strong> in <strong>${nPass()} ${nPass() === 1 ? "pass" : "passes"}</strong>, ${fmtDate(m.epochs[0].date)} to ${fmtDate(m.epochs.at(-1).date)}`;
     setStatus(live ? `We found ${span} for this field.` : `Gallery target. Its frames were built in advance from ${span}.`);
     const pulse = $("pframe").animate([{ opacity: 1 }, { opacity: .35 }, { opacity: 1 }], { duration: 1400, iterations: Infinity });
@@ -504,8 +507,27 @@ export function createTool(c) {
     $("low").hidden = !m.epochs.some((_, i) => isLow(Q.e, Q.band, i));
     $("play").disabled = nBlink() < 2; $("controls").classList.add("on");
     render(false, true);
-    doneStatus();
+    doneStatus(); bandNote();
     if (nBlink() > 1) startPlay();
+    if (live) fillBands(Q.e, run);
+  }
+  // the server builds a band only when it is asked for one: once the first band is on screen, the others are asked
+  // for one after another (D2 to D6, then D1), and the spectrum is asked again as each arrives, so it fills in.
+  // It stops when the plate closes or another field opens; a failure ends it quietly.
+  async function fillBands(e, run) {
+    for (const id of ["D2", "D3", "D4", "D5", "D6", "D1"]) {
+      if (run !== Q.run || !Q.open || Q.e !== e) return;
+      if (id in e.bandJson || !e.m.bands.some((b) => b.id === id)) continue;
+      try { await loadBand(e, id); } catch { return; }
+      if (run !== Q.run || !Q.open || Q.e !== e) return;
+      e.specTries = 0; loadSpec(e); drawWave(1);
+    }
+  }
+  // a band's own notes from the server (band json "notes"), under the field's notes
+  function bandNote() {
+    $("bandnote")?.remove();
+    const n = Q.e?.bandJson?.[Q.band]?.notes, t = Array.isArray(n) ? n.join(" ") : typeof n === "string" ? n : "";
+    if (t) $("tnotes").append(Object.assign(document.createElement("li"), { id: "bandnote", textContent: `${Q.band}: ${t}` }));
   }
   // one line under the field's notes when the Gaia stars cannot be drawn, and why
   function gaiaNote() {
@@ -549,8 +571,8 @@ export function createTool(c) {
     const res = paint(cv, Q.e, Q.band, i, { invert: Q.invert, showLow: Q.showLow });
     const ov = $("ov"); ov.replaceChildren();
     ov.setAttribute("viewBox", `0 0 ${Q.e.m.grid.shape[1]} ${Q.e.m.grid.shape[0]}`);
-    setUpper($("envelope"), `pass ${i + 1}/${nPass()} · ${fmtDate(dateOf(Q.e, Q.band, i))} · ${b.id} ${b.label} · ${res ? usedOf(Q.e, Q.band, i) + " exp. stacked" : "no data"}${isLow(Q.e, Q.band, i) ? " · low coverage" : ""}${res?.saturated ? " · saturated core drawn brightest" : ""}`);
-    if (!res) el("text", { x: 70, y: 71, "font-size": 3.6, fill: "#8a8a88", "text-anchor": "middle", "font-family": "IBM Plex Mono, monospace" }, ov).textContent = `No exposures in band ${Q.band} during this pass.`;
+    setUpper($("envelope"), `pass ${i + 1}/${nPass()} · ${fmtDate(dateOf(Q.e, Q.band, i))} · ${b.id} ${b.label} · ${res ? usedOf(Q.e, Q.band, i) + " exp. stacked" : Q.building === Q.band ? "building band " + Q.band + "…" : "no data"}${isLow(Q.e, Q.band, i) ? " · low coverage" : ""}${res?.saturated ? " · saturated core drawn brightest" : ""}`);
+    if (!res) el("text", { x: 70, y: 71, "font-size": 3.6, fill: "#8a8a88", "text-anchor": "middle", "font-family": "IBM Plex Mono, monospace" }, ov).textContent = Q.building === Q.band ? `Building band ${Q.band}…` : `No exposures in band ${Q.band} during this pass.`;
     else {
       if (develop && !REDUCED) { cv.classList.remove("developing"); void cv.offsetWidth; cv.classList.add("developing"); }
       if (Q.gaia && Q.e.gaia?.length) {
@@ -572,6 +594,12 @@ export function createTool(c) {
     const m = Q.e.m, Wd = sv.clientWidth || 800, Hh = 112, L0 = 2, R = Wd - 2, base = 70;
     const hasW = !!Q.e.wise, zw = hasW ? (Wd < 560 ? 104 : 156) : 0, L = L0 + zw;   // zw: room for the WISE stop (2010) left of the scale
     sv.setAttribute("viewBox", `0 0 ${Wd} ${Hh}`); sv.setAttribute("height", Hh);
+    // labels that would overlap (close passes on a phone) step up one line instead
+    const placed = [], place = (x0, x1, y) => {
+      for (let k = 0; k < 4; k++) { const hit = placed.find((q) => x0 < q[1] + 6 && x1 > q[0] - 6 && Math.abs(y - q[2]) < 13); if (!hit) break; y = hit[2] - 14; }
+      placed.push([x0, x1, y]); return y;
+    };
+    const labY = (x, anchor, text, fs, y) => { const w = text.length * fs * .64, x0 = anchor === "start" ? x : anchor === "end" ? x - w : x - w / 2; return place(x0, x0 + w, y); };
     const t0 = Math.floor(m.data_range.mjd_min - 25), t1 = Math.ceil(m.data_range.mjd_max + 25);
     const X = (t) => L + ((t - t0) / (t1 - t0)) * (R - L);
     el("line", { x1: L, y1: base, x2: R, y2: base, stroke: "#fff", "stroke-opacity": .35 }, sv);
@@ -585,7 +613,7 @@ export function createTool(c) {
       el("rect", { class: "hit", x: L0 - 2, y: base - h - 26, width: Math.max(bw + 12, 96), height: h + 50 }, g);
       const r = el("rect", { x: L0 + 4, y: base - h, width: bw, height: h, fill: cur ? "#fff" : "none", stroke: "#fff", "stroke-width": 1, opacity: cur ? 1 : .6, "pointer-events": "all" }, g);
       if (!on) r.setAttribute("stroke-dasharray", "2 2");
-      el("text", { x: L0, y: base - h - 9, "font-size": Wd < 560 ? 11 : 12.5, "text-anchor": "start", fill: cur ? "#fff" : "#8a8a88", "letter-spacing": ".04em" }, g).textContent = `${Q.e.wise.date.slice(0, 4)} · WISE W2`;
+      el("text", { x: L0, y: labY(L0, "start", `${Q.e.wise.date.slice(0, 4)} · WISE W2`, Wd < 560 ? 11 : 12.5, base - h - 9), "font-size": Wd < 560 ? 11 : 12.5, "text-anchor": "start", fill: cur ? "#fff" : "#8a8a88", "letter-spacing": ".04em" }, g).textContent = `${Q.e.wise.date.slice(0, 4)} · WISE W2`;
       el("text", { x: L0, y: base + 24, "font-size": 12, fill: "#8a8a85", "letter-spacing": ".06em" }, g).textContent = Q.e.wise.survey;
       g.onclick = () => Q.ready && selectWise();
       g.onkeydown = (ev) => (ev.key === "Enter" || ev.key === " ") && Q.ready && (ev.preventDefault(), selectWise());
@@ -613,8 +641,8 @@ export function createTool(c) {
       const rect = el("rect", { x: x0, y: base - h, width: w, height: h, fill: cur || !Q.ready ? "#fff" : "none", stroke: "#fff", "stroke-width": 1, "pointer-events": "all", opacity: n ? (cur || !Q.ready ? 1 : skipped ? .3 : .6) : .25 }, g);
       if (skipped) rect.setAttribute("stroke-dasharray", "2 2");
       const short = Wd < 560 || nPass() > 4;
-      el("text", { x: tx, y: base - h - 9, "font-size": 12.5, "text-anchor": anchor, fill: cur ? "#fff" : "#8a8a88", "letter-spacing": ".04em" }, g).textContent =
-        `${short ? new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { month: "short", year: "2-digit", timeZone: "UTC" }) : fmtDate(iso)} · ${n}`;
+      const lab = `${short ? new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { month: "short", year: "2-digit", timeZone: "UTC" }) : fmtDate(iso)} · ${n}`;
+      el("text", { x: tx, y: labY(tx, anchor, lab, 12.5, base - h - 9), "font-size": 12.5, "text-anchor": anchor, fill: cur ? "#fff" : "#8a8a88", "letter-spacing": ".04em" }, g).textContent = lab;
       if (i === dropIdx - 1 && !REDUCED) rect.animate([{ transform: "translateY(-24px)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 420, easing: "cubic-bezier(.3,1.4,.5,1)" });
       g.onclick = () => Q.ready && selectEpoch(i);
       g.onkeydown = (ev) => (ev.key === "Enter" || ev.key === " ") && Q.ready && (ev.preventDefault(), selectEpoch(i));
@@ -703,8 +731,11 @@ export function createTool(c) {
     const prev = Q.band, mine = ++picking, run = Q.run, had = id in Q.e.bandJson;
     Q.band = id; drawWave(1);
     setStatus(Q.e.live && !had ? `The server is stacking band ${id} (${bandOf().label}) from the archive. This can take up to a minute.` : `Loading band ${id} (${bandOf().label}).`);
-    try { await loadBand(Q.e, id); } catch (err) { if (mine === picking && run === Q.run) { Q.band = prev; render(); setStatus(`Band ${id} could not be read (${err.message}).`); } return; }
+    Q.building = id;
+    try { await loadBand(Q.e, id); } catch (err) { if (Q.building === id) Q.building = null; if (mine === picking && run === Q.run) { Q.band = prev; render(); setStatus(`Band ${id} could not be read (${err.message}).`); } return; }
+    if (Q.building === id) Q.building = null;
     if (mine !== picking || run !== Q.run) return;
+    bandNote();
     fixLow();
     $("low").hidden = !Q.e.m.epochs.some((_, i) => isLow(Q.e, Q.band, i));
     $("low").setAttribute("aria-pressed", Q.showLow);
@@ -780,6 +811,10 @@ export function createTool(c) {
     return true;
   }
   $("tback").onclick = close;
+  // 12. the side column scrolls inside itself: while more is below, a quiet "more below" line says so
+  const sideHint = () => { const s = $("side"); s.classList.toggle("more", s.scrollHeight - s.scrollTop - s.clientHeight > 12); };
+  $("side").addEventListener("scroll", sideHint, { passive: true });
+  if (window.ResizeObserver) { const ro = new ResizeObserver(sideHint); for (const id of ["side", "tnotes", "status", "info"]) if ($(id)) ro.observe($(id)); }
   $("play").onclick = () => (Q.playing ? stopPlay() : startPlay());
   $("speed").oninput = () => Q.playing && startPlay();
   const toggle = (id, key, after) => ($(id).onclick = () => { Q[key] = !Q[key]; $(id).setAttribute("aria-pressed", Q[key]); if (Q.ready) after(); });
