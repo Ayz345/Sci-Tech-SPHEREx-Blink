@@ -4,3 +4,5 @@ pytest==9.2.0
 httpx==0.28.1
 # Official IAU ADES tools (psvtoxml, valsubmit) for tests/test_mpc.py
 iau-ades==0.1.3
+# Astronomy VO client: tests/test_astrometry.py and two co-add tests import it at module level
+pyvo==1.7
