@@ -255,7 +255,7 @@ Every source used is listed here, as the Space Apps rules ask.
 | Astropy, Uvicorn, lxml, HTTPX, PyVO (tests only) | BSD-3-Clause |
 | Requests | Apache-2.0 |
 | FastAPI, pytest | MIT |
-| iau-ades (tests only) | see the package |
+| iau-ades (tests only, not shipped) | no licence stated by its authors (IAU-ADES/ADES-Master) |
 | Matplotlib, Pillow (optional, figures only) | Matplotlib licence, MIT-CMU |
 | Aladin Lite 3.8.2 (loaded on demand by the page) | LGPL v3 (see below) |
 
