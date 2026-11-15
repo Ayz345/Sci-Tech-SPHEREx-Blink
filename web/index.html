@@ -76,6 +76,8 @@
       <h2 id="h-read">We take only<br>the rows we <em>need</em>.</h2>
       <p>A SPHEREx image file is about 66&nbsp;MB. We read its header, work out where the target falls on the detector,
         and ask the archive for just those rows of the image, flag and variance layers.</p>
+      <p>We indexed the archive ourselves: the pointing and time of all 1,628,230 SPHEREx images, read from the public
+        files. Any position opens without waiting for the archive&rsquo;s search service.</p>
       <dl class="stats">
         <div><dt>66&nbsp;MB</dt><dd>one image file</dd></div>
         <div><dt>2.5&nbsp;MB</dt><dd>what we read per exposure</dd></div>
@@ -363,7 +365,8 @@
     <li><a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink/blob/dev/handoff/results/methods_v2.md" target="_blank" rel="noopener">Methods</a></li>
   </ul>
   <h3>Data and tools</h3>
-  <p class="fine">SPHEREx images and spectra: NASA/IPAC Infrared Science Archive (IRSA), releases DR1 and QR3. WISE:
+  <p class="fine">SPHEREx images and spectra: NASA/IPAC Infrared Science Archive (IRSA), releases DR1 and QR3. Image lists: our own index of IRSA&rsquo;s public bucket on AWS (1,628,230 Level&nbsp;2
+    files, read 15 Nov 2026); IRSA&rsquo;s SIA2 service for newer exposures. WISE:
     the AllWISE Atlas image of 2010 and the CatWISE2020 catalogue (IRSA). Star positions and motions: ESA Gaia DR3.
     Names: CDS, Strasbourg (SIMBAD, Sesame). Built with three.js (MIT); fonts Fraunces, DM Sans and IBM Plex Mono
     (SIL OFL); coastlines from Natural Earth. The full acknowledgements are on the last page.</p>

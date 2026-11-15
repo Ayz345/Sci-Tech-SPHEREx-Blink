@@ -26,7 +26,20 @@ function littleEndian(buf) {
   for (let i = 0; i < buf.byteLength; i += 4) ov.setFloat32(i, dv.getFloat32(i, true));
   return out;
 }
-async function getJSON(u) { const r = await fetch(u); if (!r.ok) throw new Error(`${r.status} ${u.split("?")[0].split("/").pop()}`); return r.json(); }
+// a short "too many requests" (Retry-After of 10 s or less) is waited out once, without a word; anything else is thrown
+// with the server's own sentence in err.detail (the body's "message"; the header itself is not readable cross-origin)
+async function getJSON(u, again = true) {
+  const r = await fetch(u);
+  if (!r.ok) {
+    let detail = ""; try { detail = (await r.json()).message || ""; } catch {}
+    if (r.status === 429 && again) {
+      const s = +(r.headers.get("Retry-After") || (detail.match(/try again in (\d+) s\b/) || [])[1] || (/a few seconds/.test(detail) ? 5 : NaN));
+      if (s > 0 && s <= 10) { await new Promise((ok) => setTimeout(ok, s * 1000 + 300)); return getJSON(u, false); }
+    }
+    throw Object.assign(new Error(`${r.status} ${u.split("?")[0].split("/").pop()}`), { detail });
+  }
+  return r.json();
+}
 async function getF32(u) { const r = await fetch(u); if (!r.ok) { if (r.status >= 500 || r.status === 429) throw new Error(`${r.status} frame`); return null; } return new Float32Array(littleEndian(await r.arrayBuffer())); }
 // the live server: looked for when it is first needed, and again after a failure (a cold start can take a few seconds)
 let API = "";
@@ -240,9 +253,11 @@ export function createTool(c) {
   }
   // the archive behind the live server is sometimes down for a while: say so calmly and offer another try
   const archiveDown = (err) => /^(5[0-9][0-9]|429)/.test(err.message) || err.name === "TypeError" || (err.message === "no-server" && !!window.SPX_API);
+  // the wait the server names ("try again in 42 s", "in a minute"), in words; a minute when it names none
+  const busyWait = (d = "") => { const m = d.match(/try again in (\d+) s\b/); return m ? `${m[1]} seconds` : (d.match(/try again in (a (?:minute|few seconds|few minutes))/) || [])[1] || "a minute"; };
   const askRetry = (err) => new Promise((resolve) => {
     const lead = err.message === "no-server" ? "The live server is not answering right now. Try again in a moment"
-      : /^429/.test(err.message) ? "The server is busy right now. Try again in a minute"
+      : /^429/.test(err.message) ? `The server is busy right now. Try again in ${busyWait(err.detail)}`
       : "The archive is not answering right now. Try again in a few minutes";
     setStatus(`${lead}; the five targets work meanwhile. <button type="button" class="retry">Try again</button>`);
     $("status").querySelector(".retry").onclick = () => resolve();
@@ -279,7 +294,7 @@ export function createTool(c) {
     if (keep) setTimeout(() => document.documentElement.classList.remove("arrive"), 1200);   // after the sky's own fades
     if (t.free) {
       $("tname").textContent = t.name || sexa(t.ra, t.dec); $("tcoord").textContent = coords(t.ra, t.dec);
-      setStatus("Asking the archive which SPHEREx exposures cover this field.");
+      setStatus("Looking up which SPHEREx exposures cover this field.");
       const pulse = $("pframe").animate([{ opacity: 1 }, { opacity: .35 }, { opacity: 1 }], { duration: 1400, iterations: Infinity });
       // the archive can be slow; the server keeps asking for up to about half a minute, and the page waits with it
       const slow = setTimeout(() => run === Q.run && setStatus("The archive is slow to answer right now. The server keeps asking; this can take up to half a minute."), 5000);
@@ -446,12 +461,7 @@ export function createTool(c) {
     const u = urls(Q.e);
     // the spectrum and the Gaia stars come when they come; the frames do not wait for them
     const kept = (err) => !Q.e.live || /^404/.test(err.message);          // a missing file is "none"; a failure is asked again later
-    if (Q.e.spectrum == null && !Q.e.specP) {
-      Q.e.specErr = null;
-      Q.e.specP = getJSON(u.spectrum()).then((s) => { Q.e.spectrum = Array.isArray(s) ? { meta: {}, points: s } : s; },
-        (err) => { if (kept(err)) Q.e.spectrum = { meta: {}, points: [] }; else Q.e.specErr = err.message; })
-        .finally(() => { Q.e.specP = null; if (alive()) drawWave(Q.ready ? 1 : 0); });
-    }
+    if (Q.e.spectrum == null || specParts(Q.e)) loadSpec(Q.e);
     if (Q.e.gaia == null && !Q.e.gaiaP) {
       Q.e.gaiaErr = null;
       Q.e.gaiaP = getJSON(u.gaia()).then((g) => { Q.e.gaia = g; }, (err) => { if (kept(err)) Q.e.gaia = []; else Q.e.gaiaErr = err.message; })
@@ -477,6 +487,11 @@ export function createTool(c) {
       Q.wiseOn = true;
       $("wise").hidden = false; $("wise").setAttribute("aria-pressed", "true");
       $("foot").innerHTML = `${foot0} &middot; WISE image: AllWISE, NASA/IPAC (IRSA)`;
+    }
+    // a live field: where its list of exposures came from (the server's own index, or IRSA's search service)
+    if (live && typeof m.image_list === "string" && m.image_list) {
+      const src = m.image_list.split(";")[0].trim();
+      $("foot").append(" · ", src.charAt(0).toUpperCase() + src.slice(1));
     }
     if (!list.length) { Q.ready = true; $("controls").classList.add("on"); render(); return setStatus(`Band ${Q.band} has no usable exposures of this field. Choose another band on the ruler.`); }
     for (const i of list) {
@@ -610,7 +625,7 @@ export function createTool(c) {
     sv.setAttribute("viewBox", `0 0 ${Wd} ${Hh}`); sv.setAttribute("height", Hh);
     const L = 2, R = Wd - 10, lo = .7, hi = 5.1, X = (w) => L + ((w - lo) / (hi - lo)) * (R - L);
     const top = 26, plotH = 100, rule = 160;
-    const sp = Q.e.spectrum, all = sp ? sp.points || [] : [];
+    const sp = Q.e.spectrum, all = sp ? sp.points || [] : [], parts = sp ? specParts(Q.e) : null;
     // R Draconis: saturated in nearly every exposure, so its relative brightness from the PSF wings is shown instead
     const wing = all.some((p) => Number.isFinite(p.wing_flux)), val = (p) => (wing ? p.wing_flux : p.flux);
     const pts = all.filter((p) => Number.isFinite(val(p)));
@@ -625,7 +640,7 @@ export function createTool(c) {
       }
       el("text", { x: L, y: 11, "font-size": 11.5, fill: "#8a8a88", "letter-spacing": ".08em" }, sv).textContent =
         wing ? "RELATIVE BRIGHTNESS FROM THE PSF WINGS" : `BRIGHTNESS AT THE ${m.target_track?.length ? "TARGET" : "CHOSEN POINT"} (${sp.meta?.flux_unit || "mJy"})`;
-    } else el("text", { x: L, y: top + plotH / 2, "font-size": 12.5, fill: "#8a8a88" }, sv).textContent = sp ? "No spectrum points at this position." : Q.e.specErr ? `The spectrum could not be read (${Q.e.specErr}).` : "Loading the spectrum…";
+    } else el("text", { x: L, y: top + plotH / 2, "font-size": 12.5, fill: "#8a8a88" }, sv).textContent = sp ? (parts ? `The spectrum fills in as the bands arrive (${parts.n} of ${parts.all} so far).` : "No spectrum points at this position.") : Q.e.specErr ? `The spectrum could not be read (${Q.e.specErr}).` : "Loading the spectrum…";
     const usable = (b) => b.status === "ready" || (Q.e.live && b.status === "pending");
     for (const b of m.bands) {
       const x0 = X(b.wave_um[0]), x1 = X(b.wave_um[1]), extra = !/^D\d$/.test(b.id), on = b.id === Q.band, ready = usable(b);
@@ -644,7 +659,29 @@ export function createTool(c) {
       el("text", { x: X(w), y: rule + 52, "font-size": 12.5, "text-anchor": "middle", fill: "#8a8a88" }, sv).textContent = w === 5 ? "5 µm" : w;
     }
     $("specnote").textContent = !sp ? "" : wing ? "Indicative only, not a formal detection of variability. The star is saturated, so its own flux cannot be measured."
-      : !pts.length ? "" : `One point per exposure; this pass is bright, the others faint. ${sp.meta?.photometry === "psf_deblended" ? "Measured with a neighbouring star fitted and removed." : ""} Open circles are flagged or saturated (lower limits).`;
+      : !pts.length ? "" : `${parts ? `The spectrum fills in as the bands arrive (${parts.n} of ${parts.all} so far). ` : ""}One point per exposure; this pass is bright, the others faint. ${sp.meta?.photometry === "psf_deblended" ? "Measured with a neighbouring star fitted and removed." : ""} Open circles are flagged or saturated (lower limits).`;
+  }
+
+  // a live field's spectrum grows as the server finishes its bands (meta.bands_included): until all D bands are in, an
+  // empty or short spectrum is not the answer yet; it is asked for again every 10 s
+  function specParts(e) {
+    const all = e.m.bands.filter((b) => /^D\d$/.test(b.id)).length, inc = e.spectrum?.meta?.bands_included;
+    const n = Array.isArray(inc) ? inc.filter((b) => /^D\d$/.test(b)).length : all;
+    return e.live && n < all ? { n, all } : null;
+  }
+  function loadSpec(e) {
+    if (e.specP) return;
+    e.specErr = null;
+    const kept = (err) => !e.live || /^404/.test(err.message);
+    e.specP = getJSON(urls(e).spectrum()).then((s) => { e.spectrum = Array.isArray(s) ? { meta: {}, points: s } : s; },
+      (err) => { if (kept(err)) e.spectrum = { meta: {}, points: [] }; else e.specErr = err.message; })
+      .finally(() => {
+        e.specP = null;
+        if (Q.open && Q.e === e) drawWave(Q.ready ? 1 : 0);
+        // at most 30 more asks (5 to 10 minutes); after that a band picked on the ruler asks again
+        e.specTries = (e.specTries || 0) + 1;
+        if (specParts(e) && e.specTries <= 30) setTimeout(() => { if (Q.open && Q.e === e) loadSpec(e); }, 10000);
+      });
   }
 
   function selectEpoch(i) { Q.epoch = i; Q.onWise = false; render(); }
@@ -669,6 +706,7 @@ export function createTool(c) {
     $("low").hidden = !Q.e.m.epochs.some((_, i) => isLow(Q.e, Q.band, i));
     $("low").setAttribute("aria-pressed", Q.showLow);
     render(true); doneStatus();
+    if (specParts(Q.e)) loadSpec(Q.e);   // a newly built band adds its points to the spectrum
     const n = nBlink();
     $("play").disabled = n < 2;
     if (n < 2) stopPlay(); else if (!Q.playing) startPlay();
