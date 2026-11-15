@@ -567,7 +567,7 @@ function renderEpochMarks() {
     const w = document.createElement("button");
     w.type = "button"; w.className = "stop wise" + (S.onWise ? " cur" : "");
     w.setAttribute("aria-pressed", String(!!S.onWise));
-    w.innerHTML = `<b>${escapeHtml(yr)} · WISE ${escapeHtml(S.wiseBand)}</b><small>not SPHEREx</small>`;
+    w.innerHTML = `<b>${escapeHtml(yr)} · WISE</b><span>${escapeHtml(S.wiseBand)}</span><small>not SPHEREx</small>`;
     w.title = `WISE ${S.wiseBand}, AllWISE tile middle ${S.wise.date ? fmtDate(S.wise.date) : "(date not given)"}: not SPHEREx; click to blink it with the SPHEREx passes`;
     w.onclick = () => {
       if (!S.wiseOn) { S.wiseOn = true; $("wiseOn").checked = true; wiseSlider(); }
@@ -581,9 +581,10 @@ function renderEpochMarks() {
     b.type = "button"; b.className = "stop" + (empty ? " empty" : low ? " low" : "") + (cur ? " cur" : "");
     b.setAttribute("aria-pressed", String(cur));
     const day = fmtDate(frameDate(S.band, i));
-    b.innerHTML = `<b>${escapeHtml(day)}</b><span>SPHEREx pass ${i + 1}</span><small>${empty ? "no data" : `${n ?? "?"} exposures${low ? " · low" : ""}`}</small>`;
+    // three short lines that fit the card at its narrowest (date, pass, exposures); the full text is in the tooltip
+    b.innerHTML = `<b>${escapeHtml(day)}</b><span>pass ${i + 1}${low && !empty ? " · low" : ""}</span><small>${empty ? "no data" : `${n ?? "?"} exp.`}</small>`;
     b.title = empty ? `${day}: no data in ${S.band} (skipped in playback)`
-      : low ? `low coverage: ${n ?? "?"} exposures — ${S.showLow ? "shown" : "skipped"}` : `${S.band} frame of ${day}, MJD ${frameMjd(S.band, i).toFixed(2)}`;
+      : low ? `low coverage: ${n ?? "?"} exposures — ${S.showLow ? "shown" : "skipped"}` : `SPHEREx pass ${i + 1}: ${S.band} frame of ${day}, MJD ${frameMjd(S.band, i).toFixed(2)}, ${n ?? "?"} exposures`;
     b.disabled = empty;
     b.onclick = () => { $("epoch").value = i; $("epoch").oninput({ target: $("epoch") }); };
     return b;

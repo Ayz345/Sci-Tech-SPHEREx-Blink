@@ -368,3 +368,8 @@ label:has(> input[type=checkbox]):hover { color: var(--fg); }
   #howto .howto-foot { margin: 0 -20px; padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); }
   @keyframes howto-in { from { transform: translateY(40px); opacity: 0; } }
 }
+
+/* web/tool, 15 Nov night: pass cards hold three single lines (date, pass, exposures) in their fixed 74 px; a line
+   that is still too long ends in "…" instead of wrapping into a fourth line */
+body:not(.embed) #epochMarks .stop > * { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+body:not(.embed) #epochMarks .stop b { font-size: 12.5px; }
