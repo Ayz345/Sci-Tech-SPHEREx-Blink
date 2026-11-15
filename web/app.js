@@ -911,6 +911,11 @@ async function openFree(ra, dec) {
     S.server = !!(await findServer());
     msg.textContent = "";
   }
+  if (!S.server && window.SPX_API) {   // a server is configured but did not answer (it can be starting up)
+    msg.innerHTML = `The live server is not answering right now. Try again in a moment; the five targets work meanwhile. <button type="button" class="retry">Try again</button>`;
+    msg.querySelector(".retry").onclick = () => openFree(ra, dec);
+    return;
+  }
   if (!S.server) { msg.innerHTML = `This position needs the live server, which is not part of this site. The five targets work here. <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink#run-it" target="_blank" rel="noopener">How to run the server</a>`; return; }
   tool.open({ ra, dec, free: true }, { fast: FAST });
 }
@@ -926,7 +931,7 @@ function hover(x, y) {
   const cu = $("cursor"), [ra, dec] = screenToRaDec(x, y);
   const near = TARGETS.find((t) => radec(t.ra, t.dec).dot(radec(ra, dec)) > Math.cos(1.2 * D2R));
   cu.style.transform = `translate(${x}px, ${y}px)`;
-  cu.querySelector("span").innerHTML = `<b>${hms(ra)}  ${dms(dec)}</b>${near ? `click to open ${near.name}` : S.server === false ? "this position needs the live server" : "click to zoom in here"}`;
+  cu.querySelector("span").innerHTML = `<b>${hms(ra)}  ${dms(dec)}</b>${near ? `click to open ${near.name}` : S.server === false && !window.SPX_API ? "this position needs the live server" : "click to zoom in here"}`;
   cu.classList.add("on");
 }
 async function pick(x, y) {

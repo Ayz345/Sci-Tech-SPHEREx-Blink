@@ -34,7 +34,7 @@ export async function findServer() {
   if (API) return API;
   const url = (window.SPX_API || "").replace(/\/$/, "");
   if (!url) return "";
-  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 5000);
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 10000);
   try { const r = await fetch(`${url}/api/health`, { signal: ctl.signal }); if (r.ok) API = url; } catch { /* not reachable */ }
   clearTimeout(timer);
   return API;
@@ -193,9 +193,9 @@ export function createTool(c) {
     return { cx: (r.left + r.width / 2) / W(), cy: (r.top + r.height / 2) / H() };
   }
   // the archive behind the live server is sometimes down for a while: say so calmly and offer another try
-  const archiveDown = (err) => /^5[0-9][0-9]/.test(err.message) || err.name === "TypeError";
-  const askRetry = () => new Promise((resolve) => {
-    setStatus(`The archive is not answering right now. Try again in a few minutes; the five targets work meanwhile. <button type="button" class="retry">Try again</button>`);
+  const archiveDown = (err) => /^5[0-9][0-9]/.test(err.message) || err.name === "TypeError" || (err.message === "no-server" && !!window.SPX_API);
+  const askRetry = (err) => new Promise((resolve) => {
+    setStatus(`${err.message === "no-server" ? "The live server is not answering right now. Try again in a moment" : "The archive is not answering right now. Try again in a few minutes"}; the five targets work meanwhile. <button type="button" class="retry">Try again</button>`);
     $("status").querySelector(".retry").onclick = () => resolve();
   });
   // ------------------------------------------------ sky -> zoom -> plate
@@ -235,7 +235,7 @@ export function createTool(c) {
       let got = await asked;
       while (got.err && archiveDown(got.err) && run === Q.run) {
         clearTimeout(slow); pulse.pause();
-        await askRetry();
+        await askRetry(got.err);
         if (run !== Q.run) return;
         setStatus("Asking the archive again."); pulse.play();
         got = await loadPosition(t.ra, t.dec).then((e) => ({ e }), (err) => ({ err }));
@@ -394,7 +394,7 @@ export function createTool(c) {
       catch (err) {
         stop();
         if (!archiveDown(err)) return setStatus(`The frames could not be read (${err.message}).`);
-        await askRetry();
+        await askRetry(err);
         if (!alive()) return;
         setStatus("Asking the archive again.");
       }
