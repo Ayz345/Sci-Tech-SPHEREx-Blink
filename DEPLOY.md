@@ -15,21 +15,35 @@ repository variable **`SPX_API_URL`**. After the server is up, set `SPX_API_URL`
 
 ## Google Cloud Run (recommended)
 
-Paste this into **Cloud Shell** (console.cloud.google.com, the `>_` button). It builds the image from the
-repository's `Dockerfile` and starts one always-on instance near the data (S3 is in us-east-1, N. Virginia):
+**Tried** on 15 Nov 2026: the live server runs this way (us-east4). Paste this into **Cloud Shell**
+(console.cloud.google.com, the `>_` button). It builds the image from the repository's `Dockerfile` and starts one
+always-on instance near the data (S3 is in us-east-1, N. Virginia):
 
 ```sh
-git clone https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink && cd Sci-Tech-SPHEREx-Blink && gcloud run deploy spx-blink --source . --region us-east4 --memory 4Gi --cpu 1 --min-instances 1 --max-instances 1 --no-cpu-throttling --allow-unauthenticated --set-env-vars SPX_CACHE=/tmp/cache,SPX_CACHE_MAX_GB=1.5,SPX_MAX_FOV_DEG=0.11667
+git clone https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink && cd Sci-Tech-SPHEREx-Blink && gcloud run deploy spx-blink --source . --region us-east4 --memory 4Gi --cpu 1 --min-instances 1 --max-instances 1 --no-cpu-throttling --allow-unauthenticated --set-env-vars SPX_CACHE=/tmp/cache,SPX_CACHE_MAX_GB=1.5,SPX_MAX_FOV_DEG=0.11667,SPX_COMMIT=$(git rev-parse --short HEAD)
 ```
 
-**Not tried yet**, and the flag names were not checked against the gcloud reference while this was written. To
-check them first, run this; every flag should show up:
+`SPX_COMMIT` puts the deployed commit into `/api/health` (a build from source has no git folder in the image;
+without it health says `unknown`).
 
-```sh
-gcloud run deploy --help | grep -E -- "--(source|region|memory|cpu|min-instances|max-instances|no-cpu-throttling|allow-unauthenticated|set-env-vars)\b"
-```
+What a new Google Cloud project needs, in the order it came up the first time:
 
-A wrong flag stops `gcloud` with "unrecognized arguments" before anything is deployed.
+1. **A billing account linked to the project.** Without it: `FAILED_PRECONDITION … UREQ_PROJECT_BILLING_NOT_FOUND`.
+   Link one under Billing (the free trial credit is enough; nothing is charged while it lasts).
+2. **The Cloud Build API.** The first `gcloud run deploy --source` asks to enable it: answer `y`.
+3. **Permission for the build account.** A new project fails with
+   `PERMISSION_DENIED: Build failed because the default service account is missing required IAM permissions`.
+   Give the Compute Engine default service account the builder role (Google: Cloud Run docs, "Build service
+   account"), and the service-usage role the error message names; wait a few minutes; deploy again:
+
+   ```sh
+   PROJECT=$(gcloud config get-value project)
+   NUMBER=$(gcloud projects describe $PROJECT --format='value(projectNumber)')
+   gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$NUMBER-compute@developer.gserviceaccount.com" --role="roles/run.builder"
+   gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$NUMBER-compute@developer.gserviceaccount.com" --role="roles/serviceusage.serviceUsageConsumer"
+   ```
+4. **Later deployments** (new code): `cd ~/Sci-Tech-SPHEREx-Blink && git pull`, then the same `gcloud run deploy …`
+   command as above (without the `git clone … && cd … &&` part).
 
 Why these settings:
 
