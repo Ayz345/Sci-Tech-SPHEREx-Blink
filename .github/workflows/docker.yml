@@ -37,6 +37,9 @@ jobs:
           v = h.get("astrometry_validation") or {}
           assert v.get("status") == "complete", f"validation file not complete in the image: {v}"
           assert v.get("same_frame_code") is True, f"validation made with other frame code: {v}"
+          ix = h.get("image_index") or {}
+          print("image index:", ix)
+          assert (ix.get("rows") or 0) >= 1_600_000, f"our image index is missing from the image: {ix}"
           PY
       - name: Gallery data and catalogue are served
         run: |
@@ -44,6 +47,17 @@ jobs:
           b=$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:8000/api/band?key=wise-0855&band=w1_2"); echo "bad band: $b"; test "$b" = 400
           t=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -d "[]" "http://127.0.0.1:8000/api/track"); echo "malformed track body: $t"; test "$t" = 400
           docker exec spx sh -c 'echo "user: $(id -un)  cache: $SPX_CACHE  max fov: $SPX_MAX_FOV_DEG"'
+      - name: A free field from our own index (must work whatever IRSA does)
+        run: |
+          curl -sS -m 120 -o free.json -w "free field manifest: %{http_code} %{time_total}s
+" "http://127.0.0.1:8000/api/manifest?ra=266.4168&dec=-29.0078&queue=0"
+          python3 - <<'PY'
+          import json
+          m = json.load(open("free.json"))
+          print(m.get("key"), m.get("n_images"), "images,", len(m.get("epochs", [])), "passes;", m.get("image_list"))
+          assert (m.get("n_images") or 0) > 0, "no images for a free field"
+          assert "our own index" in (m.get("image_list") or ""), "the list did not come from our index"
+          PY
       - name: A field list from the archive (IRSA may be slow; reported, not required)
         continue-on-error: true
         run: |
