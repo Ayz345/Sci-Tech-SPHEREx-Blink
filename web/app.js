@@ -898,7 +898,7 @@ function parseTarget(q) {
   const hit = TARGETS.find((t) => t.name.toLowerCase().replace(/[^a-z0-9]/g, "") === s.toLowerCase().replace(/[^a-z0-9]/g, "") || t.id === s.toLowerCase());
   if (hit) return hit;
   const nums = s.replace(/[hmsd°'":,]/gi, " ").trim().split(/\s+/).map(Number);
-  if (nums.some(Number.isNaN)) return { error: "Name lookup is not wired in this study. Try a challenge target, or RA Dec in degrees." };
+  if (nums.some(Number.isNaN)) return { lookup: s };   // a name: the live server looks it up
   let ra, dec;
   if (nums.length === 2) [ra, dec] = nums;
   else if (nums.length === 6) {
@@ -915,12 +915,31 @@ $("search").addEventListener("submit", (e) => {
   if (!t) return;
   if (t.error) { $("askmsg").textContent = t.error; return; }
   $("askmsg").textContent = "";
-  if (TARGETS.some((x) => x.id === t.id)) lookAt(t); else openFree(t.ra, t.dec);
+  if (t.lookup) lookupName(t.lookup);
+  else if (TARGETS.some((x) => x.id === t.id)) lookAt(t); else openFree(t.ra, t.dec);
 });
+// a typed name: the live server resolves it (SIMBAD/Sesame or Gaia); one of the five opens from the gallery
+async function lookupName(name) {
+  const msg = $("askmsg");
+  msg.textContent = "Looking up the name…";
+  const api = await findServer();
+  if (!S.live) return;
+  if (!api) { msg.textContent = "Names are looked up by the live server, which is not answering right now. Give RA and Dec, or pick one of the five targets."; return; }
+  let r;
+  try { r = await fetch(`${api}/api/resolve?name=${encodeURIComponent(name)}`); } catch { r = null; }
+  if (!S.live) return;
+  if (!r || !r.ok) { msg.textContent = r && r.status === 404 ? `No object called "${name}" was found. Try another name, or RA and Dec.` : "The name service is not answering right now. Try again in a moment, or give RA and Dec."; return; }
+  const j = await r.json().catch(() => null);
+  if (!j || !Number.isFinite(j.ra) || !Number.isFinite(j.dec)) { msg.textContent = `No position came back for "${name}".`; return; }
+  msg.textContent = "";
+  const hit = TARGETS.find((x) => x.id === j.target);
+  const shown = String(j.name || name).replace(/^(V\*|\*\*?|NAME)\s+/, "");   // SIMBAD prefixes ("V* TW Hya") are not part of the name
+  if (hit) lookAt(hit); else openFree(j.ra, j.dec, shown);
+}
 // any spot of sky: the live server builds its frames (the five challenge targets come from the gallery files)
 // is the live server there? one quick health check at start (none when config.js sets SPX_API to ""); the hover hint reads it
 findServer().then((u) => { S.server = !!u; });
-async function openFree(ra, dec) {
+async function openFree(ra, dec, name = "") {
   const msg = $("askmsg");
   msg.textContent = "";
   const near = TARGETS.find((t) => radec(t.ra, t.dec).dot(radec(ra, dec)) > Math.cos(.6 * D2R));
@@ -933,11 +952,11 @@ async function openFree(ra, dec) {
   }
   if (!S.server && window.SPX_API) {   // a server is configured but did not answer (it can be starting up)
     msg.innerHTML = `The live server is not answering right now. Try again in a moment; the five targets work meanwhile. <button type="button" class="retry">Try again</button>`;
-    msg.querySelector(".retry").onclick = () => openFree(ra, dec);
+    msg.querySelector(".retry").onclick = () => openFree(ra, dec, name);
     return;
   }
   if (!S.server) { msg.innerHTML = `This position needs the live server, which is not part of this site. The five targets work here. <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink#run-it" target="_blank" rel="noopener">How to run the server</a>`; return; }
-  tool.open({ ra, dec, free: true }, { fast: FAST });
+  tool.open({ ra, dec, free: true, name }, { fast: FAST });
 }
 // where on the sky a point of the screen looks
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();

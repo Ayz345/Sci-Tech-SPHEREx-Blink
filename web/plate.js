@@ -12,7 +12,7 @@
 const D2R = Math.PI / 180, SVGNS = "http://www.w3.org/2000/svg", enc = encodeURIComponent;
 const DATA = new URL("data/", import.meta.url).href;
 export const FULL_TOOL = new URL("tool/", import.meta.url).href;
-export const FIELD_DEG = 0.1166;                  // 7 arcmin: the server's largest field today
+export const FIELD_DEG = 0.116666;                // 7 arcmin, exactly as the full tool asks, so both get the same grid
 // A free position is rounded once, to 4 decimals (0.36 arcsec; the grid pixel is 3 arcsec), and that one value is used
 // for the server request and for the address. The server keys a field on 4 decimals: a 6-decimal request and a
 // 5-decimal address could fall on two sides of a rounding edge and build the same field twice.
@@ -79,7 +79,9 @@ export async function loadBand(e, band) {
     const k = `${band}|${ep.id}`;
     if (e.frames.has(k)) return;
     const empty = mb?.n_exposures?.[i] === 0 || e.bandJson[band]?.epochs?.find((x) => x.id === ep.id)?.n_used === 0;
-    e.frames.set(k, empty ? null : await getF32(u.frame(ep.id, band)));
+    const f = empty ? null : await getF32(u.frame(ep.id, band)), [ny, nx] = e.m.grid.shape;
+    if (f && f.length !== nx * ny) throw new Error(`the server sent ${Math.round(Math.sqrt(f.length))} × ${Math.round(Math.sqrt(f.length))} frames for a ${nx} × ${ny} field, so they are not drawn; try again in a few minutes`);
+    e.frames.set(k, f);
   }));
 }
 export const bandEpoch = (e, band, i) => e.bandJson[band]?.epochs?.find((x) => x.id === e.m.epochs[i].id) || null;
@@ -219,6 +221,12 @@ export function createTool(c) {
   const bandOf = (id = Q.band) => Q.e.m.bands.find((b) => b.id === id);
   const nPass = () => Q.e.m.epochs.length;
   const ok = (i) => playable(Q.e, Q.band, i, Q.showLow);
+  // 11h31m07s +30°00′: the title of a field opened by a click on the sky
+  const sexa = (ra, dec) => {
+    const h = (((ra % 360) + 360) % 360) / 15, hh = Math.floor(h), mm = Math.floor((h - hh) * 60), ss = Math.floor(((h - hh) * 60 - mm) * 60);
+    const ad = Math.abs(dec), dd = Math.floor(ad), dm = Math.floor((ad - dd) * 60), p2 = (x) => String(x).padStart(2, "0");
+    return `${hh}h${p2(mm)}m${p2(ss)}s ${dec < 0 ? "−" : "+"}${p2(dd)}°${p2(dm)}′`;
+  };
   const coords = (ra, dec) => `RA ${ra.toFixed(4)}°  Dec ${(dec < 0 ? "−" : "+") + Math.abs(dec).toFixed(4)}°`;
 
   const foot0 = $("foot").innerHTML;
@@ -268,7 +276,7 @@ export function createTool(c) {
     if (run !== Q.run) return;
     tool.style.visibility = "";
     if (t.free) {
-      $("tname").textContent = "This field"; $("tcoord").textContent = coords(t.ra, t.dec);
+      $("tname").textContent = t.name || sexa(t.ra, t.dec); $("tcoord").textContent = coords(t.ra, t.dec);
       setStatus("Asking the archive which SPHEREx exposures cover this field.");
       const pulse = $("pframe").animate([{ opacity: 1 }, { opacity: .35 }, { opacity: 1 }], { duration: 1400, iterations: Infinity });
       // the archive can be slow; the server keeps asking for up to about half a minute, and the page waits with it
@@ -299,7 +307,7 @@ export function createTool(c) {
   }
   function fail(msg) {
     const tool = $("tool");
-    tool.style.visibility = ""; $("tname").textContent = Q.t.name || "This field"; setStatus(msg);
+    tool.style.visibility = ""; $("tname").textContent = Q.t.name || (Q.t.free ? sexa(Q.t.ra, Q.t.dec) : "This field"); setStatus(msg);
   }
   async function zoomTo(goal, pc, run, fast) {
     const from = S.sky.dir.clone(), fov0 = S.sky.fov, fieldDeg = Q.field;
@@ -409,7 +417,7 @@ export function createTool(c) {
   }
   async function reveal(run, fast) {
     const alive = () => run === Q.run, m = Q.e.m, live = Q.e.live, wait = (ms) => sleep(fast || REDUCED ? 0 : ms);
-    $("tname").textContent = live && !m.target_track?.length ? "This field" : m.name || "This field";
+    $("tname").textContent = live && !m.target_track?.length ? Q.t?.name || sexa(m.query.ra, m.query.dec) : m.name || sexa(m.query.ra, m.query.dec);
     $("tcoord").textContent = coords(m.query.ra, m.query.dec);
     $("tfull").href = live ? `${FULL_TOOL}?ra=${m.query.ra}&dec=${m.query.dec}&fov=${FIELD_DEG}` : `${FULL_TOOL}?target=${enc(Q.e.key)}`;
     $("tnotes").replaceChildren(...(m.notes || []).map((n) => Object.assign(document.createElement("li"), { textContent: n })));
@@ -418,6 +426,7 @@ export function createTool(c) {
     drawTime(0); drawWave(0);
     // A. what there is: the passes drop onto the ruler at their real dates
     const total = m.n_images ?? m.bands.filter((b) => /^D\d$/.test(b.id)).reduce((s, b) => s + b.n_exposures.reduce((a, x) => a + x, 0), 0);
+    $("tcoord").textContent = `${coords(m.query.ra, m.query.dec)}  ·  ${nPass()} ${nPass() === 1 ? "pass" : "passes"}, ${total} exposures, ${fmtDate(m.epochs[0].date)} to ${fmtDate(m.epochs.at(-1).date)}`;
     const span = `<strong>${total} SPHEREx exposures</strong> in <strong>${nPass()} ${nPass() === 1 ? "pass" : "passes"}</strong>, ${fmtDate(m.epochs[0].date)} to ${fmtDate(m.epochs.at(-1).date)}`;
     setStatus(live ? `The archive lists ${span} for this field.` : `Gallery target. Its frames were built in advance from ${span}.`);
     const pulse = $("pframe").animate([{ opacity: 1 }, { opacity: .35 }, { opacity: 1 }], { duration: 1400, iterations: Infinity });
@@ -431,8 +440,19 @@ export function createTool(c) {
     const stop = () => { sweep?.cancel(); pulse.cancel(); };
     const u = urls(Q.e);
     // the spectrum and the Gaia stars come when they come; the frames do not wait for them
-    if (!Q.e.spectrum) getJSON(u.spectrum()).then((s) => (Q.e.spectrum = Array.isArray(s) ? { meta: {}, points: s } : s), () => (Q.e.spectrum = { meta: {}, points: [] })).then(() => alive() && Q.ready && drawWave(1));
-    if (!Q.e.gaia) getJSON(u.gaia()).then((g) => (Q.e.gaia = g), () => (Q.e.gaia = [])).then(() => alive() && Q.ready && render());
+    const kept = (err) => !Q.e.live || /^404/.test(err.message);          // a missing file is "none"; a failure is asked again later
+    if (Q.e.spectrum == null && !Q.e.specP) {
+      Q.e.specErr = null;
+      Q.e.specP = getJSON(u.spectrum()).then((s) => { Q.e.spectrum = Array.isArray(s) ? { meta: {}, points: s } : s; },
+        (err) => { if (kept(err)) Q.e.spectrum = { meta: {}, points: [] }; else Q.e.specErr = err.message; })
+        .finally(() => { Q.e.specP = null; if (alive()) drawWave(Q.ready ? 1 : 0); });
+    }
+    if (Q.e.gaia == null && !Q.e.gaiaP) {
+      Q.e.gaiaErr = null;
+      Q.e.gaiaP = getJSON(u.gaia()).then((g) => { Q.e.gaia = g; }, (err) => { if (kept(err)) Q.e.gaia = []; else Q.e.gaiaErr = err.message; })
+        .finally(() => { Q.e.gaiaP = null; if (alive()) { gaiaNote(); if (Q.ready) { render(); doneStatus(); } } });
+    }
+    gaiaNote();
     for (;;) {
       try { await Promise.all([loadBand(Q.e, Q.band), loadWise(Q.e), wait(700)]); break; }
       catch (err) {
@@ -466,6 +486,13 @@ export function createTool(c) {
     render(false, true);
     doneStatus();
     if (nBlink() > 1) startPlay();
+  }
+  // one line under the field's notes when the Gaia stars cannot be drawn, and why
+  function gaiaNote() {
+    $("gaianote")?.remove();
+    const why = Q.e.gaiaErr ? `Gaia stars are not drawn: the Gaia archive (ESA) did not answer (${Q.e.gaiaErr}).`
+      : Q.e.gaiaP ? "Gaia stars are on their way." : Array.isArray(Q.e.gaia) && !Q.e.gaia.length && Q.e.live ? "No Gaia stars were found in this field." : "";
+    if (why) $("tnotes").append(Object.assign(document.createElement("li"), { id: "gaianote", textContent: why }));
   }
   function doneStatus() {
     const n = Q.e.m.epochs.filter((_, i) => ok(i)).length, named = !!Q.e.m.target_track?.length;
@@ -578,7 +605,7 @@ export function createTool(c) {
     sv.setAttribute("viewBox", `0 0 ${Wd} ${Hh}`); sv.setAttribute("height", Hh);
     const L = 2, R = Wd - 10, lo = .7, hi = 5.1, X = (w) => L + ((w - lo) / (hi - lo)) * (R - L);
     const top = 26, plotH = 100, rule = 160;
-    const sp = Q.e.spectrum, all = Q.ready && sp ? sp.points || [] : [];
+    const sp = Q.e.spectrum, all = sp ? sp.points || [] : [];
     // R Draconis: saturated in nearly every exposure, so its relative brightness from the PSF wings is shown instead
     const wing = all.some((p) => Number.isFinite(p.wing_flux)), val = (p) => (wing ? p.wing_flux : p.flux);
     const pts = all.filter((p) => Number.isFinite(val(p)));
@@ -593,7 +620,7 @@ export function createTool(c) {
       }
       el("text", { x: L, y: 11, "font-size": 11.5, fill: "#8a8a88", "letter-spacing": ".08em" }, sv).textContent =
         wing ? "RELATIVE BRIGHTNESS FROM THE PSF WINGS" : `BRIGHTNESS AT THE ${m.target_track?.length ? "TARGET" : "CHOSEN POINT"} (${sp.meta?.flux_unit || "mJy"})`;
-    } else el("text", { x: L, y: top + plotH / 2, "font-size": 12.5, fill: "#8a8a88" }, sv).textContent = !Q.ready || !sp ? "The spectrum appears with the frames." : "No spectrum points at this position.";
+    } else el("text", { x: L, y: top + plotH / 2, "font-size": 12.5, fill: "#8a8a88" }, sv).textContent = sp ? "No spectrum points at this position." : Q.e.specErr ? `The spectrum could not be read (${Q.e.specErr}).` : "Loading the spectrum…";
     const usable = (b) => b.status === "ready" || (Q.e.live && b.status === "pending");
     for (const b of m.bands) {
       const x0 = X(b.wave_um[0]), x1 = X(b.wave_um[1]), extra = !/^D\d$/.test(b.id), on = b.id === Q.band, ready = usable(b);
@@ -611,7 +638,7 @@ export function createTool(c) {
       el("line", { x1: X(w), y1: rule + 30, x2: X(w), y2: rule + 35, stroke: "#fff", "stroke-opacity": .5 }, sv);
       el("text", { x: X(w), y: rule + 52, "font-size": 12.5, "text-anchor": "middle", fill: "#8a8a88" }, sv).textContent = w === 5 ? "5 µm" : w;
     }
-    $("specnote").textContent = !Q.ready || !sp ? "" : wing ? "Indicative only, not a formal detection of variability. The star is saturated, so its own flux cannot be measured."
+    $("specnote").textContent = !sp ? "" : wing ? "Indicative only, not a formal detection of variability. The star is saturated, so its own flux cannot be measured."
       : !pts.length ? "" : `One point per exposure; this pass is bright, the others faint. ${sp.meta?.photometry === "psf_deblended" ? "Measured with a neighbouring star fitted and removed." : ""} Open circles are flagged or saturated (lower limits).`;
   }
 
