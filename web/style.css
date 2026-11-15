@@ -376,3 +376,52 @@ html.arrive #plate, html.arrive #controls, html.arrive #spec, html.arrive #timec
   .developing { animation-duration: .01s; }
   #more::after { animation: none; }
 }
+
+/* ------------------------------------------------------------ Designn, 15 Nov evening: one rule for what can be clicked
+   (the same in tool/skin.css). Every action is a framed button (pill, or a square on the rulers); every way elsewhere
+   is underlined text; a plain mono label in caps is never clickable, and nothing unclickable has a frame. Each has a
+   hover (the frame lights up, a faint fill), a pointer, a focus ring, a filled chosen state and a faded not-allowed
+   off state; on touch screens at least 40 px tall. */
+:root { --hov: rgba(242, 242, 240, .08); }
+/* the first screen's About: underlined, not a bare label */
+.about-link { border-bottom-color: rgba(74, 74, 79, .45); }
+body.dark .about-link { border-bottom-color: rgba(180, 180, 176, .45); }
+/* the About sheet's close: a framed pill */
+.about-close { border: 1px solid rgba(13, 13, 15, .25); border-radius: 999px; padding: 7px 12px; }
+.about-close:hover { border-color: var(--ink); background: rgba(13, 13, 15, .05); }
+#about :focus-visible { outline-color: var(--ink); }
+/* the sky: "Back to start" and the search arrow are framed; the quick picks are underlined; the card's × is framed */
+#back { border: 1px solid var(--line); border-radius: 999px; padding: .42rem 1rem; font: 400 13.5px var(--mono); letter-spacing: .04em; }
+#back:hover { border-color: var(--fg-2); background: var(--hov); }
+#search button { display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: 50%; }
+#search button:hover { border-color: var(--fg-2); background: var(--hov); }
+#picks button { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 4px; }
+#picks button:hover { text-decoration-color: var(--fg); }
+.mk:hover span { text-decoration: underline; text-underline-offset: 3px; }
+#card-x { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid rgba(255, 255, 255, .18); border-radius: 50%; font-size: 18px; line-height: 1; }
+#card-x:hover { color: var(--fg); border-color: var(--fg-2); }
+/* the plate screen: pills light up, "off" says not-allowed */
+.ghost:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--hov); }
+.ghost:disabled { cursor: not-allowed; }
+/* "Open the full tool" is a button-shaped link now, not a line of text */
+#tfull { display: inline-block; max-width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: .5rem .95rem;
+  color: var(--fg); font-size: 12px; letter-spacing: .01em; line-height: 1.45; text-align: left; text-wrap: balance; }
+#tfull:hover { border-color: var(--fg-2); background: var(--hov); }
+/* the rulers: the boxes light up under the pointer; a band that is not ready says not-allowed */
+.band:hover rect:not(.hit) { stroke-opacity: 1; }
+.band[aria-pressed="false"]:hover rect:not(.hit) { fill: rgba(255, 255, 255, .14); }
+.band[tabindex="-1"] { cursor: not-allowed; }
+.epoch:hover rect:not(.hit) { opacity: 1; }
+.epoch:hover rect[fill="none"] { fill: rgba(255, 255, 255, .16); }
+.epoch:hover text { fill: #fff; }
+.hit { fill: transparent; stroke: none; pointer-events: all; }
+/* the targets list on page 6: the row lights up as well as moving */
+.targets button:hover { background: rgba(13, 13, 15, .035); }
+.page.dark .targets button:hover { background: var(--hov); }
+@media (pointer: coarse) {
+  .ghost, #back, #tfull, .about-close { min-height: 40px; }
+  .about-link { padding: 12px 4px; }
+  #picks button { padding: .55rem 0; }
+  #card-x { width: 40px; height: 40px; }
+  #search button { width: 40px; height: 40px; }
+}

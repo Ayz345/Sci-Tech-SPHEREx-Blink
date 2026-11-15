@@ -582,6 +582,7 @@ export function createTool(c) {
       el("line", { x1: xe, y1: base, x2: L, y2: base, stroke: "#fff", "stroke-opacity": .35, "stroke-dasharray": "2 4" }, sv);
       el("path", { d: `M${xb - 3},${base + 7} l4,-14 M${xb + 3},${base + 7} l4,-14`, stroke: "#fff", "stroke-opacity": .6, fill: "none" }, sv);
       const g = el("g", { class: "epoch wise", tabindex: 0, role: "button", opacity: on ? 1 : .45, "aria-label": `WISE W2 ${Q.e.wise.wave} micrometres, ${Q.e.wise.date.slice(0, 4)}, ${Q.e.wise.survey}: not SPHEREx` }, sv);
+      el("rect", { class: "hit", x: L0 - 2, y: base - h - 26, width: Math.max(bw + 12, 96), height: h + 50 }, g);
       const r = el("rect", { x: L0 + 4, y: base - h, width: bw, height: h, fill: cur ? "#fff" : "none", stroke: "#fff", "stroke-width": 1, opacity: cur ? 1 : .6, "pointer-events": "all" }, g);
       if (!on) r.setAttribute("stroke-dasharray", "2 2");
       el("text", { x: L0, y: base - h - 9, "font-size": Wd < 560 ? 11 : 12.5, "text-anchor": "start", fill: cur ? "#fff" : "#8a8a88", "letter-spacing": ".04em" }, g).textContent = `${Q.e.wise.date.slice(0, 4)} · WISE W2`;
@@ -608,6 +609,7 @@ export function createTool(c) {
       const anchor = x0 < 40 ? "start" : x0 > Wd - 60 ? "end" : "middle", tx = anchor === "start" ? x0 : anchor === "end" ? x0 + w : x0 + w / 2;
       const iso = Q.e ? dateOf(Q.e, Q.band, i) : e.date;   // the header uses the selected band's date: so does the ruler
       const g = el("g", { class: "epoch", tabindex: 0, role: "button", "aria-label": `Pass ${i + 1}, ${fmtDate(iso)}, ${n} exposures${skipped ? ", skipped" : ""}` }, sv);
+      { const hw = Math.max(44, w + 12); el("rect", { class: "hit", x: x0 + w / 2 - hw / 2, y: base - h - 26, width: hw, height: h + 32 }, g); }
       const rect = el("rect", { x: x0, y: base - h, width: w, height: h, fill: cur || !Q.ready ? "#fff" : "none", stroke: "#fff", "stroke-width": 1, "pointer-events": "all", opacity: n ? (cur || !Q.ready ? 1 : skipped ? .3 : .6) : .25 }, g);
       if (skipped) rect.setAttribute("stroke-dasharray", "2 2");
       const short = Wd < 560 || nPass() > 4;
@@ -646,6 +648,7 @@ export function createTool(c) {
       const x0 = X(b.wave_um[0]), x1 = X(b.wave_um[1]), extra = !/^D\d$/.test(b.id), on = b.id === Q.band, ready = usable(b);
       const y = extra ? rule - 28 : rule, h = extra ? 15 : 24;
       const g = el("g", { class: "band", tabindex: ready ? 0 : -1, role: "button", "aria-pressed": on, "aria-label": `Band ${b.id}, ${b.label}` }, sv);
+      el("rect", { class: "hit", x: x0, y: y - 8, width: x1 - x0, height: h + 16 }, g);
       el("rect", { x: x0 + .5, y, width: x1 - x0 - 1, height: h, fill: on ? "#fff" : "none", stroke: "#fff", "stroke-opacity": ready ? .7 : .25 }, g);
       if (!Q.ready && on && progress > 0) el("rect", { x: x0 + .5, y: y + h - 2, width: (x1 - x0 - 1) * progress, height: 2, fill: "#fff" }, g);
       el("text", { x: (x0 + x1) / 2, y: y + h / 2 + 4.2, "font-size": extra ? 11 : 12.5, "text-anchor": "middle", fill: on ? "#000" : ready ? "#f2f2f0" : "#555" }, g).textContent = b.id;
