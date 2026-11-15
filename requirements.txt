@@ -9,6 +9,7 @@ lxml==6.0.2              # ADES drafts: checked against the submit schema before
 
 # Tests: pip install -r requirements-test.txt
 
-# Optional: figures and GIFs from spx.display (python -m spx.display)
+# Optional, for python -m spx.display (the figure handoff/results/five_targets_v2.png; pillow only for its blink GIFs,
+# which are not kept in the repository)
 # matplotlib
 # pillow

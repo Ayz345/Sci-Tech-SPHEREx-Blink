@@ -52,11 +52,11 @@ Why these settings:
 |---|---|
 | one instance (`--min-instances 1 --max-instances 1`) | the band queue and the open fields live in memory; a second instance would build the same field again |
 | CPU always on (`--no-cpu-throttling`) | bands are built by background threads after the request that queued them has returned |
-| `--cpu 2` | two threads build bands: one for bands a page asked for, one for bands built ahead. On one vCPU they share a core, so the band someone waits for slows down while another is built ahead (until 15 Nov the service ran with `--cpu 1`) |
-| `SPX_MAX_ACTIVE_FIELDS=8`, `SPX_NEW_FIELDS_PER_IP=40`, `SPX_PREBUILD_FIELDS=2` | a new field is refused (429) only when 8 fields have a band someone is waiting for. Bands built ahead do not count: until 15 Nov they did, and four opened fields kept every new one out for minutes while nothing was being built. Bands are built ahead for the 2 newest fields only. Visitors on one school or home network share an address, and moving around the sky opens a new field at every stop, so 40 new fields per address per 10 minutes, not 10 |
+| `--cpu 2` | two threads build bands: one for bands a page asked for, one for the background queue (with `SPX_PREBUILD_FIELDS=0`, only the bands the candidates tab asks for). On one vCPU they share a core, so the band someone waits for slows down while the other is built (until 15 Nov the service ran with `--cpu 1`). `/api/health` → `cpu` reads 4 CPUs and quota 4.0 on this service (15 Nov, 2 h after start, so not the start-up CPU boost, which ends 10 s after start). `cpu` is what the container's cgroup reports; the setting itself is what `gcloud run services describe spx-blink --region us-east4 --format="value(spec.template.spec.containers[0].resources.limits.cpu)"` shows |
+| `SPX_MAX_ACTIVE_FIELDS=8`, `SPX_NEW_FIELDS_PER_IP=40` | a new field is refused (429) only when 8 fields have a band someone is waiting for. Bands in the background queue do not count: until 15 Nov they did, and four opened fields kept every new one out for minutes while nothing was being built. Visitors on one school or home network share an address, and moving around the sky opens a new field at every stop, so 40 new fields per address per 10 minutes, not 10 |
 | `--concurrency 1000` | Cloud Run's maximum. When that many requests are open, Cloud Run itself answers 429 "The request was aborted after waiting too long for an available instance", without CORS (the page sees "Failed to fetch"). Opening a free field sends ~70 requests at once (bands, and frames waiting for their band, each up to 90 s) plus polling, so 250 was used up by 3–4 visitors on 15 Nov (Cloud Run log 15:20–15:25 UTC, no crash, no memory kill). Waiting requests hold no thread, so 1000 is cheap; `/api/health` → `in_flight` shows the count |
 | `SPX_MAX_BAND_WAITERS=800` | the server's own limit on requests waiting for a band (frames count too). Above it the server answers 429 itself, with CORS and a "try again" sentence, before Cloud Run's limit is reached |
-| `SPX_PREBUILD_FIELDS=0` | no bands built ahead: only bands a page asks for (the candidates tab asks for its field's). Set on 15 Nov while the server was under load; 2 builds ahead for the two newest fields |
+| `SPX_PREBUILD_FIELDS=0` | no bands built ahead: only bands a page asks for (the candidates tab asks for its field's). Set on 15 Nov while the server was under load. The code default is 2: bands built ahead for the two newest fields |
 | `--memory 4Gi` | Cloud Run's disk is memory. Process peak measured 689 MB with two 15′ fields open, plus the cache limit (1.5 GB) and headroom |
 | `SPX_CACHE=/tmp/cache`, `SPX_CACHE_MAX_GB=1.5` | the cache lives in that memory; above 1.5 GB the oldest cutouts and fields are removed |
 | `SPX_MAX_FOV_DEG=0.11667` | largest field 7′. `0.25` allows 15′: 30–70 s per band and 0.7–1.1 GB read per field (`handoff/results/fov_timing_v2.json`) |
@@ -121,10 +121,10 @@ The manifest field `image_list` says where the list came from (the tool's About 
 separate files). Default `server/index`. `off` = no index: image lists come from IRSA SIA2 only, as before.
 
 **Health.** `/api/health` → `image_index`: `files`, `rows` (1628230), `built_utc`, `mjd_max`, `last_exposure`
-(`2026-10-05`); `null` when no index is loaded.
+(`2026-10-05`); `{"loading": true}` while it loads, `null` when there is no index.
 
-**Cost.** The index is loaded at the first image list: 0.33 s, and the process grows by 159 MB (the arrays are
-132 MB). A position is answered in 0.01 s, and in 1.05 s at the north ecliptic pole (270.0 +66.5), where 30,512
+**Cost.** The index is loaded in a background thread when the server starts (the log says "image index … loaded in X s"; image lists asked for meanwhile wait for it, health shows `{"loading": true}`): 0.33 s locally, and the process grows by 159 MB (the arrays are
+132 MB). A position is answered in 0.01 s, and in 1.1 s at the north ecliptic pole (270.0 +66.5), where 30,512
 images cover it. Downloads stay capped per pass and band there, as for any field.
 
 **Rebuilding it** (a new release, or files added to the bucket):

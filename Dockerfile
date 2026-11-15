@@ -1,5 +1,5 @@
 # SPHEREx blink API server. Built and smoke-tested by .github/workflows/docker.yml on every push (health, catwise).
-#   docker build --build-arg SPX_COMMIT=$(git --git-dir=../SpaceApps.git rev-parse --short HEAD) -t spx-blink .
+#   docker build --build-arg SPX_COMMIT=$(git rev-parse --short HEAD) -t spx-blink .
 #   docker run -p 8000:8000 -v spx-data:/data spx-blink
 # Run it near the data (S3 bucket nasa-irsa-spherex is in us-east-1). The static page (web/) is hosted
 # separately and points at this server (DEPLOY.md). Settings: see DEPLOY.md; all can be overridden at run time.

@@ -1,0 +1,57 @@
+{
+ "checked_utc": "2026-11-15T18:01:17+00:00",
+ "files": "web/data/wise-0855/: wise_W2.f32 (AllWISE Atlas W2 on the 3 arcsec grid), 2_W.f32 (SPHEREx W pass), wise.json, W.json, manifest.json",
+ "grid_pixel_arcsec": 3.0,
+ "wise_2010": {
+  "image": "AllWISE Atlas W2 (4.6 um)",
+  "coadd_id": "1342m076_ac51",
+  "date": "2010-05-06",
+  "mjd": 55322.3416,
+  "dateobs1": "2010-05-03T08:45:24.456",
+  "dateobs2": "2010-11-13T11:18:30.534",
+  "ra": 133.794855,
+  "dec": -7.245245,
+  "offset_from_expected_arcsec": 1.93
+ },
+ "spherex_2026": {
+  "image": "SPHEREx W (4.3-5.0 um) pass 2",
+  "date": "2026-04-26",
+  "mjd": 61156.1534,
+  "exposures": 23,
+  "ra": 133.758776,
+  "dec": -7.241858
+ },
+ "shift_arcsec": 129.4,
+ "east_arcsec": -128.8,
+ "north_arcsec": 12.2,
+ "years": 15.97,
+ "rate_arcsec_yr": 8.1,
+ "pm_east_arcsec_yr": -8.07,
+ "pm_north_arcsec_yr": 0.76,
+ "rate_for_tile_date_range_arcsec_yr": [
+  8.1,
+  8.38
+ ],
+ "literature": {
+  "ref": "Luhman & Esplin (2016)",
+  "pm_east": -8.12,
+  "pm_north": 0.68,
+  "rate": 8.15
+ },
+ "tool_two_marks": {
+  "site_value": "8.1 ± 0.3 ″/yr (tool reading 8.07 ± 0.27, rounded)",
+  "uncertainty_rule": "one grid pixel per mark: sqrt(2) x pixel / years",
+  "uncertainty_arcsec_yr": 0.27
+ },
+ "separate_check": {
+  "shift_arcsec": 128.8,
+  "years": 15.97,
+  "rate_arcsec_yr": 8.06,
+  "pm_east_arcsec_yr": -8.03,
+  "pm_north_arcsec_yr": 0.73,
+  "rate_for_tile_date_range_arcsec_yr": [
+   8.06,
+   8.34
+  ]
+ }
+}
