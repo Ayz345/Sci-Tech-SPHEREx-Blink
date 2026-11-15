@@ -105,6 +105,7 @@ The image listens on `$PORT` (default 8000), runs as a non-root user, and keeps 
 | `SPX_SIA_RETRY_BUDGET_S` | 25 | seconds of IRSA SIA2 retries before a 503 (the command above sets 60) |
 | `SPX_SIA_MAX_ATTEMPTS` | 10 | IRSA SIA2 attempts per image list (the command above sets 20) |
 | `SPX_THREADS` | 32 | threads for blocking work (opening a field holds one while IRSA is retried) |
+| `SPX_GAIA_BUDGET_S` | 15 | seconds one Gaia query may take in all; gallery targets read their `gaia.json` and never ask |
 | `SPX_BAND_WAIT_S` | 90 | seconds a request waits for its band |
 | `SPX_GALLERY` | `web/data` | the gallery folder (notes, CatWISE files) |
 | `FORWARDED_ALLOW_IPS` | `*` | proxies trusted for the client address (request limits) |
