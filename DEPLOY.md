@@ -21,7 +21,7 @@ repository variable **`SPX_API_URL`**. After the server is up, set `SPX_API_URL`
 always-on instance near the data (S3 is in us-east-1, N. Virginia):
 
 ```sh
-git clone https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink && cd Sci-Tech-SPHEREx-Blink && gcloud run deploy spx-blink --source . --region us-east4 --memory 4Gi --cpu 2 --concurrency 250 --min-instances 1 --max-instances 1 --no-cpu-throttling --allow-unauthenticated --set-env-vars SPX_CACHE=/tmp/cache,SPX_CACHE_MAX_GB=1.5,SPX_MAX_FOV_DEG=0.11667,SPX_SIA_RETRY_BUDGET_S=60,SPX_SIA_MAX_ATTEMPTS=100,SPX_MAX_BAND_WAITERS=200,SPX_MAX_ACTIVE_FIELDS=8,SPX_NEW_FIELDS_PER_IP=40,SPX_PREBUILD_FIELDS=2,SPX_COMMIT=$(git rev-parse --short HEAD)
+git clone https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink && cd Sci-Tech-SPHEREx-Blink && gcloud run deploy spx-blink --source . --region us-east4 --memory 4Gi --cpu 2 --concurrency 1000 --min-instances 1 --max-instances 1 --no-cpu-throttling --allow-unauthenticated --set-env-vars SPX_CACHE=/tmp/cache,SPX_CACHE_MAX_GB=1.5,SPX_MAX_FOV_DEG=0.11667,SPX_SIA_RETRY_BUDGET_S=60,SPX_SIA_MAX_ATTEMPTS=100,SPX_MAX_BAND_WAITERS=800,SPX_MAX_ACTIVE_FIELDS=8,SPX_NEW_FIELDS_PER_IP=40,SPX_PREBUILD_FIELDS=0,SPX_COMMIT=$(git rev-parse --short HEAD)
 ```
 
 `SPX_COMMIT` puts the deployed commit into `/api/health` (a build from source has no git folder in the image;
@@ -54,8 +54,9 @@ Why these settings:
 | CPU always on (`--no-cpu-throttling`) | bands are built by background threads after the request that queued them has returned |
 | `--cpu 2` | two threads build bands: one for bands a page asked for, one for bands built ahead. On one vCPU they share a core, so the band someone waits for slows down while another is built ahead (until 15 Nov the service ran with `--cpu 1`) |
 | `SPX_MAX_ACTIVE_FIELDS=8`, `SPX_NEW_FIELDS_PER_IP=40`, `SPX_PREBUILD_FIELDS=2` | a new field is refused (429) only when 8 fields have a band someone is waiting for. Bands built ahead do not count: until 15 Nov they did, and four opened fields kept every new one out for minutes while nothing was being built. Bands are built ahead for the 2 newest fields only. Visitors on one school or home network share an address, and moving around the sky opens a new field at every stop, so 40 new fields per address per 10 minutes, not 10 |
-| `--concurrency 250` | Cloud Run's default is 80 requests per vCPU; above it, with the one instance full, Cloud Run itself answers 429 without CORS (the page sees "Failed to fetch"). Opening a free field sends ~70 requests at once (bands, and frames waiting for their band) plus polling. Waiting requests hold no thread, so 250 is cheap |
-| `SPX_MAX_BAND_WAITERS=200` | the server's own limit on requests waiting for a band (frames count too); 64 would become the new bottleneck once Cloud Run allows 250 |
+| `--concurrency 1000` | Cloud Run's maximum. When that many requests are open, Cloud Run itself answers 429 "The request was aborted after waiting too long for an available instance", without CORS (the page sees "Failed to fetch"). Opening a free field sends ~70 requests at once (bands, and frames waiting for their band, each up to 90 s) plus polling, so 250 was used up by 3–4 visitors on 15 Nov (Cloud Run log 15:20–15:25 UTC, no crash, no memory kill). Waiting requests hold no thread, so 1000 is cheap; `/api/health` → `in_flight` shows the count |
+| `SPX_MAX_BAND_WAITERS=800` | the server's own limit on requests waiting for a band (frames count too). Above it the server answers 429 itself, with CORS and a "try again" sentence, before Cloud Run's limit is reached |
+| `SPX_PREBUILD_FIELDS=0` | no bands built ahead: only bands a page asks for (the candidates tab asks for its field's). Set on 15 Nov while the server was under load; 2 builds ahead for the two newest fields |
 | `--memory 4Gi` | Cloud Run's disk is memory. Process peak measured 689 MB with two 15′ fields open, plus the cache limit (1.5 GB) and headroom |
 | `SPX_CACHE=/tmp/cache`, `SPX_CACHE_MAX_GB=1.5` | the cache lives in that memory; above 1.5 GB the oldest cutouts and fields are removed |
 | `SPX_MAX_FOV_DEG=0.11667` | largest field 7′. `0.25` allows 15′: 30–70 s per band and 0.7–1.1 GB read per field (`handoff/results/fov_timing_v2.json`) |
@@ -68,6 +69,10 @@ Check it at `https://<address>/api/health`:
 - `astrometry_validation.status` is `"complete"` (the MPC drafts carry the validation text).
 - `max_fov_deg` is 0.11667.
 - `cache.max_bytes` is 1500000000.
+- Under load, read `in_flight` (requests open now, highest in 5 minutes, by path), `event_loop_lag` (how late a 1 s
+  timer fires: every answer waits that long), `memory` (process and container MB, `cache_fs_used_mb` = the
+  in-memory `/tmp`), `cpu`, `started_utc` / `uptime_s` (a restart shows as a new start time) and `gaia`
+  (`paused_s` > 0 while the archive is not asked).
 
 Then open `https://<address>/api/catwise?key=wise-0855`; it should return 200.
 
@@ -150,14 +155,15 @@ For a new release, add its bucket prefix to `RELEASES` in `scripts/build_s3_inde
 | `SPX_RATE_LIMIT` | 1 | 0 turns the request limits off |
 | `SPX_NEW_FIELDS_PER_IP` | 40 | new fields per client address per 10 minutes |
 | `SPX_MAX_ACTIVE_FIELDS` | 8 | fields with a band someone is waiting for (queued at a request in the last 3 minutes, or being built for one), server-wide; above it a new field gets 429. Bands built ahead do not count |
-| `SPX_PREBUILD_FIELDS` | 2 | bands nobody asked for yet are built ahead for this many of the newest fields; 0 = none (the candidates tab still asks for its field's bands) |
-| `SPX_MAX_BAND_WAITERS` | 64 | requests waiting for a band at once, frames included (the command above sets 200) |
+| `SPX_PREBUILD_FIELDS` | 2 | bands nobody asked for yet are built ahead for this many of the newest fields; 0 = none (the candidates tab still asks for its field's bands; the command above sets 0) |
+| `SPX_MAX_BAND_WAITERS` | 64 | requests waiting for a band at once, frames included (the command above sets 800) |
 | `SPX_MAX_CUTOUT_SETS` | 2 | fields whose cutouts stay in memory |
 | `SPX_MAX_WINDOWS_PER_FIELD` | 12 | user wavelength windows kept per field |
 | `SPX_BACKGROUND_S3_WORKERS` | 8 | S3 connections for bands nobody is waiting for |
 | `SPX_SIA_RETRY_BUDGET_S` | 25 | seconds of IRSA SIA2 retries before a 503 (the command above sets 60) |
 | `SPX_SIA_MAX_ATTEMPTS` | 10 | IRSA SIA2 attempts per image list (the command above sets 100) |
 | `SPX_THREADS` | 32 | threads for blocking work (opening a field holds one while IRSA is retried) |
+| `SPX_GAIA_PAUSE_S` | 300 | after a Gaia query fails, the archive is not asked again for this many seconds (cached answers are still read; one log line per field, no traceback); 0 = always ask |
 | `SPX_GAIA_BUDGET_S` | 15 | seconds one Gaia query may take in all; gallery targets read their `gaia.json` and never ask |
 | `SPX_BAND_WAIT_S` | 90 | seconds a request waits for its band |
 | `SPX_GALLERY` | `web/data` | the gallery folder (notes, CatWISE files) |

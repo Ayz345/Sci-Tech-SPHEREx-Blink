@@ -575,6 +575,15 @@ GAIA_GMAX = 19.0
 #: Seconds one Gaia query may take in all, retries included (the ESA archive reset connections after 16-20 s on
 #: 15 Nov; the old 3 x 60 s could hold a thread for three minutes). SPX_GAIA_BUDGET_S overrides.
 GAIA_BUDGET_S = float(os.environ.get("SPX_GAIA_BUDGET_S") or 15.0)
+#: After a Gaia query fails (the whole budget used up), the archive is not asked again for this many seconds: every
+#: field asked for 15 s each while ESA was down on 15 Nov, and the log filled with tracebacks. Cached answers are
+#: still read. SPX_GAIA_PAUSE_S overrides; 0 = always ask.
+GAIA_PAUSE_S = float(os.environ.get("SPX_GAIA_PAUSE_S") or 300.0)
+gaia_down: dict = {"until": 0.0, "reason": None}
+
+
+class GaiaUnavailable(RuntimeError):
+    """The ESA Gaia archive did not answer (or failed recently and is not asked again yet)."""
 
 
 def gaia_sources(f: Field, gmax: float = GAIA_GMAX, max_age_days: float = 30.0) -> list[dict]:
@@ -631,6 +640,10 @@ def _gaia_query(q: str, cache_name: str, max_age_days: float = 30.0, budget_s: f
     path = access.CACHE_DIR / "gaia" / f"{cache_name}.json"
     if path.exists() and (time.time() - path.stat().st_mtime) / 86400 <= max_age_days:
         return json.loads(path.read_text(encoding="utf-8"))
+    wait = gaia_down["until"] - time.time()
+    if wait > 0:
+        raise GaiaUnavailable(f"not asked: the Gaia archive failed {GAIA_PAUSE_S - wait:.0f} s ago "
+                              f"({gaia_down['reason']}); next try in {wait:.0f} s")
     last = None
     budget = GAIA_BUDGET_S if budget_s is None else float(budget_s)
     t0 = time.monotonic()
@@ -659,8 +672,11 @@ def _gaia_query(q: str, cache_name: str, max_age_days: float = 30.0, budget_s: f
                         "g_mag": val("phot_g_mean_mag"), "ref_epoch": 2016.0, "source_id": row["source_id"]})
         out.sort(key=lambda s: s["g_mag"] if s["g_mag"] is not None else 99)
         access._atomic_write_bytes(path, json.dumps(out).encode())
+        gaia_down.update(until=0.0, reason=None)
         return out
-    raise RuntimeError(f"Gaia TAP unreachable in {time.monotonic() - t0:.0f} s: {last!r}")
+    if GAIA_PAUSE_S > 0:
+        gaia_down.update(until=time.time() + GAIA_PAUSE_S, reason=repr(last)[:160])
+    raise GaiaUnavailable(f"Gaia TAP unreachable in {time.monotonic() - t0:.0f} s: {last!r}"[:300])
 
 
 SELF_MATCH_ARCSEC = 3.0

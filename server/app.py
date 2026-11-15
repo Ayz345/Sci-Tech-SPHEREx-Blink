@@ -57,6 +57,60 @@ def _code_hash() -> str:
 
 CODE_HASH = _code_hash()
 STARTED_COMMIT = P.spx_commit()  # git HEAD (and uncommitted code) when this process started
+STARTED_AT = time.time()          # health: started_utc / uptime_s show from outside whether the instance restarted
+
+
+def _memory_status() -> dict:
+    """Process and container memory in MB (Linux; None where not readable). On Cloud Run the cache folder (/tmp)
+    is memory too: cache_fs_used_mb is what it holds, and the container limit covers process + /tmp."""
+    out = {"rss_mb": None, "rss_peak_mb": None, "container_mb": None, "container_limit_mb": None,
+           "cache_fs_used_mb": None}
+    try:
+        for line in open("/proc/self/status"):
+            k, _, v = line.partition(":")
+            if k in ("VmRSS", "VmHWM"):
+                out["rss_mb" if k == "VmRSS" else "rss_peak_mb"] = round(int(v.split()[0]) / 1024)
+    except OSError:
+        pass
+    for cur, lim in (("/sys/fs/cgroup/memory.current", "/sys/fs/cgroup/memory.max"),
+                     ("/sys/fs/cgroup/memory/memory.usage_in_bytes", "/sys/fs/cgroup/memory/memory.limit_in_bytes")):
+        try:
+            out["container_mb"] = round(int(open(cur).read()) / 2**20)
+            v = open(lim).read().strip()
+            out["container_limit_mb"] = None if v == "max" or int(v) > 2**50 else round(int(v) / 2**20)
+            break
+        except (OSError, ValueError):
+            continue
+    try:
+        import shutil
+        out["cache_fs_used_mb"] = round(shutil.disk_usage(access.CACHE_DIR).used / 2**20)
+    except OSError:
+        pass
+    return out
+
+
+#: A band where the SPHEREx pipeline flags most pixels of most exposures as CROSSTALK (bright extended light: M31
+#: and Orion in D1) has large areas with no usable sample; spx leaves flagged pixels out, so they are dark (no data)
+#: or joined to a saturated core (white). The band says so in its notes when the median exposure has more than this.
+CROSSTALK_NOTE_FRAC = 0.3
+
+
+def crosstalk_note(band: str, cuts) -> str | None:
+    from spx.coadd import FLAG_BITS
+    bit = 1 << FLAG_BITS["CROSSTALK"]
+    fr = []
+    for c in cuts:
+        if c.flags is None:
+            continue
+        on = c.flags != access.OFF_DETECTOR_FLAG
+        if on.any():
+            fr.append(float(((c.flags[on] & bit) != 0).mean()))
+    if not fr or float(np.median(fr)) <= CROSSTALK_NOTE_FRAC:
+        return None
+    return (f"{band}: bright extended light. The SPHEREx pipeline flags a median {100 * np.median(fr):.0f}% of each "
+            f"exposure's pixels here as CROSSTALK (FLAGS bit 20; {len(fr)} exposures), and flagged pixels are left "
+            "out, so large areas of a pass can have no usable data (dark) or be joined to a saturated core (white). "
+            "This is a property of the data, not of the target.")
 FIELDS_DIR = access.CACHE_DIR / "fields" / f"v{spx.__version__}-{CODE_HASH}"
 MAX_FIELDS_IN_MEMORY = 32
 #: User wavelength windows kept per field; the oldest finished one is dropped (job and files).
@@ -313,6 +367,7 @@ class FieldState:
     out: Path
     jobs: dict
     created: float = dc_field(default_factory=time.time)
+    band_notes: dict = dc_field(default_factory=dict)  # band -> sentence (crosstalk_note), also in <band>.json
     write_lock: threading.Lock = dc_field(default_factory=threading.Lock)  # one manifest writer at a time
     windows: list = dc_field(default_factory=list)    # user windows w<lo>_<hi>, least recently asked first
     candidates_state: str | None = None                # None | running | ready | error: ...
@@ -398,6 +453,13 @@ class Registry:
                 j.event.set()
             jobs[b["id"]] = j
         fs = FieldState(f, out, jobs)
+        for b in jobs:
+            if jobs[b].event.is_set():
+                try:
+                    for n in json.loads((out / f"{b}.json").read_text(encoding="utf-8")).get("notes", []):
+                        fs.band_notes[b] = n
+                except (OSError, ValueError):
+                    pass
         with self.lock:
             self.fields[f.key] = fs
             while len(self.fields) > MAX_FIELDS_IN_MEMORY:
@@ -512,6 +574,16 @@ class Registry:
                 by_det[d] = c
             cuts += by_det[d]
         bj, _, frames = P.build_band(f, band, fs.out, cuts=cuts)
+        note = crosstalk_note(band, cuts)
+        if note:
+            fs.band_notes[band] = note
+            try:
+                bpath = fs.out / f"{band}.json"
+                d = json.loads(bpath.read_text(encoding="utf-8"))
+                d["notes"] = list(dict.fromkeys(list(d.get("notes", [])) + [note]))
+                P.write_json(bpath, d)
+            except (OSError, ValueError) as e:
+                log.warning("band note for %s %s not written: %r", f.key, band, e)
         job.n_exposures = P.band_n_exposures(f, band, cuts)
         job.state = "ready" if frames else "empty"
         # the band is done; the manifest copy on disk is only a convenience and must not turn it into an error
@@ -586,6 +658,9 @@ class Registry:
 
     def manifest(self, fs: FieldState) -> dict:
         m = P.manifest(fs.field, status=fs.status(), n_exposures=self.n_exposures(fs))
+        extra = [n for b, n in fs.band_notes.items() if b not in fs.windows]
+        if extra:
+            m["notes"] = list(dict.fromkeys(list(m.get("notes", [])) + extra))
         for b in m.get("bands", []):
             j = fs.jobs.get(b["id"])
             if j and j.state in ("running", "pending") and j.total:
@@ -743,6 +818,52 @@ if os.environ.get("SPX_SIA_MAX_ATTEMPTS"):
 #: opening a field holds one while IRSA is retried (up to a minute), so a few new fields would block everything.
 THREAD_POOL = int(os.environ.get("SPX_THREADS") or 32)
 _pool_set = False
+#: Event-loop lag: a 1 s timer on the loop, and how late it fires. Every request is answered on that loop, so a
+#: late timer means slow answers for everyone (e.g. band builds and downloads holding the GIL). Last 5 minutes.
+_loop_lag: list = []           # (time, seconds late)
+
+
+async def _watch_loop_lag() -> None:
+    loop = asyncio.get_running_loop()
+    while True:
+        t = loop.time()
+        await asyncio.sleep(1.0)
+        late = max(0.0, loop.time() - t - 1.0)
+        now = time.time()
+        _loop_lag.append((now, late))
+        while _loop_lag and now - _loop_lag[0][0] > 300:
+            _loop_lag.pop(0)
+
+
+def _loop_lag_status() -> dict | None:
+    if not _loop_lag:
+        return None
+    lags = sorted(x for _, x in _loop_lag)
+    return {"last_s": round(_loop_lag[-1][1], 3), "median_5min_s": round(lags[len(lags) // 2], 3),
+            "max_5min_s": round(lags[-1], 3), "samples": len(lags)}
+
+
+def _cpu_status() -> dict:
+    """CPUs the process sees and the container's CPU quota (cgroup v2 cpu.max / v1 cfs), when readable."""
+    out = {"cpu_count": os.cpu_count(), "cpu_quota": None}
+    try:
+        out["cpu_count"] = len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        pass
+    for path in ("/sys/fs/cgroup/cpu.max",):
+        try:
+            q, per = open(path).read().split()[:2]
+            out["cpu_quota"] = None if q == "max" else round(int(q) / int(per), 2)
+        except (OSError, ValueError):
+            pass
+    try:
+        q = int(open("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").read())
+        per = int(open("/sys/fs/cgroup/cpu/cpu.cfs_period_us").read())
+        if q > 0:
+            out["cpu_quota"] = round(q / per, 2)
+    except (OSError, ValueError):
+        pass
+    return out
 
 
 def seed_sia_cache(gallery: Path | None = None, cache: Path | None = None) -> int:
@@ -777,6 +898,7 @@ async def _start_janitor(request: Request, call_next):
         asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=THREAD_POOL,
                                                                            thread_name_prefix="spx"))
         _pool_set = True
+        asyncio.get_running_loop().create_task(_watch_loop_lag())
     if not _janitor_started and CACHE_MAX_BYTES > 0:
         _janitor_started = True
         threading.Thread(target=_cache_janitor, daemon=True, name="cache-janitor").start()
@@ -785,6 +907,39 @@ async def _start_janitor(request: Request, call_next):
 
 #: Response headers the browser may read across origins (/api/report: file name, schema check).
 EXPOSE_HEADERS = "Content-Disposition, X-ADES-Schema-Checked, X-Shape"
+
+
+#: Requests being answered now, by path, and the highest count in the last 5 minutes. Cloud Run answers 429 itself
+#: ("waiting too long for an available instance") when --concurrency requests are open; waiting /api/band and
+#: /api/frame requests hold their slot up to SPX_BAND_WAIT_S each.
+_in_flight: dict = {}
+_in_flight_peaks: list = []       # (time, total)
+_route_paths: set | None = None
+
+
+def _in_flight_status() -> dict:
+    now = time.time()
+    while _in_flight_peaks and now - _in_flight_peaks[0][0] > 300:
+        _in_flight_peaks.pop(0)
+    total = sum(_in_flight.values())
+    return {"now": total, "max_5min": max([n for _, n in _in_flight_peaks] + [total]),
+            "by_path": {k: v for k, v in sorted(_in_flight.items()) if v}}
+
+
+@app.middleware("http")
+async def _count_in_flight(request: Request, call_next):
+    global _route_paths
+    if _route_paths is None:
+        _route_paths = {getattr(r, "path", None) for r in app.routes} - {None}
+    path = request.url.path if request.url.path in _route_paths else "other"    # bounded: no client-made keys
+    _in_flight[path] = _in_flight.get(path, 0) + 1
+    total = sum(_in_flight.values())
+    if not _in_flight_peaks or total > _in_flight_peaks[-1][1] or time.time() - _in_flight_peaks[-1][0] > 5:
+        _in_flight_peaks.append((time.time(), total))
+    try:
+        return await call_next(request)
+    finally:
+        _in_flight[path] -= 1
 
 
 @app.middleware("http")
@@ -1003,6 +1158,9 @@ def gaia_for(field: P.Field) -> list | None:
             return _gallery_gaia[field.key]
     try:
         return P.gaia_sources(field)
+    except P.GaiaUnavailable as e:      # one line, no traceback: while ESA is down this happens for every field
+        log.warning("gaia %s: %s", field.key, e)
+        return None
     except Exception as e:
         error_id("gaia " + field.key, e)
         return None
@@ -1151,6 +1309,11 @@ async def api_health():
         built_ahead = list(reg.recent)
         running = sum(j.state == "running" for fs in reg.fields.values() for j in fs.jobs.values())
     return jresp({"schema": P.SCHEMA, "ok": True, "version": spx.__version__, "commit": STARTED_COMMIT.get("commit"),
+                  "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(STARTED_AT)),
+                  "uptime_s": round(time.time() - STARTED_AT), "memory": _memory_status(),
+                  "event_loop_lag": _loop_lag_status(), "cpu": _cpu_status(), "in_flight": _in_flight_status(),
+                  "gaia": {"paused_s": max(0, round(P.gaia_down["until"] - time.time())),
+                           "last_failure": P.gaia_down["reason"]},
                   "uncommitted_code_at_start": STARTED_COMMIT.get("uncommitted_code"),
                   "collections": list(access.COLLECTIONS), "max_fov_deg": P.MAX_FOV_DEG,
                   "live_layers": list(LIVE_LAYERS), "fields_in_memory": fields, "bands_queued": queued, "bands_running": running,

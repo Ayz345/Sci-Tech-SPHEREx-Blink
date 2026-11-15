@@ -13,3 +13,4 @@ def _no_image_index(monkeypatch):
     except Exception:          # tests that do not import the server
         return
     monkeypatch.setattr(P, "_index_state", {"loaded": True, "indexes": []})
+    monkeypatch.setattr(P, "gaia_down", {"until": 0.0, "reason": None})   # no Gaia pause left over by another test

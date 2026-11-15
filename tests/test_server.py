@@ -221,6 +221,74 @@ def test_health(client):
     assert set(av) >= {"file", "status", "missing_keys", "frame_code_hash", "same_frame_code"}
 
 
+def test_health_shows_start_and_memory(client):
+    h = _strict(client.get("/api/health"))
+    assert h["started_utc"].endswith("Z") and h["uptime_s"] >= 0
+    assert set(h["memory"]) == {"rss_mb", "rss_peak_mb", "container_mb", "container_limit_mb", "cache_fs_used_mb"}
+    assert h["cpu"]["cpu_count"] >= 1 and "event_loop_lag" in h
+
+
+def test_health_counts_requests_in_flight(client):
+    h = _strict(client.get("/api/health"))
+    assert h["in_flight"]["now"] >= 1 and h["in_flight"]["by_path"].get("/api/health", 0) >= 1
+    client.get("/api/no-such-thing/" + "x" * 50)
+    h = _strict(client.get("/api/health"))
+    assert all(k == "other" or k.startswith("/api/") for k in h["in_flight"]["by_path"])
+    assert len(__import__("server.app", fromlist=["x"])._in_flight) < 40
+
+
+def test_gaia_pause_after_failure(tmp_path, monkeypatch):
+    import requests
+    from server import pipeline as P
+    monkeypatch.setattr(access, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(P, "gaia_down", {"until": 0.0, "reason": None})
+    monkeypatch.setattr(P, "GAIA_PAUSE_S", 300.0)
+    calls = []
+
+    def down(*a, **k):
+        calls.append(1)
+        raise requests.ConnectionError("reset")
+    monkeypatch.setattr(requests, "get", down)
+    with pytest.raises(P.GaiaUnavailable):
+        P._gaia_query("q", "a", budget_s=0.5)
+    n = len(calls)
+    assert n >= 1 and P.gaia_down["until"] > __import__("time").time() + 290
+    with pytest.raises(P.GaiaUnavailable, match="not asked"):
+        P._gaia_query("q", "b", budget_s=10)                 # paused: no request, no 10 s wait
+    assert len(calls) == n
+    (tmp_path / "gaia").mkdir(exist_ok=True)
+    (tmp_path / "gaia" / "c.json").write_text("[]")
+    assert P._gaia_query("q", "c") == []                      # a cached answer is still read
+
+
+def test_crosstalk_note(monkeypatch):
+    from server import app as A
+    from spx.coadd import FLAG_BITS
+    rng = np.random.default_rng(1)
+
+    class R:
+        detector, mjd, obs_id, s3_key = 1, 60800.0, "X_0001_1", "k"
+    cuts = [_cutout(R, 10.0, 20.0, 10, ("IMAGE", "FLAGS"), rng) for _ in range(5)]
+    assert A.crosstalk_note("D1", cuts) is None
+    for c in cuts[:3]:                                     # 3 of 5 exposures: 60% of their pixels flagged
+        c.flags[: 13, :] |= 1 << FLAG_BITS["CROSSTALK"]
+    cuts[4].flags[:, :] = access.OFF_DETECTOR_FLAG          # off the detector: not counted
+    note = A.crosstalk_note("D1", cuts)
+    assert note.startswith("D1: bright extended light") and "median 62%" in note and "4 exposures" in note
+    monkeypatch.setattr(A, "CROSSTALK_NOTE_FRAC", 0.7)
+    assert A.crosstalk_note("D1", cuts) is None
+
+
+def test_crosstalk_note_reaches_band_and_manifest(client, monkeypatch):
+    from server import app as A
+    monkeypatch.setattr(A, "crosstalk_note", lambda band, cuts: f"{band}: test note" if band == "D2" else None)
+    m = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0 + 2, "queue": 0}))
+    b = client.get("/api/band", params={"key": m["key"], "band": "D2"})
+    assert b.status_code == 200 and b.json()["notes"] == ["D2: test note"]
+    m2 = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0 + 2, "queue": 0}))
+    assert "D2: test note" in m2.get("notes", [])
+
+
 def test_json_safe():
     from server import pipeline as P
     assert P.dumps({"a": float("nan"), "b": [np.float32(np.inf), 1.5], "c": np.int64(3)}) == \

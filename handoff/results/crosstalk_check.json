@@ -1,0 +1,226 @@
+{
+ "checked_utc": "2026-11-15T15:20:57+00:00",
+ "note_threshold": 0.3,
+ "fields": [
+  {
+   "object": "M31",
+   "key": "r10p6847_dp41p2688_n140",
+   "band": "D1",
+   "exposures": 59,
+   "crosstalk_median": 0.637,
+   "crosstalk_max": 0.877,
+   "truly_saturated_max": 0.0,
+   "frames_as_built": [
+    {
+     "pass": 0,
+     "inf": 0.603,
+     "nan": 0.0
+    },
+    {
+     "pass": 1,
+     "inf": 0.0,
+     "nan": 0.256
+    },
+    {
+     "pass": 2,
+     "inf": 0.045,
+     "nan": 0.066
+    }
+   ],
+   "frames_crosstalk_not_masked": [
+    {
+     "pass": 0,
+     "inf": 0.0,
+     "nan": 0.0
+    },
+    {
+     "pass": 1,
+     "inf": 0.0,
+     "nan": 0.0
+    },
+    {
+     "pass": 2,
+     "inf": 0.0,
+     "nan": 0.0
+    }
+   ],
+   "band_note": true
+  },
+  {
+   "object": "M31",
+   "key": "r10p6847_dp41p2688_n140",
+   "band": "D2",
+   "exposures": 77,
+   "crosstalk_median": 0.07,
+   "crosstalk_max": 0.449,
+   "truly_saturated_max": 0.0025,
+   "frames_as_built": [
+    {
+     "pass": 0,
+     "inf": 0.0,
+     "nan": 0.005
+    },
+    {
+     "pass": 1,
+     "inf": 0.0,
+     "nan": 0.0
+    },
+    {
+     "pass": 2,
+     "inf": 0.0,
+     "nan": 0.004
+    }
+   ],
+   "frames_crosstalk_not_masked": [
+    {
+     "pass": 0,
+     "inf": 0.0,
+     "nan": 0.0
+    },
+    {
+     "pass": 1,
+     "inf": 0.0,
+     "nan": 0.0
+    },
+    {
+     "pass": 2,
+     "inf": 0.0,
+     "nan": 0.0
+    }
+   ],
+   "band_note": false
+  },
+  {
+   "object": "Orion Nebula",
+   "key": "r83p8221_dm5p3911_n140",
+   "band": "D1",
+   "exposures": 80,
+   "crosstalk_median": 0.405,
+   "crosstalk_max": 0.993,
+   "truly_saturated_max": 0.0068,
+   "frames_as_built": [
+    {
+     "pass": 0,
+     "inf": 0.06,
+     "nan": 0.012
+    },
+    {
+     "pass": 1,
+     "inf": 0.094,
+     "nan": 0.005
+    },
+    {
+     "pass": 2,
+     "inf": 0.095,
+     "nan": 0.003
+    }
+   ],
+   "frames_crosstalk_not_masked": [
+    {
+     "pass": 0,
+     "inf": 0.01,
+     "nan": 0.0
+    },
+    {
+     "pass": 1,
+     "inf": 0.015,
+     "nan": 0.0
+    },
+    {
+     "pass": 2,
+     "inf": 0.01,
+     "nan": 0.0
+    }
+   ],
+   "band_note": true
+  },
+  {
+   "object": "Centaurus A",
+   "key": "r201p3651_dm43p0191_n140",
+   "band": "D1",
+   "exposures": 66,
+   "crosstalk_median": 0.045,
+   "crosstalk_max": 0.209,
+   "truly_saturated_max": 0.0001,
+   "frames_as_built": [
+    {
+     "pass": 0,
+     "inf": 0.0,
+     "nan": 0.026
+    },
+    {
+     "pass": 1,
+     "inf": 0.0,
+     "nan": 0.019
+    },
+    {
+     "pass": 2,
+     "inf": 0.0,
+     "nan": 0.051
+    }
+   ],
+   "frames_crosstalk_not_masked": [
+    {
+     "pass": 0,
+     "inf": 0.0,
+     "nan": 0.0
+    },
+    {
+     "pass": 1,
+     "inf": 0.0,
+     "nan": 0.0
+    },
+    {
+     "pass": 2,
+     "inf": 0.0,
+     "nan": 0.0
+    }
+   ],
+   "band_note": false
+  },
+  {
+   "object": "Centaurus A",
+   "key": "r201p3651_dm43p0191_n140",
+   "band": "D2",
+   "exposures": 63,
+   "crosstalk_median": 0.0,
+   "crosstalk_max": 0.001,
+   "truly_saturated_max": 0.0,
+   "frames_as_built": [
+    {
+     "pass": 0,
+     "inf": 0.0,
+     "nan": 0.0
+    },
+    {
+     "pass": 1,
+     "inf": 0.0,
+     "nan": 0.0
+    },
+    {
+     "pass": 2,
+     "inf": 0.0,
+     "nan": 0.0
+    }
+   ],
+   "frames_crosstalk_not_masked": [
+    {
+     "pass": 0,
+     "inf": 0.0,
+     "nan": 0.0
+    },
+    {
+     "pass": 1,
+     "inf": 0.0,
+     "nan": 0.0
+    },
+    {
+     "pass": 2,
+     "inf": 0.0,
+     "nan": 0.0
+    }
+   ],
+   "band_note": false
+  }
+ ]
+}
