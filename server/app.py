@@ -74,6 +74,9 @@ MAX_CUTOUT_SETS = int(os.environ.get("SPX_MAX_CUTOUT_SETS") or 2)
 CACHE_MAX_BYTES = int(float(os.environ.get("SPX_CACHE_MAX_GB") or 0) * 1e9)
 CACHE_LOW_WATER = 0.9
 CACHE_CHECK_S = 600.0
+#: After a band is built the cache is checked too (at most once per CACHE_AFTER_BUILD_S): on Cloud Run the disk is
+#: memory, and one 15' field writes ~1 GB in a few minutes, faster than the janitor's interval.
+CACHE_AFTER_BUILD_S = 60.0
 CACHE_STATE: dict = {"bytes": None, "checked": None, "last_cleanup": None}
 
 
@@ -156,6 +159,18 @@ def cache_check() -> dict:
         CACHE_STATE["last_cleanup"] = {**out, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
         log.warning("cache cleanup: %s", out)
     return out
+
+
+def cache_check_after_build() -> None:
+    if CACHE_MAX_BYTES <= 0:
+        return
+    last = CACHE_STATE.get("checked")
+    if last is not None and time.time() - last < CACHE_AFTER_BUILD_S:
+        return
+    try:
+        cache_check()
+    except Exception as e:
+        error_id("cache check after build", e)
 
 
 def _cache_janitor():
@@ -460,6 +475,7 @@ class Registry:
         except OSError as e:
             log.warning("manifest copy for %s not written: %r", f.key, e)
         log.info("built %s %s: %d frames in %.1fs", f.key, band, len(frames), time.time() - job.t_start)
+        cache_check_after_build()
         self.maybe_candidates(fs)
 
     def listed_bands_done(self, fs: FieldState) -> bool:

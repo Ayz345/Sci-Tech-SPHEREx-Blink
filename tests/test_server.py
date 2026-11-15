@@ -824,3 +824,33 @@ def test_resolve_outage_not_cached_and_cache_bounded(client, monkeypatch):
     for nm in ("A1", "A2"):
         client.get("/api/resolve", params={"name": nm})
     assert len(A._resolve_cache) == 2 and list(A._resolve_cache) == [A._norm("A1"), A._norm("A2")]
+
+
+def test_cache_checked_after_a_build(client, monkeypatch):
+    from server import app as A
+    calls = []
+    monkeypatch.setattr(A, "CACHE_MAX_BYTES", 10 ** 12)
+    monkeypatch.setattr(A, "CACHE_STATE", {"bytes": None, "checked": None, "last_cleanup": None})
+    monkeypatch.setattr(A, "cache_check", lambda: (calls.append(1), A.CACHE_STATE.update(checked=__import__("time").time())))
+    client.get("/api/manifest", params={"ra": RA0, "dec": DEC0})
+    _wait_idle()
+    assert len(calls) == 1                         # six bands built, one check (throttled to once a minute)
+
+
+# --------------------------------------------------------------------------- restart: a clean start (Cloud Run)
+
+def test_restart_mid_build_starts_clean(client):
+    from server import app as A
+    m = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}))
+    _wait_idle()
+    out = A.FIELDS_DIR / m["key"]
+    (out / "D3.json").unlink()                     # the process died while D3 was being written: frames, no json
+    (out / ".D3.json.tmp123").write_text("partial")
+    n_fetch = client.calls["fetch"]
+    client.new_registry()                          # a new process: empty registry, files on disk
+    m2 = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}))
+    st = {b["id"]: b["status"] for b in m2["bands"]}
+    assert st["D1"] == "ready" and st["D3"] in ("pending", "ready")
+    _wait_idle()
+    assert (out / "D3.json").exists() and _strict(client.get("/api/band", params={"key": m["key"], "band": "D3"}))
+    assert client.calls["fetch"] == n_fetch + 1    # only D3's detector downloaded again; D1, D2 ... from disk
