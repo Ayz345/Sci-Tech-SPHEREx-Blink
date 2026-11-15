@@ -20,8 +20,6 @@ a { color: var(--fg); text-decoration: underline; text-decoration-color: var(--l
 a:hover { text-decoration-color: var(--fg); }
 .mono, code, #log { font-family: var(--mono); font-size: 12px; letter-spacing: .02em; }
 .muted { color: var(--muted); }
-.tag { font: 400 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 2px 8px;
-  border: 1px solid var(--line); border-radius: 999px; color: var(--fg-3); }
 
 header { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 header strong { font: 350 30px/1 var(--display); letter-spacing: -.01em; }

@@ -1,9 +1,10 @@
-# web/ — the full tool
+# web/tool/ — the full tool
 
-The full SPHEREx Blink tool (published at `/web/`; the start page is `design/v5/`, linked from the product name in
-the header). It reads data contract v1 (PLAN.md section 5). No build step, no dependencies. `style.css` follows the
-design/v5 family (space black, off-white text, Fraunces / DM Sans / IBM Plex Mono); the three fonts come from the same
-single Google Fonts request as design/v5/index.html, so the browser contacts Google Fonts when the page opens.
+The full SPHEREx Blink tool, published at `…/tool/`. The start page is the site root (`web/index.html`), linked
+from the product name in the header; the gallery is `web/data/` and the server address `web/config.js`, both shared
+with the start page. It reads data contract v1 (PLAN.md section 5). No build step, no dependencies. `style.css` follows the
+start page's design (space black, off-white text, Fraunces / DM Sans / IBM Plex Mono); the three fonts come from the same
+single Google Fonts request as the start page, so the browser contacts Google Fonts when the page opens.
 
 ## Run
 
@@ -41,15 +42,15 @@ Developer parameters (they override the check):
 
 | URL | Data source |
 |---|---|
-| `http://127.0.0.1:8765/?target=wise-0855` | gallery from `web/data/`, live server from `config.js` |
-| `http://127.0.0.1:8765/?data=dev-fixtures/data&target=fake-mover` | synthetic fixtures |
-| `http://127.0.0.1:8765/?api=http://127.0.0.1:8000&target=wise-0855` | everything, gallery included, from that server |
-| `http://127.0.0.1:8765/?api=none` | no server check (gallery only) |
+| `http://127.0.0.1:8765/tool/?target=wise-0855` | gallery from `web/data/` (`../data`), live server from `web/config.js` |
+| `http://127.0.0.1:8765/tool/?data=dev-fixtures/data&target=fake-mover` | synthetic fixtures |
+| `http://127.0.0.1:8765/tool/?api=http://127.0.0.1:8000&target=wise-0855` | everything, gallery included, from that server |
+| `http://127.0.0.1:8765/tool/?api=none` | no server check (gallery only) |
 | `…&ra=133.79&dec=-7.24&fov=0.1` | free coordinates (needs a live server) |
 
 State in the URL: `band`, `mode` (blink · diff · sum), `frame`, `zoom`, `layer` (image · weight · flagfrac).
 
-Synthetic fixtures (not committed): `python web/dev-fixtures/make_fixtures.py`. They cover a mover, Gaia stars,
+Synthetic fixtures (not committed): `python web/tool/dev-fixtures/make_fixtures.py`. They cover a mover, Gaia stars,
 a band without a `scale` (percentile fallback), an epoch with 0 exposures, a `pending` band without files and a
 position without coverage.
 
@@ -115,8 +116,7 @@ Drag across the spectrum (or type two wavelengths in µm) and press "Blink this 
 live server, also for a gallery target opened from static files. The window gets its own removable band button
 (×), the address carries `band=w4300_5000` and reopening it opens the same window. The band file's `label`,
 `wave_um`, `n_exposures` and `note` (the selection rule: an exposure is used when the wavelength at the field
-centre falls in the window) are shown. Without the live server the page says so. Developer: `?winmock=1` serves
-any window as the target's `W` band, to try the interface before the server builds windows.
+centre falls in the window) are shown. Without the live server the page says so.
 
 ## Credits in the footer
 
@@ -212,6 +212,9 @@ north (catalogue 10.4″/yr); WISE 0855 W → 9.6 ± 4.3″/yr west (catalogue ~
 - Field names are proposed, not final: `normTrack()` in `app.js` is the one place that maps the server's answer.
 - Developer mock without a server: `?mocktrack=within` or `?mocktrack=between` reads
   `dev-fixtures/track_within.json` / `track_between.json` (SYNTHETIC) and downloads a clearly named MOCK file.
+- Why `dev-fixtures/`, `?data=` and `?mocktrack=` stay: they are the only way to test, without a server, the refine
+  and report dialog (including the star-motion case that disables the MPC draft), the candidate, flag and CatWISE
+  layers on synthetic data, and the page's handling of hostile text in data files.
 
 ## API mode (`?api=`)
 

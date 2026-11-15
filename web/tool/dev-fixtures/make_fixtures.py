@@ -1,6 +1,6 @@
 """Write fake data in the v1 contract layout (PLAN.md section 5) for testing the web page.
 
-    python web/dev-fixtures/make_fixtures.py
+    python web/tool/dev-fixtures/make_fixtures.py
     -> web/dev-fixtures/data/index.json, fake-mover/..., fake-nocover/...
 
 Open with:  http://localhost:8765/?data=dev-fixtures/data&target=fake-mover

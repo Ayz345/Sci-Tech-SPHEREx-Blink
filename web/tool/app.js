@@ -1,4 +1,4 @@
-// SPHEREx Blink — placeholder test harness for the v1 data contract (PLAN.md section 5).
+// SPHEREx Blink — the full tool (web/tool/), reading data contract v1 (PLAN.md section 5).
 // Plain ES module, no build step. Gallery targets come from static files; free positions, name lookup and field
 // changes go to the live server found on start (config.js), or to the server forced with ?api= (developer).
 
@@ -56,17 +56,14 @@ function probeServer() {
 }
 const EMBED = params.get("embed") === "1";
 const DATA_PARAM = safeData(params.get("data"));
-const DATA = (DATA_PARAM || "data").replace(/\/$/, "");
+const DATA = (DATA_PARAM || "../data").replace(/\/$/, ""); // the gallery sits next to the tool: web/data/
 const D2R = Math.PI / 180;
 // design/v5 palette for drawings: off-white and greys plus one accent (ember)
 const INK = { fg: "#f2f2f0", fg2: "#c9c9c5", fg3: "#a3a3a0", fg4: "#8d8d93", rule: "rgba(242,242,240,0.32)", ember: "#e0482a" };
 
 // ---------- user wavelength windows (F1): band id w<lo>_<hi> in nm, built by the live server on request ----------
 const isCustom = (id) => /^w\d+_\d+$/.test(id || "");
-// ?winmock=1 (developer, until the server builds windows): a window is served as the target's "W" band
-const WINMOCK = params.get("winmock") === "1";
-const bandPath = (band) => (WINMOCK && isCustom(band) ? "W" : band);
-const viaApi = (band) => (USE_API || isCustom(band)) && !!API && !(WINMOCK && !USE_API);
+const viaApi = (band) => (USE_API || isCustom(band)) && !!API;
 
 // ---------- data source: one code path for static files and API (USE_API decides per target) ----------
 const src = {
@@ -77,10 +74,10 @@ const src = {
         .filter(([, v]) => v != null && v !== ""))) // optional pm/name: the server then builds target_track
     : q.key || q.target ? `${DATA}/${q.key || q.target}/manifest.json` : null,
   // a user window always comes from the live server, also for a gallery target opened from static files
-  band: (key, band) => viaApi(band) ? `${API}/api/band?key=${enc(key)}&band=${enc(bandPath(band))}` : `${DATA}/${key}/${bandPath(band)}.json`,
+  band: (key, band) => viaApi(band) ? `${API}/api/band?key=${enc(key)}&band=${enc(band)}` : `${DATA}/${key}/${band}.json`,
   frame: (key, epoch, band, kind) => viaApi(band)
-    ? `${API}/api/frame?key=${enc(key)}&epoch=${epoch}&band=${enc(bandPath(band))}` + (kind === "image" ? "" : `&kind=${kind}`)
-    : `${DATA}/${key}/${epoch}_${bandPath(band)}${kind === "image" ? "" : "_" + kind}.f32`,
+    ? `${API}/api/frame?key=${enc(key)}&epoch=${epoch}&band=${enc(band)}` + (kind === "image" ? "" : `&kind=${kind}`)
+    : `${DATA}/${key}/${epoch}_${band}${kind === "image" ? "" : "_" + kind}.f32`,
   gaia: (key) => USE_API ? `${API}/api/gaia?key=${enc(key)}` : `${DATA}/${key}/gaia.json`,
   spectrum: (key, ra, dec) => USE_API
     ? `${API}/api/spectrum?key=${enc(key)}` + (ra != null ? `&ra=${ra}&dec=${dec}` : "")
@@ -394,7 +391,7 @@ function loadBand(band) {
   if (!S.bandInfo.has(band)) {
     // a failure (404, 504 timeout) is not cached, so the band can be asked for again later
     // a user window needs the live server: when the page opens straight on band=w…, wait for the server check
-    const ask = isCustom(band) && !API && !WINMOCK
+    const ask = isCustom(band) && !API
       ? serverReady.then((ok) => (ok ? fetchLogged(src.band(S.key, band))
         : Promise.reject(new Error(NO_SERVER ? NOSRV_TXT : "Your own wavelength window needs the live server, which is not reachable right now."))))
       : fetchLogged(src.band(S.key, band));
@@ -674,7 +671,7 @@ function draw() {
       for (let x = 0; x < nx; x++) {
         const t = stretch(a[y * nx + x], s), o = (row + x) * 4;
         if (t < 0) { img.data.set([40, 18, 22, 255], o); continue; } // NaN: no data
-        if (diverging) { // blue-white-red is fine for a placeholder
+        if (diverging) { // blue-white-red: negative and positive changes must differ at a glance
           const u = t * 2 - 1;
           img.data.set(u < 0 ? [255 * (1 + u), 255 * (1 + u), 255, 255] : [255, 255 * (1 - u), 255 * (1 - u), 255], o);
         } else { const g = 255 * t; img.data.set([g, g, g, 255], o); }
@@ -1542,7 +1539,7 @@ function removeCustomBand(id) {
   if (S.band === id) { S.band = null; selectBand(S.m.default_band || S.m.bands[0].id); } else { renderBands(); syncUrl(); }
 }
 function blinkWindow(lo, hi) {
-  if (!API && !WINMOCK) { noServer($("winNote"), "Your own wavelength window"); return; }
+  if (!API) { noServer($("winNote"), "Your own wavelength window"); return; }
   if (!(lo >= 0.75 && hi <= 5.0 && lo < hi)) { $("winNote").textContent = "Choose a window between 0.75 and 5.00 µm, with the first number smaller."; return; }
   const id = addCustomBand(windowId(lo, hi));
   $("winNote").textContent = `Building ${id} on the server…`;
