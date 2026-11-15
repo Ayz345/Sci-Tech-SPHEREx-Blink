@@ -49,8 +49,7 @@ jobs:
           docker exec spx sh -c 'echo "user: $(id -un)  cache: $SPX_CACHE  max fov: $SPX_MAX_FOV_DEG"'
       - name: A free field from our own index (must work whatever IRSA does)
         run: |
-          curl -sS -m 120 -o free.json -w "free field manifest: %{http_code} %{time_total}s
-" "http://127.0.0.1:8000/api/manifest?ra=266.4168&dec=-29.0078&queue=0"
+          curl -sS -m 120 -o free.json -w "free field manifest: %{http_code} %{time_total}s\n" "http://127.0.0.1:8000/api/manifest?ra=266.4168&dec=-29.0078&queue=0"
           python3 - <<'PY'
           import json
           m = json.load(open("free.json"))
