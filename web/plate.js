@@ -410,6 +410,7 @@ export function createTool(c) {
     $("tfull").href = live ? `${FULL_TOOL}?ra=${m.query.ra}&dec=${m.query.dec}&fov=${FIELD_DEG}` : `${FULL_TOOL}?target=${enc(Q.e.key)}`;
     $("tnotes").replaceChildren(...(m.notes || []).map((n) => Object.assign(document.createElement("li"), { textContent: n })));
     for (const x of [$("tback"), $("tname"), $("tcoord"), $("status")]) x.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: REDUCED ? 1 : 700, easing: "cubic-bezier(.2,.7,.2,1)", fill: "backwards" });
+    if (!live) { await loadWise(Q.e); if (!alive()) return; }   // before the ruler is first drawn: it keeps its layout
     drawTime(0); drawWave(0);
     // A. what there is: the passes drop onto the ruler at their real dates
     const total = m.n_images ?? m.bands.filter((b) => /^D\d$/.test(b.id)).reduce((s, b) => s + b.n_exposures.reduce((a, x) => a + x, 0), 0);
@@ -516,11 +517,26 @@ export function createTool(c) {
   // time ruler: one block per pass at its real date; its height is the number of exposures in this band
   function drawTime(nShown, dropIdx = -1) {
     const sv = $("time"); sv.replaceChildren();
-    const m = Q.e.m, Wd = sv.clientWidth || 800, Hh = 112, L = 2, R = Wd - 2, base = 70;
+    const m = Q.e.m, Wd = sv.clientWidth || 800, Hh = 112, L0 = 2, R = Wd - 2, base = 70;
+    const hasW = !!Q.e.wise, zw = hasW ? (Wd < 560 ? 104 : 156) : 0, L = L0 + zw;   // zw: room for the WISE stop (2010) left of the scale
     sv.setAttribute("viewBox", `0 0 ${Wd} ${Hh}`); sv.setAttribute("height", Hh);
     const t0 = Math.floor(m.data_range.mjd_min - 25), t1 = Math.ceil(m.data_range.mjd_max + 25);
     const X = (t) => L + ((t - t0) / (t1 - t0)) * (R - L);
     el("line", { x1: L, y1: base, x2: R, y2: base, stroke: "#fff", "stroke-opacity": .35 }, sv);
+    if (hasW) {
+      // 2010 is not to scale: the stop has its own bit of axis, a dashed gap and a break mark "//" before the passes begin
+      const bw = 44, xe = L0 + bw + 10, xb = (xe + L) / 2, on = Q.wiseOn, cur = Q.ready && Q.onWise, h = 20;
+      el("line", { x1: L0, y1: base, x2: xe, y2: base, stroke: "#fff", "stroke-opacity": .35 }, sv);
+      el("line", { x1: xe, y1: base, x2: L, y2: base, stroke: "#fff", "stroke-opacity": .35, "stroke-dasharray": "2 4" }, sv);
+      el("path", { d: `M${xb - 3},${base + 7} l4,-14 M${xb + 3},${base + 7} l4,-14`, stroke: "#fff", "stroke-opacity": .6, fill: "none" }, sv);
+      const g = el("g", { class: "epoch wise", tabindex: 0, role: "button", opacity: on ? 1 : .45, "aria-label": `WISE W2 ${Q.e.wise.wave} micrometres, ${Q.e.wise.date.slice(0, 4)}, ${Q.e.wise.survey}: not SPHEREx` }, sv);
+      const r = el("rect", { x: L0 + 4, y: base - h, width: bw, height: h, fill: cur ? "#fff" : "none", stroke: "#fff", "stroke-width": 1, opacity: cur ? 1 : .6, "pointer-events": "all" }, g);
+      if (!on) r.setAttribute("stroke-dasharray", "2 2");
+      el("text", { x: L0, y: base - h - 9, "font-size": Wd < 560 ? 11 : 12.5, "text-anchor": "start", fill: cur ? "#fff" : "#8a8a88", "letter-spacing": ".04em" }, g).textContent = `${Q.e.wise.date.slice(0, 4)} · WISE W2`;
+      el("text", { x: L0, y: base + 24, "font-size": 12, fill: "#6a6a67", "letter-spacing": ".06em" }, g).textContent = Q.e.wise.survey;
+      g.onclick = () => Q.ready && selectWise();
+      g.onkeydown = (ev) => (ev.key === "Enter" || ev.key === " ") && Q.ready && (ev.preventDefault(), selectWise());
+    }
     const d = new Date((t0 - 40587) * 864e5); d.setUTCDate(1);
     for (; ; d.setUTCMonth(d.getUTCMonth() + 1)) {
       const mjd = d.getTime() / 864e5 + 40587;
@@ -540,7 +556,7 @@ export function createTool(c) {
       const anchor = x0 < 40 ? "start" : x0 > Wd - 60 ? "end" : "middle", tx = anchor === "start" ? x0 : anchor === "end" ? x0 + w : x0 + w / 2;
       const iso = Q.e ? dateOf(Q.e, Q.band, i) : e.date;   // the header uses the selected band's date: so does the ruler
       const g = el("g", { class: "epoch", tabindex: 0, role: "button", "aria-label": `Pass ${i + 1}, ${fmtDate(iso)}, ${n} exposures${skipped ? ", skipped" : ""}` }, sv);
-      const rect = el("rect", { x: x0, y: base - h, width: w, height: h, fill: cur || !Q.ready ? "#fff" : "none", stroke: "#fff", "stroke-width": 1, opacity: n ? (cur || !Q.ready ? 1 : skipped ? .3 : .6) : .25 }, g);
+      const rect = el("rect", { x: x0, y: base - h, width: w, height: h, fill: cur || !Q.ready ? "#fff" : "none", stroke: "#fff", "stroke-width": 1, "pointer-events": "all", opacity: n ? (cur || !Q.ready ? 1 : skipped ? .3 : .6) : .25 }, g);
       if (skipped) rect.setAttribute("stroke-dasharray", "2 2");
       const short = Wd < 560 || nPass() > 4;
       el("text", { x: tx, y: base - h - 9, "font-size": 12.5, "text-anchor": anchor, fill: cur ? "#fff" : "#8a8a88", "letter-spacing": ".04em" }, g).textContent =
@@ -595,6 +611,14 @@ export function createTool(c) {
   }
 
   function selectEpoch(i) { Q.epoch = i; Q.onWise = false; render(); }
+  // the WISE frame in or out of the blink (the button); the stop on the ruler turns it on if needed and shows it
+  function setWise(on) {
+    Q.wiseOn = on; Q.onWise = on;
+    $("wise").setAttribute("aria-pressed", on);
+    $("play").disabled = nBlink() < 2;
+    render(); doneStatus();
+  }
+  function selectWise() { if (!Q.e?.wise) return; if (!Q.wiseOn) setWise(true); else { Q.onWise = true; render(); } }
   let picking = 0;
   async function selectBand(id) {
     if (id === Q.band || !Q.ready) return;
@@ -681,13 +705,7 @@ export function createTool(c) {
   toggle("invert", "invert", () => render());
   toggle("mark", "mark", () => render());
   toggle("gaia", "gaia", () => render());
-  $("wise").onclick = () => {
-    if (!Q.ready || !Q.e?.wise) return;
-    Q.wiseOn = !Q.wiseOn; Q.onWise = Q.wiseOn;
-    $("wise").setAttribute("aria-pressed", Q.wiseOn);
-    $("play").disabled = nBlink() < 2;
-    render(); doneStatus();
-  };
+  $("wise").onclick = () => { if (Q.ready && Q.e?.wise) setWise(!Q.wiseOn); };
   toggle("low", "showLow", () => { fixLow(); render(); doneStatus(); });
   // the plate keeps its place on the sky when a phone scrolls the tool
   $("tool").addEventListener("scroll", () => { if (Q.open && $("tool").style.visibility !== "hidden") Object.assign(view, measurePlate()); }, { passive: true });
