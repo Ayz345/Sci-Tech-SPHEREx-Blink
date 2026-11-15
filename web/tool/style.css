@@ -129,6 +129,7 @@ dialog label { display: block; margin: 8px 0; }
 #wingMissing a { color: var(--fg); }
 #wingMethod { margin-top: 6px; font-size: 12px; }
 #fovButtons { gap: 5px; }
+#fovButtons button.over { opacity: .45; border-style: dashed; }
 #fovConfirm { gap: 8px; flex-wrap: wrap; max-width: 760px; padding: 8px 12px; border: 1px solid var(--accent); border-radius: 10px; font-size: 13px; }
 #embedLine { display: none; font-size: 11px; max-width: 520px; color: var(--fg-3); }
 /* ?embed=1: player and essential controls only; the acknowledgement stays as one small line */

@@ -128,6 +128,21 @@ async function fetchLogged(url, as, init) {
   }
 }
 
+// server errors in words a visitor can act on; the server's own sentence (and error id) is kept after it
+function friendly(e, what) {
+  const code = +e.status, msg = String(e.message || "").replace(/^\d{3}\s*/, "").trim();
+  const tail = msg ? ` (server: ${msg})` : "";
+  if (code === 429) return `${what}: too many requests to the live server in a short time. Wait a minute, then try again.${tail}`;
+  if ([502, 503, 504].includes(code)) return `${what}: the SPHEREx archive (IRSA) or the live server is not answering right now. ` +
+    `Try again in a few minutes; the five gallery targets work meanwhile.${tail}`;
+  return `${what} failed: ${msg || e}`;
+}
+// the status line with a "Try again" button (for a field that could not be loaded)
+function statusRetry(text, again) {
+  const b = Object.assign(document.createElement("button"), { type: "button", textContent: "Try again" });
+  b.onclick = () => { b.disabled = true; again(); };
+  $("status").replaceChildren(text + " ", b); $("status").className = "err";
+}
 // one shared /api/health check (3 s) for failed requests that arrive together
 let healthCheck = null;
 function healthOk() {
@@ -171,7 +186,7 @@ const S = {
   playing: false, timer: null,
   frames: new Map(),   // `${band}|${epoch}|${kind}` -> Float32Array | null (no data) | Promise
   bandInfo: new Map(), // band -> band json | null | Promise
-  gaia: null, spectrum: null, specAt: null, userScale: null,
+  gaia: null, spectrum: null, specAt: null, specAsk: 0, userScale: null,
 };
 
 // ---------- WCS (plain TAN from manifest.grid; pixel coords 0-based, y = 0 south) ----------
@@ -280,7 +295,7 @@ async function loadTarget() {
     }
     // a target that is not in the static gallery: ask the live server instead, if there is one
     if (!FORCED && gallery && !USE_API && await serverReady) { USE_API = true; return loadTarget(); }
-    status(`Manifest failed: ${e.message}`, true); return;
+    statusRetry(friendly(e, "This field could not be loaded"), loadTarget); return;
   }
   S.key = S.m.key;
   // fallback only: the server builds target_track when given pm (manifest ?pmra=&pmdec=&ref_epoch=);
@@ -826,15 +841,26 @@ function rateText(f, n, what) {
   return `rate ${(Math.hypot(f.vx, f.vy) * k).toPrecision(3)} ± ${(f.sv * k).toPrecision(2)} ${unit} towards ${compass(f.pa)} ` +
     `(position angle ${f.pa.toFixed(0)}°) from ${n} ${what}`;
 }
+// single exposures belong to one detector band (D1–D6); W and own windows combine bands, so the detector band
+// that overlaps the selected band's wavelengths most is used (W 4.3–5.0 µm -> D6 4.42–5.00 µm)
+function detectorBand(id) {
+  if (/^D[1-6]$/.test(id)) return id;
+  const w = S.m?.bands?.find((b) => b.id === id)?.wave_um;
+  const ds = (S.m?.bands || []).filter((b) => /^D[1-6]$/.test(b.id) && b.wave_um);
+  if (!w || !ds.length) return "D6";
+  const over = (b) => Math.min(w[1], b.wave_um[1]) - Math.max(w[0], b.wave_um[0]);
+  return ds.reduce((best, b) => (over(b) > over(best) ? b : best)).id;
+}
 async function refine() {
-  $("refineResult").textContent = "Measuring the object on single exposures…";
+  const db = detectorBand(S.band), swapped = db !== S.band;
+  $("refineResult").textContent = `Measuring the object on single exposures${swapped ? ` in ${db} (${S.band} combines detector bands; single exposures are measured in ${db}, the detector band that overlaps it most)` : ""}…`;
   S.track = null; updateRefineButtons();
-  const body = { key: S.key, band: S.band, marks: [...S.marks].sort((a, b) => a.mjd - b.mjd).map((m) => ({ ra: m.ra, dec: m.dec, mjd: m.mjd, band: m.band })) };
+  const body = { key: S.key, band: db, marks: [...S.marks].sort((a, b) => a.mjd - b.mjd).map((m) => ({ ra: m.ra, dec: m.dec, mjd: m.mjd, band: /^D[1-6]$/.test(m.band) ? m.band : db })) };
   try {
     const j = MOCK ? await fetchLogged(`dev-fixtures/track_${MOCK}.json`)
       : await fetchLogged(`${API}/api/track`, "json", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    S.track = normTrack(j); renderTrack();
-  } catch (e) { $("refineResult").textContent = `Refining failed: ${e.message}`; }
+    S.track = normTrack(j); S.track.bandNote = swapped ? `Single exposures measured in ${db} (marks made in ${S.band}).` : ""; renderTrack();
+  } catch (e) { $("refineResult").textContent = friendly(e, "Refining"); }
   updateRefineButtons();
 }
 function renderTrack() {
@@ -843,7 +869,7 @@ function renderTrack() {
   const head = document.createElement("div");
   head.className = "mono";
   const c = t.counts, cnt = c.found != null ? `\n${c.found} exposures found, ${c.measured} measured, ${c.accepted} accepted, ${c.draft} in the MPC draft` : "";
-  head.textContent = `${t.regime}${t.regimeReason ? ": " + t.regimeReason : ""}` + cnt +
+  head.textContent = (t.bandNote ? t.bandNote + "\n" : "") + `${t.regime}${t.regimeReason ? ": " + t.regimeReason : ""}` + cnt +
     (f ? `\n${rateText(f, ok.length, "single-exposure measurements")}` : "\nfewer than two accepted measurements: no rate");
   head.style.whiteSpace = "pre-wrap";
   const tbl = document.createElement("table");
@@ -1579,7 +1605,8 @@ function setScaleInputs(s) {
 // ---------- field of view (3′ / 7′ / 15′) ----------
 const FOVS = [[3, "3′"], [7, "7′"], [15, "15′"]];
 function renderFov() {
-  const cur = S.m?.query?.fov_deg, max = S.m?.max_fov_deg ?? S.health?.max_fov_deg;
+  // another field is always built by the live server, so its own limit wins over the one in a gallery manifest
+  const cur = S.m?.query?.fov_deg, max = (API && S.health?.max_fov_deg) || S.m?.max_fov_deg;
   $("fovButtons").replaceChildren(Object.assign(document.createElement("span"), { className: "muted", textContent: "field" }),
     ...FOVS.map(([am, label]) => {
       const deg = am / 60, b = document.createElement("button");
@@ -1588,10 +1615,15 @@ function renderFov() {
       let why = "";
       if (NO_SERVER) why = ""; // clickable: says why it needs the server instead of staying silent
       else if (!API) why = `the gallery is fixed at ${cur ? (cur * 60).toFixed(1) + "′" : "its field"}; another field needs the live server, which is not reachable right now`;
-      else if (max && deg > max + 1e-9) why = `this server allows at most ${(max * 60).toFixed(1)}′ (max_fov_deg ${(+max).toFixed(4)}°)`;
+      // over the server's limit: stays clickable and says why (a disabled button says nothing on a touch screen)
+      const over = max && deg > max + 1e-9;
       b.disabled = !!why;
-      b.title = why || `${label} field: larger fields catch faster movers but take longer to load`;
-      b.onclick = () => (NO_SERVER ? noServer($("status"), "Another field") : am >= 15 ? askBigField(deg) : changeFov(deg));
+      if (over) b.classList.add("over");
+      b.title = over ? `this server allows fields up to ${(max * 60).toFixed(1)}′` : why || `${label} field: larger fields catch faster movers but take longer to load`;
+      b.onclick = () => (NO_SERVER ? noServer($("status"), "Another field")
+        : over ? status(`A ${label} field is not available on this server: it allows fields up to ${(max * 60).toFixed(1)}′, ` +
+          "to keep the load on the shared archive small. Run the server yourself for larger fields (see the README).")
+        : am >= 15 ? askBigField(deg) : changeFov(deg));
       return b;
     }));
 }
@@ -1856,9 +1888,19 @@ function wire() {
       return;
     }
     S.specAt = [ra, dec]; draw();
-    // the live server measures any point, also for a gallery target opened from static files (same key)
+    // the live server measures any point, also for a gallery target opened from static files (same key);
+    // a new point reads every exposure again, which can take minutes: say so, and only the last click counts
+    const ask = ++S.specAsk, t0 = performance.now();
+    $("specWhere").textContent = `(${ra.toFixed(5)}, ${dec.toFixed(5)}: measuring…)`;
+    status(`Measuring the spectrum at RA ${ra.toFixed(5)}, Dec ${dec.toFixed(5)} on the live server. It reads every exposure ` +
+      "of this field again, which can take a few minutes; the image stays usable meanwhile.");
     fetchLogged(`${API}/api/spectrum?key=${enc(S.key)}&ra=${ra.toFixed(6)}&dec=${dec.toFixed(6)}`)
-      .then((s) => { S.spectrum = s; plots(); }).catch((e) => { if (!offline) status(`Spectrum failed: ${e.message}`, true); }); // offline: keep the "not reachable" line
+      .then((s) => {
+        if (ask !== S.specAsk) return; // a later click replaced this one
+        S.spectrum = s; plots();
+        status(`Spectrum at RA ${ra.toFixed(5)}, Dec ${dec.toFixed(5)} ready (${Math.round((performance.now() - t0) / 1000)} s).`);
+      })
+      .catch((e) => { if (ask === S.specAsk && !offline) status(friendly(e, "Spectrum at this point"), true); }); // offline: keep the "not reachable" line
   };
 
   document.addEventListener("keydown", (e) => {

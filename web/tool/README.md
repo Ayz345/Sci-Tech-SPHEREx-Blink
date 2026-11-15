@@ -28,6 +28,12 @@ gallery fields opens that target with a note ("This position … lies in the WIS
 position stays in the address as `at=`). "Download spectrum (CSV)" under the spectrum writes the loaded spectrum from
 the browser: one column per point field, units and every meta note as `#` comment lines. `embed-example.html` shows
 the embedded player (760 × 560) with the code to copy; the footer links to it. The request log starts closed.
+Server trouble is said in plain words: 429 = too many requests, wait a minute; 502/503/504 = the archive (IRSA) or
+the server is not answering, try again in a few minutes (the server's own sentence and error id follow in brackets).
+A field that could not be loaded gets a "Try again" button. A spectrum at a clicked point says that it is being
+measured (it can take minutes); only the last click is drawn. The field buttons follow the live server's
+`max_fov_deg`; a larger one stays clickable and says the limit. "Refine on single exposures" from W or an own window
+measures in the detector band that overlaps it most (W -> D6) and says so.
 Users never add parameters:
 
 - Gallery targets (`?target=`) always open from the static files under `web/data/`, at once, without waiting for
