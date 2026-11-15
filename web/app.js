@@ -525,7 +525,12 @@ scene.add(sun, rimLight, hemi, new THREE.AmbientLight(0xffffff, .03));
 // are up, the form changes shape and the black comes in from the corners (or leaves).
 const PAGES = [...document.querySelectorAll(".page")];
 const INNERS = PAGES.map((el) => [...el.querySelectorAll(":scope > .inner, :scope > .aside")]);
-const STEP = 1.5, HOLD = .45, GO = .12;
+// the blocks of a page that come and go one after the other: the lines of the text, then the plate and the chart
+const UNITS = INNERS.map((els) => els.flatMap((e) => (e.classList.contains("inner") ? [...e.children] : [e])));
+// slower pages: 2.4 screens of scroll per page (was 1.5), the words hold for 0.6 of it and take 0.32 to go, one block after
+// the other (STAG: the share of the fade by which each next block is delayed)
+const STEP = 2.4, HOLD = .6, GO = .32, STAG = .09;
+const sst5 = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * t * (t * (6 * t - 15) + 10); };   // smootherstep
 const FORM = [ // tone 0 paper, 1 space · pet: petals of order 3, 2, 4, 5 · n noise · rip running rings · twist, flat (y scale),
                // tilt, size · x, y, s: place and scale beside the words · earth: 1 = the globe · tz: axial tilt (globe)
                // slot: 1 = placed in the page's empty .slot column (page 4, beside the real plate)
@@ -567,22 +572,32 @@ function measurePages() {
 // y = the (smoothed) scroll position that drives the form and the page colour; the words follow the real one
 function readScroll(y) {
   const n = FORMV.length, u = clamp(y / innerHeight / STEP, 0, n - 1), i = Math.min(n - 2, Math.floor(u)), fr = u - i;
-  const kf = sstep(.3, .7, fr);
+  const kf = sst5(.32, .84, fr);
   for (let j = 0; j < NF; j++) scr.f[j] = lerp(FORMV[i][j], FORMV[i + 1][j], kf);
-  scr.tone = lerp(FORM[i].tone, FORM[i + 1].tone, sstep(.42, .58, fr));
-  scr.ink = lerp(FORM[i].tone, FORM[i + 1].tone, sstep(.38, .62, fr));
+  scr.tone = lerp(FORM[i].tone, FORM[i + 1].tone, sst5(.34, .66, fr));
+  scr.ink = lerp(FORM[i].tone, FORM[i + 1].tone, sst5(.3, .7, fr));
   scr.pos = i + kf;
   const sr = scrollY / innerHeight;
   PAGES.forEach((el, j) => {
-    const d = sr - j * STEP, k = sstep(HOLD, HOLD + GO, Math.abs(d)), op = 1 - k;
-    const sc = 1 + Math.sign(d) * .035 * k, bl = 9 * k;                // comes in from a little smaller, leaves a little larger
-    if (j === 0) { scr.op0 = op; scr.sc0 = sc; scr.bl0 = bl; return; }
+    const d = sr - j * STEP, k = sstep(HOLD, HOLD + GO, Math.abs(d));
+    const sc = 1 + Math.sign(d) * .03 * k;                              // comes in from a little smaller, leaves a little larger
+    if (j === 0) { scr.op0 = 1 - k; scr.sc0 = sc; scr.bl0 = 7 * k; return; }
+    const units = UNITS[j], n = units.length, w = 1 - Math.min((n - 1) * STAG, .6);
+    units.forEach((u, c) => {                                          // coming in: top to bottom; going out: top to bottom
+      const a = Math.min((d < 0 ? n - 1 - c : c) * STAG, .6), kk = sst5(a, a + w, k), op = 1 - kk;
+      u.style.opacity = op; u.style.visibility = op < .01 ? "hidden" : "visible";
+      u.style.filter = kk > .02 ? `blur(${(kk * 9).toFixed(1)}px)` : "none";
+      if (u.classList.contains("aside")) {                              // the plate and the chart: also the page's scale; .slide: in from the right
+        const tx = u.classList.contains("slide") ? `translateX(${(kk * Math.min(240, innerWidth * .16)).toFixed(1)}px) ` : "";
+        const ty = pageShift[j] ? `translateY(${pageShift[j].toFixed(1)}px) ` : "";
+        u.style.transform = `${tx}${ty}scale(${sc * pageFit[j]})`;
+      }
+    });
     for (const e of INNERS[j]) {
-      e.style.opacity = op; e.style.visibility = op < .01 ? "hidden" : "visible";
-      // .slide (page 4's track chart): comes in from the right and leaves to the right
-      const tx = e.classList.contains("slide") ? `translateX(${(k * Math.min(240, innerWidth * .16)).toFixed(1)}px) ` : "";
+      if (!e.classList.contains("inner")) continue;
+      e.style.opacity = 1; e.style.visibility = k >= 1 ? "hidden" : "visible"; e.style.filter = "none";
       const ty = pageShift[j] ? `translateY(${pageShift[j].toFixed(1)}px) ` : "";
-      e.style.transform = `${tx}${ty}scale(${sc * pageFit[j]})`; e.style.filter = bl > .05 ? `blur(${bl.toFixed(1)}px)` : "none";
+      e.style.transform = `${ty}scale(${sc * pageFit[j]})`;
     }
   });
 }
@@ -1021,7 +1036,7 @@ function frame(now) {
   for (const t of tweens) { const r = clamp((now - t.t0) / t.ms, 0, 1); t.fn(t.ease(r), r); if (r >= 1) { tweens.delete(t); t.res(); } }
   if (!REDUCED) S.time += dt;
   if (S.mode === "home") {
-    S.sy += (scrollY - S.sy) * (REDUCED ? 1 : 1 - Math.exp(-dt * 9));
+    S.sy += (scrollY - S.sy) * (REDUCED ? 1 : 1 - Math.exp(-dt * 3.6));
     if (Math.abs(scrollY - S.sy) < .5) S.sy = scrollY;
     readScroll(S.sy);
     // the proof plate blinks while its page is near
