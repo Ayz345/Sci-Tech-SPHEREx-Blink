@@ -34,11 +34,16 @@ jobs:
           print({k: h.get(k) for k in ("ok", "commit", "ades_schema", "max_fov_deg", "astrometry_validation")})
           assert h.get("ok") is True, "health not ok"
           assert h.get("ades_schema") is True, "ADES schema missing in the image"
+          v = h.get("astrometry_validation") or {}
+          assert v.get("status") == "complete", f"validation file not complete in the image: {v}"
+          assert v.get("same_frame_code") is True, f"validation made with other frame code: {v}"
           PY
       - name: Gallery data and catalogue are served
         run: |
-          curl -sS -o /dev/null -w "catwise wise-0855: %{http_code}\n" "http://127.0.0.1:8000/api/catwise?key=wise-0855"
-          curl -sS -o /dev/null -w "bad band: %{http_code}\n" "http://127.0.0.1:8000/api/band?key=wise-0855&band=w1_2"
+          c=$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:8000/api/catwise?key=wise-0855"); echo "catwise wise-0855: $c"; test "$c" = 200
+          b=$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:8000/api/band?key=wise-0855&band=w1_2"); echo "bad band: $b"; test "$b" = 400
+          t=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -d "[]" "http://127.0.0.1:8000/api/track"); echo "malformed track body: $t"; test "$t" = 400
+          docker exec spx sh -c 'echo "user: $(id -un)  cache: $SPX_CACHE  max fov: $SPX_MAX_FOV_DEG"'
       - name: A field list from the archive (IRSA may be slow; reported, not required)
         continue-on-error: true
         run: |
