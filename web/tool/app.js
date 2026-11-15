@@ -129,12 +129,16 @@ async function fetchLogged(url, as, init) {
 }
 
 // server errors in words a visitor can act on; the server's own sentence (and error id) is kept after it
-function friendly(e, what) {
+function friendly(e, what, archive = "the SPHEREx archive (IRSA)") {
   const code = +e.status, msg = String(e.message || "").replace(/^\d{3}\s*/, "").trim();
   const tail = msg ? ` (server: ${msg})` : "";
-  if (code === 429) return `${what}: too many requests to the live server in a short time. Wait a minute, then try again.${tail}`;
-  if ([502, 503, 504].includes(code)) return `${what}: the SPHEREx archive (IRSA) or the live server is not answering right now. ` +
-    `Try again in a few minutes; the five gallery targets work meanwhile.${tail}`;
+  if (code === 429) { // the server says how long to wait ("try again in 404 s"); otherwise about a minute
+    const s = +(msg.match(/try again in (\d+)\s*s/i)?.[1] || 0);
+    const wait = s > 90 ? `about ${Math.ceil(s / 60)} minutes` : s > 0 ? `${s} seconds` : "a minute";
+    return `${what}: too many requests to the live server in a short time. Wait ${wait}, then try again.${tail}`;
+  }
+  if ([502, 503, 504].includes(code)) return `${what}: ${archive} or the live server is not answering right now. ` +
+    `Try again in a few minutes${archive.includes("IRSA") ? "; the five gallery targets work meanwhile" : ""}.${tail}`;
   return `${what} failed: ${msg || e}`;
 }
 // the status line with a "Try again" button (for a field that could not be loaded)
@@ -142,6 +146,21 @@ function statusRetry(text, again) {
   const b = Object.assign(document.createElement("button"), { type: "button", textContent: "Try again" });
   b.onclick = () => { b.disabled = true; again(); };
   $("status").replaceChildren(text + " ", b); $("status").className = "err";
+}
+// Gaia DR3 stars: never waited for (blink and spectrum go on); the line under the toggle says what happened
+function loadGaia() {
+  const note = $("gaiaNote"), key = S.key;
+  S.gaia = null; note.textContent = "Gaia DR3 stars are loading…";
+  fetchLogged(src.gaia(key)).then((g) => {
+    if (key !== S.key) return;
+    S.gaia = g; note.textContent = g.length ? "" : "No Gaia DR3 stars in this field.";
+    draw();
+  }).catch((e) => {
+    if (key !== S.key) return;
+    S.gaia = [];
+    const again = Object.assign(document.createElement("a"), { href: "#", textContent: "Try again", onclick: (ev) => { ev.preventDefault(); loadGaia(); } });
+    note.replaceChildren(friendly(e, "Gaia DR3 stars", "the Gaia archive (ESA)") + " The image and the spectrum work without them. ", again);
+  });
 }
 // one shared /api/health check (3 s) for failed requests that arrive together
 let healthCheck = null;
@@ -346,7 +365,7 @@ async function loadTarget() {
       `per band from the archive, so the first band (${S.band}) usually takes 30–70 s; the other bands follow.`
     : `${S.m.epochs.length} epochs, ${S.m.bands.length} bands. Loading ${S.band}…`);
 
-  fetchLogged(src.gaia(S.key)).then((g) => { S.gaia = g; draw(); }).catch(() => { S.gaia = []; });
+  loadGaia();
   loadCandidates().then(draw);
   loadCatwise().then(draw);
   loadWise().then(() => { draw(); syncUrl(); });
@@ -1944,6 +1963,6 @@ loadIndex();
 loadTarget();
 // developer hook (?debug=1): place marks at exact positions/times, e.g. to replay a known asteroid passage
 if (params.get("debug") === "1") {
-  window.__spx = { S, refine, openReport, aladin: () => aladin,
+  window.__spx = { S, refine, openReport, loadGaia, aladin: () => aladin,
     mark: (ra, dec, mjd, band = S.band) => { S.marks.push({ n: ++S.markSeq, ra, dec, mjd, epoch: S.epoch, date: `MJD ${mjd}`, band }); renderMarks(); draw(); } };
 }
