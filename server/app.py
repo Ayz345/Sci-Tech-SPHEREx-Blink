@@ -15,6 +15,7 @@ Settings (environment variables) and deployment: DEPLOY.md.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import math
 import os
@@ -504,15 +505,16 @@ class Registry:
     def _candidates(self, fs: FieldState) -> None:
         t0 = time.time()
         try:
-            if not (fs.out / "gaia.json").exists():
-                try:
-                    gaia = P.gaia_sources(fs.field)
-                except Exception as e:  # the detector still runs, without the known-star check
-                    log.warning("gaia for candidates %s failed: %r", fs.field.key, e)
-                    gaia = None
+            gaia_ok = (fs.out / "gaia.json").exists()
+            if not gaia_ok:
+                gaia = gaia_for(fs.field)        # the detector still runs without it, without the known-star check
                 if gaia is not None:
                     P.write_json(fs.out / "gaia.json", gaia, indent=None)
+                    gaia_ok = True
             out = P.make_candidates(fs.out, fs.field.key)
+            if not gaia_ok:
+                out["gaia"] = ("not available: the Gaia archive did not answer, so no candidate is marked as a known "
+                               "Gaia star and none is checked against Gaia")
             out["seconds"] = round(time.time() - t0, 2)
             P.write_json(fs.out / "candidates.json", out)
             fs.candidates_state = "ready"
@@ -941,13 +943,34 @@ async def api_catwise(key: str):
     return Response(path.read_bytes(), media_type="application/json")
 
 
+_gallery_gaia: dict = {}
+GAIA_MISSING = ("The Gaia archive is not answering, so Gaia stars cannot be shown right now; try again in a few "
+                "minutes")
+
+
+def gaia_for(field: P.Field) -> list | None:
+    """Gaia DR3 sources of a field: a gallery target's are read from its web/data/<key>/gaia.json (the same query,
+    made when the gallery was built: the archive is not asked again); other fields ask the ESA archive within
+    P.GAIA_BUDGET_S. None when the archive does not answer."""
+    if field.tinfo is not None:
+        if field.key not in _gallery_gaia:
+            path = P.GALLERY_DIR / field.key / "gaia.json"
+            _gallery_gaia[field.key] = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+        if _gallery_gaia[field.key] is not None:
+            return _gallery_gaia[field.key]
+    try:
+        return P.gaia_sources(field)
+    except Exception as e:
+        error_id("gaia " + field.key, e)
+        return None
+
+
 @app.get("/api/gaia")
 async def api_gaia(key: str):
     fs = await _field(key)
-    try:
-        g = await asyncio.to_thread(P.gaia_sources, fs.field)
-    except Exception as e:
-        raise ApiError(503, f"Gaia archive is not answering (error id {error_id('gaia ' + key, e)})")
+    g = await asyncio.to_thread(gaia_for, fs.field)
+    if g is None:
+        raise ApiError(503, GAIA_MISSING)
     return jresp(g)
 
 
@@ -969,12 +992,12 @@ async def api_spectrum(request: Request, key: str, ra: float | None = None, dec:
 
     def run():
         cuts = registry().cutouts_for(fs, dets)
-        try:
-            gaia = P.gaia_sources(f)
-        except Exception as e:  # photometry still works without deblending
-            log.warning("gaia for spectrum %s failed: %r", key, e)
-            gaia = []
-        out = P.spectrum(f, cuts, ra, dec, gaia=gaia)
+        gaia = gaia_for(f)
+        out = P.spectrum(f, cuts, ra, dec, gaia=gaia or [])
+        # say it when there was no Gaia list: the photometry then cannot remove neighbouring stars
+        out["meta"]["gaia"] = ("Gaia DR3 stars within 25 arcsec are fitted and removed as neighbours" if gaia is not None
+                               else "not available: the Gaia archive did not answer, so neighbouring stars were NOT "
+                                    "removed; a blended point can include a neighbour's light")
         out["meta"]["bands_included"] = [f"D{d}" for d in dets]
         # where it was measured: a fixed point stays put while a fast target moves off it (WISE 0855 at its last
         # track point: 28 of 255 points flagged, at the target 23 of 255, the gallery's number)
@@ -985,6 +1008,8 @@ async def api_spectrum(request: Request, key: str, ra: float | None = None, dec:
         out["meta"]["bands_pending"] = [b for b in fs.jobs if b.startswith("D") and f"D{b[1:]}" not in ready]
         return out
     out = await asyncio.to_thread(run)
+    if out["meta"]["gaia"].startswith("not available"):
+        return jresp(out)        # not kept: asked again once the archive answers
     _spec_cache[ck] = out
     while len(_spec_cache) > 200:
         _spec_cache.popitem(last=False)
@@ -1139,6 +1164,7 @@ def _track_response(rid: str, rows: list, info: dict, band: str, n_refs: int) ->
             "window_mjd": list(info.get("window_mjd") or []), "n_exposures_found": n_refs,
             "n_measured": len(rows), "n_accepted": sum(1 for r in rows if r.get("accepted")),
             "n_in_draft": len(in_ades), "nights": nights, "measurements": meas, "validation": validation,
+            "gaia": info.get("gaia"),
             "mpc_test_forms": {"psv": mpc.MPC_PSV_TEST, "xml": mpc.MPC_XML_TEST}}
 
 

@@ -554,6 +554,9 @@ def make_candidates(field_dir: Path, key: str) -> dict:
 GAIA_TAP = "https://gea.esac.esa.int/tap-server/tap/sync"
 GAIA_TABLE = "gaiadr3.gaia_source"
 GAIA_GMAX = 19.0
+#: Seconds one Gaia query may take in all, retries included (the ESA archive reset connections after 16-20 s on
+#: 15 Nov; the old 3 x 60 s could hold a thread for three minutes). SPX_GAIA_BUDGET_S overrides.
+GAIA_BUDGET_S = float(os.environ.get("SPX_GAIA_BUDGET_S") or 15.0)
 
 
 def gaia_sources(f: Field, gmax: float = GAIA_GMAX, max_age_days: float = 30.0) -> list[dict]:
@@ -602,8 +605,8 @@ def hashlib_short(s: str) -> str:
     return hashlib.sha1(s.encode()).hexdigest()[:12]
 
 
-def _gaia_query(q: str, cache_name: str, max_age_days: float = 30.0) -> list[dict]:
-    """ESA Gaia archive TAP (sync, CSV) with a disk cache."""
+def _gaia_query(q: str, cache_name: str, max_age_days: float = 30.0, budget_s: float | None = None) -> list[dict]:
+    """ESA Gaia archive TAP (sync, CSV) with a disk cache; retries within budget_s seconds in all."""
     import csv
     import io
     import requests
@@ -611,12 +614,18 @@ def _gaia_query(q: str, cache_name: str, max_age_days: float = 30.0) -> list[dic
     if path.exists() and (time.time() - path.stat().st_mtime) / 86400 <= max_age_days:
         return json.loads(path.read_text(encoding="utf-8"))
     last = None
-    for attempt in range(3):
+    budget = GAIA_BUDGET_S if budget_s is None else float(budget_s)
+    t0 = time.monotonic()
+    for attempt in range(10):
+        left = budget - (time.monotonic() - t0)
         if attempt:
-            time.sleep(2.0 * attempt)
+            left -= 1.0
+            if left < 2.0:
+                break
+            time.sleep(1.0)
         try:
             r = requests.get(GAIA_TAP, params={"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv", "QUERY": q},
-                             timeout=60)
+                             timeout=(min(5.0, left), max(1.0, left)))
         except (requests.ConnectionError, requests.Timeout) as e:
             last = e
             continue
@@ -633,7 +642,7 @@ def _gaia_query(q: str, cache_name: str, max_age_days: float = 30.0) -> list[dic
         out.sort(key=lambda s: s["g_mag"] if s["g_mag"] is not None else 99)
         access._atomic_write_bytes(path, json.dumps(out).encode())
         return out
-    raise RuntimeError(f"Gaia TAP unreachable: {last!r}")
+    raise RuntimeError(f"Gaia TAP unreachable in {time.monotonic() - t0:.0f} s: {last!r}")
 
 
 SELF_MATCH_ARCSEC = 3.0
@@ -880,11 +889,14 @@ def measure_marks(marks, band: str):
     cuts = track_cutouts(refs, position)
     path = [(float(position(c.mjd).ra.deg), float(position(c.mjd).dec.deg)) for c in cuts] or \
         [(m["ra"], m["dec"]) for m in marks]
+    gaia_note = "Gaia DR3 stars along the path were fitted as fixed neighbours"
     try:
         gaia = gaia_path(path)
     except Exception as e:  # positions still come out, only without fixed neighbours
         log.warning("gaia along track failed: %r", e)
         gaia = []
+        gaia_note = ("not available: the Gaia archive did not answer, so neighbouring stars were NOT fitted; a "
+                     "blended position can be off")
     nb = None
     if gaia:
         nb = SkyCoord(ra=[g["ra"] for g in gaia] * u.deg, dec=[g["dec"] for g in gaia] * u.deg,
@@ -892,4 +904,4 @@ def measure_marks(marks, band: str):
                       pm_dec=[g.get("pmdec") or 0.0 for g in gaia] * u.mas / u.yr,
                       obstime=Time(2016.0, format="jyear", scale="tdb"), frame="icrs")
     rows, info2 = measure_track(cuts, marks, neighbors=nb)
-    return rows, {**info, **info2}, len(refs)
+    return rows, {**info, **info2, "gaia": gaia_note}, len(refs)

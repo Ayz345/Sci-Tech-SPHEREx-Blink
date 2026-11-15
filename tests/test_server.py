@@ -860,9 +860,12 @@ def test_restart_mid_build_starts_clean(client):
 
 def test_band_waiters_capped_ready_bands_free(client, monkeypatch):
     from server import app as A
+    from server import pipeline as P
     m = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "queue": 0}))
+    real_build = P.build_band
+    monkeypatch.setattr(P, "build_band", lambda *a, **k: (__import__("time").sleep(1.0), real_build(*a, **k))[1])
     monkeypatch.setattr(A, "MAX_BAND_WAITERS", 0)
-    r = client.get("/api/band", params={"key": m["key"], "band": "D1"})        # not built yet: would wait
+    r = client.get("/api/band", params={"key": m["key"], "band": "D1"})        # not built yet (takes 1 s): would wait
     assert r.status_code == 429 and r.headers["retry-after"] == "10"
     _wait_idle()                                                                 # it was queued all the same
     assert client.get("/api/band", params={"key": m["key"], "band": "D1"}).status_code == 200   # ready: no wait
@@ -979,3 +982,56 @@ def test_failed_new_field_does_not_count(client, monkeypatch):
     for i in range(2):                                         # the limit (2) is still all there
         assert client.get("/api/manifest", params={"ra": RA0 + 10 + i, "dec": DEC0, "queue": 0}).status_code == 200
     assert client.get("/api/manifest", params={"ra": RA0 + 20, "dec": DEC0, "queue": 0}).status_code == 429
+
+
+# --------------------------------------------------------------------------- Gaia: gallery from its file, budget, honest notes
+
+def test_gaia_gallery_from_file_free_field_budgeted(client, monkeypatch):
+    import requests
+    from server import app as A
+    from server import pipeline as P
+    calls = []
+
+    def esa_down(*a, **k):
+        calls.append(k.get("timeout"))
+        raise requests.ConnectionError("connection reset by peer")
+    monkeypatch.setattr(requests, "get", esa_down)
+    # the client fixture replaced gaia_sources by a fake list: here it asks ESA (down) within a 3 s budget
+    monkeypatch.setattr(P, "gaia_sources", lambda f, **k: P._gaia_query("SELECT 1", "test_" + f.key, budget_s=3.0))
+    monkeypatch.setattr(A, "_gallery_gaia", {})
+    # gallery target: from web/data/<key>/gaia.json, no ESA call
+    g = client.get("/api/gaia", params={"key": "wise-0855"})
+    assert g.status_code == 200 and isinstance(g.json(), list) and len(g.json()) > 0 and calls == []
+    # free field, ESA down: 503 with a plain sentence, CORS, within the budget
+    key = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}))["key"]
+    t0 = __import__("time").time()
+    r = client.get("/api/gaia", params={"key": key}, headers={"Origin": "https://sci-techspherex.com"})
+    assert r.status_code == 503 and "Gaia archive is not answering" in r.json()["message"]
+    assert r.headers["access-control-allow-origin"] == "*" and __import__("time").time() - t0 < 10
+    # spectrum without Gaia: still made, says so, not cached
+    _wait_idle()
+    s = _strict(client.get("/api/spectrum", params={"key": key}))
+    assert s["meta"]["gaia"].startswith("not available") and s["points"]
+    monkeypatch.setattr(P, "gaia_sources", lambda f, **k: [{"ra": RA0, "dec": DEC0, "pmra": 0.0, "pmdec": 0.0,
+                                                            "g_mag": 12.0, "ref_epoch": 2016.0}])
+    s2 = _strict(client.get("/api/spectrum", params={"key": key}))          # asked again: Gaia is back
+    assert s2["meta"]["gaia"].startswith("Gaia DR3")
+
+
+def test_gaia_query_budget():
+    import time
+    import requests
+    from server import pipeline as P
+    t0 = time.time()
+
+    def slow(*a, **k):
+        time.sleep(min(k["timeout"][1], 2.0))
+        raise requests.Timeout("read timed out")
+    orig = requests.get
+    requests.get = slow
+    try:
+        with pytest.raises(RuntimeError, match="unreachable"):
+            P._gaia_query("SELECT 1", "budget_test_never_cached", budget_s=4.0)
+    finally:
+        requests.get = orig
+    assert time.time() - t0 < 7
