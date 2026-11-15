@@ -1,6 +1,6 @@
 # Methods (image processing and photometry)
 
-Code: `spx/coadd.py`, `spx/photometry.py` (freeze 535d93a). Every number below was measured on SPHEREx DR1/QR3 data in this project; the commands that reproduce them are listed at the end.
+Code: `spx/coadd.py`, `spx/photometry.py`, `spx/detect.py`, `spx/astrometry.py` (freeze 6a55b82: spx_code_hash 744c2be5ca1c, frame_code_hash ecd39f140011; the gallery is built from it). Every number below was measured on SPHEREx DR1/QR3 data in this project; the commands that reproduce them are listed at the end.
 
 We read SPHEREx Level 2 images (IRSA SIA2 lists, public S3 byte-range cutouts) and select exposures by the linear-variable-filter wavelength at the target pixel, computed from each file's WCS-WAVE table, not by the detector's nominal range. In every exposure we mask pixels with the FLAGS bits TRANSIENT, SUR_ERROR, NONFUNC, DICHROIC, MISSING_DATA, HOT, COLD, PHANMISS, NONLINEAR, PERSIST, OUTLIER, CROSSTALK, GHOST, GHOST_FPA, GHOST_EXT, STREAK, BLOOM, SNOWBALL, HALO and SATELLITE_HALO (bit 29, Explanatory Supplement v2.1 Table 16; absent from every exposure of the five gallery fields); SOURCE and FULLSAMPLE are informational and kept. A pixel flagged OVERFLOW without SUR_ERROR is kept as a recovered flux (its slope comes from the reads before the overflow threshold): on RW Aurigae it agrees with clean pixels at the same epoch and wavelength to a median ratio of 1.04 over 10 pairs (range 1.00–1.51). We subtract a sigma-clipped local background from unflagged, non-SOURCE pixels, weight each exposure by 1/σ² of that background, and resample it with a mask-aware bilinear interpolation onto one fixed, north-up 3″ grid shared by all epochs and bands (the native pixel is 6.15″). Each grid pixel is a weighted mean over the epoch's exposures after rejecting samples further than 3.5 × max(per-pixel scatter, exposure noise) + 0.5 × |median| from the median; the relative term keeps real differences between exposures taken at different wavelengths. Epochs are runs of exposures separated by more than 30 days, cut into pieces when longer than 60 days. A grid pixel is saturated (+∞, drawn at the brightest colour) when no usable sample is left and some exposure shows saturation there, or when more than 15% of its exposures are truly saturated (OVERFLOW together with SUR_ERROR, or NONLINEAR); NaN only means no coverage, and all epochs of a band share one asinh display scale. Against the prototype on the same cutouts, the background noise fell 1.2–2.7× (median 1.9 over six target-epochs), isolated dark pixels fell from 214–337 to 2–8 per 10⁴ (WISE 0855), and the star FWHM stayed 9.2–10.2″ (prototype 9.0–9.5″ where measurable): no smoothing is added and no detail is invented; any upscaling on the page is cosmetic.
 
@@ -15,20 +15,20 @@ The numbers below are the published ones: `server/pipeline.variability_report` o
 
   | Band | Target | Largest control | Bins |
   |---|---|---|---|
-  | D1 | ×1.40 | ×1.03 | 8 |
+  | D1 | ×1.40 | ×1.02 | 8 |
   | D2 | ×1.37 | ×1.06 | 6 |
   | D5 | ×1.94 | ×1.06 | 7 |
-  | D6 | ×1.64 | ×1.11 | 8 |
+  | D6 | ×1.64 | ×1.10 | 8 |
   | D3 | ×1.46 | ×1.05 | 1 |
-  | D4 | ×1.17 | ×1.06 | 1 |
+  | D4 | ×1.17 | ×1.04 | 1 |
 
-  D3 and D4 rest on a single wavelength bin, and D4 exceeds its controls only by a small margin (×1.11).
+  D3 and D4 rest on a single wavelength bin, and D4 exceeds its controls only by a small margin (×1.13). Values from `variability_v2.json` (re-run with the frozen code); the gallery note rounds the same numbers.
 - **Supplementary analysis (not published):** with aperture photometry and controls in G 10–15 (12 stars), the ratios are D1 ×1.54 against ×1.04, D5 ×1.70 against ×1.18, and D6 ×1.46 against ×1.29. The difference comes from two choices. First, the points: aperture versus PSF-deblended. Second, the control brightness range: the published run correctly treats RW Aur as unsaturated, since only 7 of 333 points are saturated once recovered-overflow pixels are used.
 
 ## Known limits
 
 - **Difference images:** bright constant stars leave small black-and-white pairs. Their source is sub-pixel misalignment and PSF differences between epochs. Per-epoch alignment to Gaia is not done yet.
-- **PSF-wing brightness** (shown for R Draconis only, whose core is saturated in 412 of 413 exposures; indicative, not a formal detection):
+- **PSF-wing brightness** (shown for R Draconis only, whose core is saturated in 412 of 412 exposures that give a spectrum point (`spectrum.json`; an earlier build counted 413, a figure not re-derived here); indicative, not a formal detection):
   - On bright unsaturated control stars in the RW Aur and Eps Indi B fields (3 stars, 50 bins), the wing/aperture ratio changes between epochs by ×1.23 (median) and ×1.51 (90th percentile); re-measured on 14 Nov after masked pixels were left out of the aperture (before: 48 bins, ×1.20 and ×1.47).
   - Against that threshold, R Dra's D2 ×2.42 and D6 ×1.77 are above it, D3 ×1.49 is now just below it (it was just above ×1.47), and D1 ×1.31 is below it.
   - The control stars in the R Dra field itself cannot calibrate the method: they sit in R Dra's own scattered light. Their wing measurements are not noise-limited (S/N 53–55 per point for the G 13.8 and 14.2 stars), yet they change between epochs by ×2.0–2.8. In the RW Aur field, controls with similar or higher S/N change by only ×1.03–1.44 (×1.05–1.11 at S/N 150–250). One R Dra-field control even lies inside R Dra's saturated zone, so its wing annulus is pushed out to 26–30 px.
@@ -46,7 +46,7 @@ The numbers below are the published ones: `server/pipeline.variability_report` o
   - The wing series is therefore shown as indicative only. The formal variability test is undetermined: fewer than 5 independent controls, and the field's controls are contaminated by the target.
   - Measured with `spectrum_points(..., wings=True)` → `binned_series(kind="wing")` → `variability` on the cached R Dra cutouts, with controls from `select_controls` on `web/data/r-dra/gaia.json`.
 - **Control selection:** `select_controls` does not exclude stars embedded in the target's own halo or scattered light. This had no visible effect for RW Aur, Barnard or Eps Indi B, but it makes the R Dra controls unusable (above). A future improvement is to reject controls whose wing or background tracks the target.
-- **WISE 0855 blending:** the object passes 11.4″ → 8.2″ → 3.7″ (measured) from a constant star (Gaia DR3 5756956644387831296, G = 16.3). That star is what shows at short wavelengths. Its light is removed by the two-source PSF fit, with the 5–15% residual noted above.
+- **WISE 0855 blending:** the object passes 11.4″ → 8.2″ → 3.8″ (measured) from a constant star (Gaia DR3 5756956644387831296, G = 16.3). That star is what shows at short wavelengths. Its light is removed by the two-source PSF fit, with the 5–15% residual noted above.
 - **Per-exposure astrometry, time not verified:** an offset larger than ~5 s is not supported, but the time is not verified. Object-dependent systematics of ~0.15″ remain unexplained:
   - Eros: −0.15″ along its motion.
   - Euphrosyne: +0.14″ across its motion.
@@ -124,16 +124,16 @@ Code: `spx/detect.py`; validation `tests/test_coadd_detect.py` → `handoff/resu
   - motions common to bright stars (alignment residuals).
 - **Disclosure.** The 2/3 limit on the extended test was added after RW Aur was first rejected as "extended": the Gaussian model under-fits a bright star's wings, so a wider profile wins for any change of a bright point source. The limit is the same in every field.
 - **Targets, found without being given their positions.**
-  - WISE 0855: mover in W and D5, S/N 10.7, motion −8.8 / +0.7 ″/yr (literature −8.12 / +0.68).
-  - Epsilon Indi B: mover in D2, D3, D5 and D6, S/N 22.5, labelled known. Its motion matches Gaia DR3 6412596012146801152, at 3.9 / −3.0 ″/yr.
-  - Barnard's Star: known mover in D6 only, S/N 40.8, at −1.2 / +11.0 ″/yr. In D1–D5 its core is saturated and masked, so it is not found there.
-  - RW Aur: variable in D1, D5 and D6, S/N 12.7.
+  - WISE 0855: mover in W and D5, S/N 10.8, motion −8.65 / +0.67 ″/yr (literature −8.12 / +0.68), grade A by three passes on a line (gallery `candidates.json`).
+  - Epsilon Indi B: mover in D2, D3, D5 and D6, S/N 22.5, labelled known (grade A). Its motion matches Gaia DR3 6412596012146801152, at 3.89 / −3.01 ″/yr.
+  - Barnard's Star: known mover in D6 only (grade A), S/N 40.8, at −1.16 / +11.0 ″/yr. In D1–D5 its core is saturated and masked, so it is not found there.
+  - RW Aur: variable in D1, D5 and D6, S/N 12.7 (grade A, two independent bands).
   - R Dra: not found. Its saturated core and 60″ halo are masked in every band.
 - **Other candidates per field** (not the target; unverified, likely artefacts): Barnard 7 (6 variables, 1 mover), RW Aur 5 variables, Epsilon Indi B 1 variable, WISE 0855 1 variable, R Dra 0.
 - **Injection and recovery.** Gaussian sources moving linearly with the same flux in every epoch were added to the real frames; recovered means a mover within 1.5 px whose motion is within 1 px.
   - Sparse field (WISE 0855, W): at a per-epoch S/N of 12, the recovery rate is 0 / 0.06 / 0.83 / 1.00 for total motions of 1 / 2 / 3 / 5 px (3–15″) over the data span. At S/N 8 and 5 px it is 0.89; at S/N ≤ 6 and 5 px it is ≤ 0.22.
   - Crowded field (Barnard, D2): at S/N 12 the rates are 0 / 0.11 / 0.28 / 0.44. 11% of that frame lies in the halos of saturated stars, and bright-star residuals lower the sensitivity elsewhere.
 - **Grades.** A = seen in two independent wavelength ranges (bands whose ranges overlap, such as W with D5/D6, count once), or a known Gaia mover, or "three passes on a line": a mover whose matched-filter S/N in each epoch's own frame, at its fitted track position, passes the detection threshold (6) in at least 3 epochs of one band. The linear motion is the fitted model, preferred over a fixed variable source. B = one band only. WISE 0855 is A by three passes (single-pass S/N 11.5 / 14.2 / 18.2 in W); the off-target mover in the Barnard field is B (−0.8 / 4.4 / −3.0). The difference-image S/N per epoch is not used here: when an object moves less than a PSF width between epochs the template contains it, so its middle epoch nearly vanishes from the difference (WISE 0855: 1.4 in W). Single-band changes were tested for the linear-variable-filter effect and it does not explain them: the epochs' mean wavelengths differ by 0.002–0.07 µm, which predicts ~0.2% against ~30% measured (correlation −0.05). Their cause is not established.
-- **Limit.** A mover must move at least about one PSF FWHM (3.4 px ≈ 10″) over the data span; smaller motions are largely removed by the template subtraction. WISE 0855 (2.6 px) is just above this limit.
+- **Limit.** A mover must move at least about one PSF FWHM (3.4 px ≈ 10″) over the data span; smaller motions are largely removed by the template subtraction. WISE 0855 moved 8.6″ (2.9 px) over the 0.99 yr of data, just under that limit. It is still found because it is bright in every visit (single-pass S/N 11.5–18 in W, 15–21 in D5), in line with the injections: at S/N 12 per pass, 3 px of motion is recovered in 15 of 18 cases.
 
 Reproduce: `python tests/test_coadd_metrics.py`, `tests/test_coadd_wise0855.py`, `tests/test_coadd_saturation.py`, `tests/test_coadd_wings.py`, `tests/test_coadd_variability.py`, `tests/test_astrometry.py` (second object: `--object`), `tests/test_coadd_detect.py`, `tests/test_coadd_flags.py` (add `--write` to update the files here); figures with `python -m spx.display`.
