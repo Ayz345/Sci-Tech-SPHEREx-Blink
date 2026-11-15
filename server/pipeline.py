@@ -17,6 +17,7 @@ import logging
 import math
 import os
 import subprocess
+import threading
 import time
 import warnings
 from dataclasses import dataclass, field as dc_field
@@ -877,20 +878,31 @@ INDEX_PATH = os.environ.get("SPX_INDEX") or str(Path(__file__).resolve().parent 
 _index_state: dict = {"loaded": False, "indexes": []}
 
 
+_index_lock = threading.Lock()
+
+
 def s3_indexes() -> list:
-    """The loaded indexes (one per file: dr1 and qr3 may be separate); [] when there is none."""
-    if not _index_state["loaded"]:
-        _index_state["loaded"] = True
-        if INDEX_PATH.lower() != "off":
-            from server.s3index import S3Index
-            p = Path(INDEX_PATH)
-            files = sorted(p.glob("*.npz")) if p.is_dir() else ([p] if p.exists() else [])
-            for f in files:
-                try:
-                    _index_state["indexes"].append(S3Index.load(f))
-                    log.info("image index %s: %d images", f.name, _index_state["indexes"][-1].n)
-                except Exception as e:
-                    log.warning("image index %s not loaded: %r", f, e)
+    """The loaded indexes (one per file: dr1 and qr3 may be separate); [] when there is none. The first call loads
+    them and others wait for it (until 15 Nov a request arriving during the load saw no index and asked IRSA).
+    Never call it on the event loop before the index is loaded: the server loads it in a thread at start."""
+    if _index_state["loaded"]:
+        return _index_state["indexes"]
+    with _index_lock:
+        if not _index_state["loaded"]:
+            loaded = []
+            if INDEX_PATH.lower() != "off":
+                from server.s3index import S3Index
+                p = Path(INDEX_PATH)
+                files = sorted(p.glob("*.npz")) if p.is_dir() else ([p] if p.exists() else [])
+                for f in files:
+                    try:
+                        t0 = time.time()
+                        loaded.append(S3Index.load(f))
+                        log.info("image index %s: %d images, loaded in %.1f s", f.name, loaded[-1].n, time.time() - t0)
+                    except Exception as e:
+                        log.warning("image index %s not loaded: %r", f, e)
+            _index_state["indexes"] = loaded
+            _index_state["loaded"] = True
     return _index_state["indexes"]
 
 

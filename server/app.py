@@ -891,7 +891,7 @@ async def _start_janitor(request: Request, call_next):
     global _janitor_started, _pool_set
     if not _pool_set:
         try:
-            log.info("SIA2 seed: %d gallery image lists copied into the cache", seed_sia_cache())
+            log.info("SIA2 seed: %d gallery image lists copied into the cache", await asyncio.to_thread(seed_sia_cache))
         except OSError as e:
             error_id("SIA2 seed", e)
         from concurrent.futures import ThreadPoolExecutor
@@ -899,6 +899,9 @@ async def _start_janitor(request: Request, call_next):
                                                                            thread_name_prefix="spx"))
         _pool_set = True
         asyncio.get_running_loop().create_task(_watch_loop_lag())
+        # the image index (22.5 MB) is loaded in a thread now, not by the first request that needs it: on 15 Nov the
+        # first /api/health loaded it on the event loop and every request waited (event_loop_lag 5 s)
+        threading.Thread(target=P.s3_indexes, daemon=True, name="index-load").start()
     if not _janitor_started and CACHE_MAX_BYTES > 0:
         _janitor_started = True
         threading.Thread(target=_cache_janitor, daemon=True, name="cache-janitor").start()
@@ -1029,7 +1032,7 @@ async def api_manifest(request: Request, target: str | None = None, ra: str | No
             _unhit(client_ip(request), "new_field")
         raise
     registry().touch(fs.field.key)
-    return jresp(registry().manifest(fs))
+    return jresp(await asyncio.to_thread(registry().manifest, fs))   # 30,000 images near the pole: not on the loop
 
 
 #: Requests waiting for a band at once. The wait itself holds no thread: the job is queued in a thread at once,
@@ -1290,6 +1293,8 @@ def _validation_status() -> dict:
 
 def _index_status() -> dict | None:
     """Our own image index (server/s3index.py): files, rows, build time, last exposure; None without one."""
+    if not P._index_state["loaded"]:      # health runs on the event loop: never wait for the load here
+        return {"loading": True}
     idx = P.s3_indexes()
     if not idx:
         return None

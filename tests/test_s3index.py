@@ -164,3 +164,38 @@ def test_health_reports_the_index(index, monkeypatch):
     monkeypatch.setattr(P, "_index_state", {"loaded": True, "indexes": []})
     with TestClient(A.app) as c:
         assert c.get("/api/health").json()["image_index"] is None
+
+
+def test_health_never_loads_the_index_and_callers_wait_for_the_load(index, monkeypatch):
+    import threading
+    import time
+    from fastapi.testclient import TestClient
+    from server import app as A
+    from server import pipeline as P
+    from server import s3index as X
+    idx, _ = index
+    monkeypatch.setattr(P, "_index_state", {"loaded": False, "indexes": []})
+    monkeypatch.setattr(P, "INDEX_PATH", idx.meta["path"])
+    started, release = threading.Event(), threading.Event()
+    real = X.S3Index.load
+
+    def slow_load(path):
+        started.set()
+        release.wait(5)
+        return real(path)
+    monkeypatch.setattr(X.S3Index, "load", staticmethod(slow_load))
+    monkeypatch.setattr(A, "_pool_set", True)                 # no start-up thread in this test
+    with TestClient(A.app) as c:
+        assert c.get("/api/health").json()["image_index"] == {"loading": True}   # health does not wait or load
+    got = {}
+    t1 = threading.Thread(target=lambda: got.setdefault("a", P.s3_indexes()))
+    t1.start()
+    assert started.wait(5)
+    t2 = threading.Thread(target=lambda: got.setdefault("b", P.s3_indexes()))
+    t2.start()
+    time.sleep(0.2)
+    assert "b" not in got                                       # the second caller waits for the load ...
+    release.set()
+    t1.join(5)
+    t2.join(5)
+    assert len(got["a"]) == 1 and got["b"] is got["a"]          # ... and gets the index, not an empty list
