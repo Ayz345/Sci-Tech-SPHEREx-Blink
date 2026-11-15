@@ -1,35 +1,27 @@
 <!doctype html>
-<html lang="en" data-font="a">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sci-Tech: SPHEREx Blink</title>
+<link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=DM+Sans:opsz,wght@9..40,300..500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script>
-  // the serif candidates (?font=b|c|d) are loaded only when asked for; the default page needs Fraunces alone
-  if (/^[bcd]$/.test(new URLSearchParams(location.search).get("font") || "")) {
-    const l = document.createElement("link"); l.rel = "stylesheet";
-    l.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..600;1,400..600&family=Cormorant:ital,wght@0,400..600;1,400..600&family=Noto+Serif+Display:ital,wght@0,200..500;1,200..500&display=swap";
-    document.head.append(l);
-  }
-</script>
 <link rel="stylesheet" href="style.css">
 <!--
-  SPHEREx Blink, the animated site (design study v5).
+  SPHEREx Blink: the animated front page.
   Nine pages, paper and black space in turn, each saying what we built. Each page is pinned to the screen: its words
   appear in place, stay while you scroll a little, and leave quickly when you go on. One 3D form stays behind them and
   takes a different shape on every page (a flower, a pair, a dish with rings running out, a pebble, a twisted column,
   the Earth, five petals). Black comes in from the corners; no cyan on the pages (cyan belongs to the telescope entry).
   Begin (first, second and last page): the form opens into the telescope, the dive, the sky.
-  In the sky a click anywhere zooms into that spot; the five challenge targets open from the gallery files, any other
-  spot from the live server (web/config.js). The frames are shown on the plate screen (tool.js).
-  Serve the repository root with any static server; the page is /design/v5/.
-  ?page=4 (start at a page, 0-8)  ?p=0.5 (freeze the Begin sequence)  ?stage=sky  ?target=wise-0855  ?ra=133.8&dec=-7.2
-  ?fast=1 (no waits in the plate screen)  ?speed=2  ?font=a|b|c|d  ?dusk=a (sequence corners end black)
+  In the sky a click anywhere zooms into that spot; the five challenge targets open from the gallery files (data/), any
+  other spot from the live server (config.js). The frames are shown on the plate screen (plate.js).
+  URL keys: ?page=4 (start at a page, 0-8)  ?p=0.5 (freeze the Begin sequence)  ?stage=sky  ?target=wise-0855
+  ?ra=133.8&dec=-7.2  ?fast=1 (no waits in the plate screen)  ?speed=2
 -->
-<script src="../../web/config.js"></script>
+<script src="config.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -53,13 +45,12 @@
       <button id="begin" class="pill" type="button">Begin</button>
     </div>
     <p id="credit">Data: NASA/IPAC SPHEREx via IRSA &middot; spacecraft model is AI-generated (3D Jutsu)</p>
-    <!-- Space Apps rule (orchestrator, 15 Nov): AI-generated imagery carries a visible mark; shown while the model is on screen -->
+    <!-- AI-generated imagery carries a visible mark; shown while the model is on screen -->
     <p id="aimark">Spacecraft model: AI-generated (3D Jutsu), an illustration, not data</p>
     <p id="more" aria-hidden="true">Scroll</p>
   </section>
 
-  <!-- 1 · space: why we built it (the form becomes the Earth: anyone, anywhere, can help discover). Text from the
-       orchestrator, 14 Nov evening, placed as given ("help discover" / "new worlds"; no "planets", no past-tense claim) -->
+  <!-- 1 · space: why we built it (the form becomes the Earth: anyone, anywhere, can help discover) -->
   <section class="page dark left" aria-labelledby="h-built">
     <div class="inner earth">
       <p class="k">01 &middot; Why we built it</p>
@@ -122,7 +113,7 @@
       <div class="plate"><canvas id="pcv" width="140" height="140"></canvas><svg id="pov" viewBox="0 0 140 140" aria-hidden="true"></svg></div>
       <figcaption id="pcap">SPHEREx frames, 4.3&ndash;5.0&nbsp;<span class="unit">&micro;m</span></figcaption>
     </figure>
-    <!-- its track on the sky (orchestrator, 14 Nov evening): offsets from the first measured position, arcsec, east
+    <!-- its track on the sky: offsets from the first measured position, arcsec, east
          left, north up, one scale on both axes (1" = 18.5714 units; x: +2..-12, y: -3..+6). No fitted line, no line
          joining the points, no error ellipses, no speeds, one ink. Slides in from the right with the page (app.js). -->
     <figure id="wtrack" class="aside slide" aria-label="WISE 0855's three measured positions, the fixed Gaia star and the published motion">
@@ -190,7 +181,7 @@
         JPL Horizons: 382 of 450 exposures accepted, median offset 0.12&Prime; and 0.05&Prime;, scatter 0.17&Prime;.
         The observation time is not independently verified. For every point of a spectrum the tool names the flags the
         SPHEREx pipeline set on those pixels, such as a cosmic-ray hit, a dead pixel or the halo of a bright star.</p>
-      <!-- the finder (orchestrator, 14 Nov evening; sentences as given; never "detects", "discovers", "AI", no ± here) -->
+      <!-- the finder -->
       <p>The tool compares the passes by itself and rings what moved or changed. Given only the WISE 0855 field, with no
         position, it rings WISE 0855 and measures its motion at 8.7&nbsp;&Prime;/yr; it finds Epsilon Indi B and
         Barnard&rsquo;s Star the same way, and marks RW Aurigae as changing in brightness.</p>
@@ -251,7 +242,7 @@
       <p class="ack mono">Built with three.js (MIT); fonts Fraunces, DM Sans and IBM Plex Mono (SIL OFL); coastlines from Natural Earth; spacecraft model generated with 3D Jutsu (AI).</p>
       <p class="ack">Name lookup: Sesame name resolver, CDS, Strasbourg. Also used: Luhman &amp; Esplin 2016 (its motion),
         Natural Earth (the coastlines).<br>
-        <!-- Team: no personal names, photos or voices in the submission (Space Apps rule for under-18s; orchestrator, 15 Nov). -->
+        <!-- Team: no personal names, photos or voices on this page. -->
         Sci-Tech: SPHEREx Blink &middot; Team Sci-Tech &middot; NASA Space Apps Challenge 2026, &ldquo;Planet X and SPHEREx&rdquo;.</p>
     </div>
   </section>
@@ -260,7 +251,7 @@
 <div id="veil" aria-hidden="true"></div>
 <div id="fade" aria-hidden="true"></div>
 
-<!-- sky (v2): look out through the telescope; click anywhere to zoom in -->
+<!-- sky: look out through the telescope; click anywhere to zoom in -->
 <section id="sky" aria-label="Sky">
   <div id="markers" aria-hidden="true"></div>
   <div id="cursor" aria-hidden="true"><i></i><span></span></div>
@@ -287,7 +278,7 @@
 <div id="hud" aria-hidden="true"><span id="fovlab"></span></div>
 <svg id="frame" aria-hidden="true"></svg>
 
-<!-- the plate screen (v2), on real data -->
+<!-- the plate screen, on real data -->
 <section id="tool" aria-label="Frames" hidden>
   <div id="platecol">
     <div id="envelope" class="mono" aria-live="polite"></div>

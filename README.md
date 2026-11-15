@@ -18,12 +18,12 @@ the spectrum. The tool does not claim any discovery. It makes looking easier.
 - **Online:** <https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/> opens the landing page; from its sky you reach the
   five challenge targets and their real SPHEREx frames (prebuilt under `web/data/`, no server needed). Try
   [WISE 0855](https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/?target=wise-0855). The full tool, with every view
-  and overlay, is at <https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/web/>.
+  and overlay, is at <https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/tool/>.
 - Free coordinates, name lookup, your own wavelength window, larger fields and the moving-object report need the
   API server. It works end to end on a local machine (see "Run it") and is not deployed yet; `Dockerfile` is
   written but has not been built or run.
-- `design/v5/` is the landing page (the story of the project, a sky to click, the frames of the five targets);
-  `web/` is the full tool.
+- `web/` is the site exactly as it is served: the landing page at its root (the story of the project, a sky to
+  click, the frames of the five targets), the full tool under `web/tool/`, the gallery under `web/data/`.
 
 ## What it does
 
@@ -70,8 +70,9 @@ python -m http.server 8765 --bind 127.0.0.1 -d web
 uvicorn server.app:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8765/?target=wise-0855`. The page looks for the server named in `web/config.js`; without
-one it says so and keeps the gallery. Page details and URL parameters: [`web/README.md`](web/README.md).
+Open `http://127.0.0.1:8765/` for the landing page or `http://127.0.0.1:8765/tool/?target=wise-0855` for the full
+tool. The pages look for the server named in `web/config.js`; without one they say so and keep the gallery. Tool
+details and URL parameters: [`web/tool/README.md`](web/tool/README.md).
 
 The moving-object report needs the ADES submission schema once: `python scripts/make_submit_xsd.py`.
 
@@ -114,12 +115,10 @@ Methods and measured numbers: [`handoff/results/methods_v2.md`](handoff/results/
 |---|---|
 | `spx/` | Processing: archive access, co-add, display scale, photometry, single-exposure astrometry, candidate finder, ADES writer, targets |
 | `server/` | FastAPI server and the build pipeline |
-| `web/` | The full tool (static page); `web/data/` is the prebuilt gallery |
-| `design/` | The landing page (`design/v5/`) and its 3D model (`design/models/`) |
+| `web/` | The published site: landing page at its root, the full tool in `web/tool/`, the prebuilt gallery in `web/data/` |
 | `scripts/` | Gallery build, acceptance checks, small tools |
 | `tests/` | Offline tests, and network tests that run with `SPX_NETWORK=1` |
-| `handoff/` | First exploration prototype and the result files and figures of the quality work |
-| `probes/` | The first measurements of the archive's speed and file layout |
+| `handoff/results/` | Methods (`methods_v2.md`) and the measured result files that the tests write and the server reads |
 | `docs/acceptance/` | Acceptance report of the gallery build |
 
 ## Tests
@@ -223,7 +222,8 @@ Every source used is listed here, as the Space Apps rules ask.
 | Matplotlib, Pillow (optional, figures only) | Matplotlib licence, MIT-CMU |
 | Aladin Lite 3.8.2 (loaded on demand by the page) | LGPL v3 (see below) |
 
-The tool page (`web/`) itself contains no third-party JavaScript, fonts or images. One library is loaded from a
+The tool page (`web/tool/`) contains no third-party JavaScript or images; it loads the same three font families
+as the landing page (below). One library is loaded from a
 CDN, and only when the "More surveys" panel is opened:
 
 - Aladin Lite 3.8.2 by the CDS, Strasbourg (<https://aladin.cds.unistra.fr/>,
@@ -233,17 +233,16 @@ CDN, and only when the "More surveys" panel is opened:
   CDS): AllWISE, unWISE, NEOWISE-R, 2MASS, DSS2 and Pan-STARRS DR1. On 14 and 15 November only AllWISE, 2MASS
   and DSS2 answered; the panel says which survey does not load. These images are not part of this repository.
 
-The landing page (`design/v5/`) uses:
+The landing page (`web/`) uses:
 
 - three.js 0.160.0 (MIT), loaded from `cdn.jsdelivr.net/npm/three@0.160.0`, not modified and not stored here.
-- Fonts from Google Fonts: Fraunces, DM Sans and IBM Plex Mono (SIL Open Font License as published there);
-  Playfair Display, Cormorant and Noto Serif Display load only with the `?font=` switch.
+- Fonts from Google Fonts: Fraunces, DM Sans and IBM Plex Mono (SIL Open Font License as published there).
 - Coastlines: Natural Earth 1:110m land (public domain), through the npm package world-atlas 2.0.2 (ISC);
-  stored as `design/v5/assets/land-110m.json`.
+  stored as `web/assets/land-110m.json`.
 - The simplex-noise function in its shaders follows the widely used "webgl-noise" code by Ashima Arts and
   Stefan Gustavson (MIT). It was typed in, not copied from a file, so take this attribution as our best
   knowledge.
-- The spacecraft model `design/models/jutsu-1/telescope.glb` was generated with an AI tool (3D Jutsu) by a team
+- The spacecraft model `web/assets/telescope.glb` was generated with an AI tool (3D Jutsu) by a team
   member and recoloured. It is an illustration, not data, carries no logo or texture, and is labelled
   "AI-generated" where it appears. We have not confirmed the licence terms of that tool's output.
 

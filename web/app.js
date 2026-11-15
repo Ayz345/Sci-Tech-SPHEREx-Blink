@@ -1,17 +1,18 @@
-// SPHEREx Blink, design study v5 round 6. One three.js scene behind the whole page.
+// SPHEREx Blink: one three.js scene behind the whole page.
 //   pages    nine pages, paper and black space in turn, each saying what we built or did, pinned to the screen: the words appear in place, hold while
 //            you scroll a little, and leave quickly. One form stays behind them and takes a different shape on each
 //            page (flower, pair, dish with running rings, pebble, twisted column, the Earth, five petals). Black comes
 //            in from the corners, no cyan (cyan is for the telescope entry only). Scrolling never plays the sequence.
 //   Begin    (first and last page) the form relaxes and opens from the top like a bud into the three shield cones;
-//            the rest of the designer's model (design/models/jutsu-1/telescope.glb, shades of white) grows out of the
-//            cone foot; v2's dive on one camera path, v2's interior (ribs, seams, glowing rims, barrel with rings);
-//            the mirror lights up; white flash
-//   sky      as v2: the white field stop opens onto the sky, look out through the telescope
-//   plate    a click anywhere on the sky (or a target, or typed RA Dec, or ?target= / ?ra=&dec=) -> v2's zoom into
-//            the field and v2's plate screen on real data (tool.js): gallery files for the five challenge targets,
-//            the live server (web/config.js) for any other spot
-// The craft is an illustration. The v2 sky stars are decorative, not catalogue data, and fade before a frame shows.
+//            the rest of the model (assets/telescope.glb, shades of white) grows out of the cone foot; the dive on one
+//            camera path through the interior (ribs, seams, glowing rims, barrel with rings); the mirror lights up; white flash
+//   sky      the white field stop opens onto the sky, look out through the telescope
+//   plate    a click anywhere on the sky (or a target, or typed RA Dec, or ?target= / ?ra=&dec=) -> zoom into
+//            the field and the plate screen on real data (plate.js): gallery files (data/) for the five challenge targets,
+//            the live server (config.js) for any other spot
+// The craft is an illustration. The sky stars are decorative, not catalogue data, and fade before a frame shows.
+// URL keys: ?page=N (start at page 0-8), ?p=0.5 (freeze the Begin sequence), ?stage=sky, ?target=<key>, ?ra=&dec=,
+//           ?fast=1 (no waits in the plate screen), ?speed=2 (a faster Begin sequence).
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
@@ -21,7 +22,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { Pass, FullScreenQuad } from "three/addons/postprocessing/Pass.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { createTool, loadTarget, loadBand, paint, drawMarker, playable, usedOf, dateOf, fmtDate, setUpper, findServer } from "./tool.js";
+import { createTool, loadTarget, loadBand, paint, drawMarker, playable, usedOf, dateOf, fmtDate, setUpper, findServer } from "./plate.js";
 
 const $ = (id) => document.getElementById(id);
 const P = new URLSearchParams(location.search);
@@ -66,11 +67,10 @@ function track(keys) {
     return (2 * t3 - 3 * t2 + 1) * keys[i][1] + (t3 - 2 * t2 + t) * h * m[i] + (-2 * t3 + 3 * t2) * keys[i + 1][1] + (t3 - t2) * h * m[i + 1];
   };
 }
-if (P.get("font")) document.documentElement.dataset.font = P.get("font");
 let seed = 20250311;
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
-// ---------------------------------------------------------------- renderer (v2's pipeline: ACES, bloom, grain)
+// ---------------------------------------------------------------- renderer (ACES tone mapping, bloom, grain)
 const cv = document.getElementById("gl");
 const W = () => cv.clientWidth || innerWidth, H = () => cv.clientHeight || innerHeight;
 const renderer = new THREE.WebGLRenderer({ canvas: $("gl"), antialias: true, powerPreference: "high-performance" });
@@ -112,9 +112,8 @@ float snoise(vec3 v){
 // the craft. Its colours are written as they should appear on screen (sRGB) and pushed back through the inverse of
 // three's ACES curve, so tone mapping and the exposure changes of the dive do not shift them.
 const glslHex = (hex) => `vec3(${[(hex >> 16) & 255, (hex >> 8) & 255, hex & 255].map((x) => (x / 255).toFixed(4)).join(",")})`;
-// the designer, 14 Nov (round 5): not a blue wash. What comes in is black space; its gradient is cyan at the corners.
-// ?dusk=a keeps the cyan only on the moving edge (corners end black too).
-const SKIN = { paper: 0xfbfbf9, c1: 0xe4f9fc, c2: 0x8fe4f3, c3: 0x22bcd8, corner: P.get("dusk") === "a" ? 0x07090b : 0x1291ab, black: 0x07090b, page: 0x060607, spaceC: 0x0e1317, spaceE: 0x090c10 };
+// not a blue wash: what comes in is black space; its gradient is cyan at the corners.
+const SKIN = { paper: 0xfbfbf9, c1: 0xe4f9fc, c2: 0x8fe4f3, c3: 0x22bcd8, corner: 0x1291ab, black: 0x07090b, page: 0x060607, spaceC: 0x0e1317, spaceE: 0x090c10 };
 const BGU = { uDark: { value: 0 }, uSpace: { value: 0 }, uCyan: { value: 0 }, uAspect: { value: W() / H() }, uTime: { value: 0 }, uExp: { value: 1.05 },
   uInIn: { value: new THREE.Matrix3().set(.59719, .35458, .04823, .076, .90834, .01566, .0284, .13383, .83777).invert() },
   uOutIn: { value: new THREE.Matrix3().set(1.60475, -.53108, -.07367, -.10208, 1.10813, -.00605, -.00327, -.07276, 1.07602).invert() } };
@@ -143,9 +142,9 @@ const bgMat = new THREE.ShaderMaterial({
       c = mix(c, ${glslHex(SKIN.c3)}, smoothstep(.2, .36, a));
       float kc = smoothstep(.22, 1.02, abs(vUv.x - .5) * abs(vUv.y - .5) * 4. + .5 * wob);   // 1 in the four corners, 0 along the middles of the edges
       c = mix(c, mix(${glslHex(SKIN.black)}, ${glslHex(SKIN.corner)}, kc * kc), smoothstep(.26, .56, a));
-      // the pages: paper straight to black, the black coming in from the corners (the designer, round 6: no cyan here)
+      // the pages: paper straight to black, the black coming in from the corners (no cyan here)
       c = mix(mix(${glslHex(SKIN.paper)}, ${glslHex(SKIN.page)}, smoothstep(.04, .8, a)), c, uCyan);
-      // the sky is deeper, with v2's faint glow from the top
+      // the sky is deeper, with a faint glow from the top
       vec2 pp = vUv - vec2(.5, 1.12); pp.x *= uAspect * .55;
       c = mix(c, mix(${glslHex(SKIN.spaceE)}, ${glslHex(SKIN.spaceC)}, exp(-dot(pp, pp) * 2.4)), uSpace);
       gl_FragColor = vec4(uInIn * invFit(uOutIn * s2l(c)) * (.6 / uExp), 1.);
@@ -183,7 +182,7 @@ const grain = new ShaderPass({
 });
 composer.addPass(grain);
 
-// view centre: where the optical axis lands on screen (v2: the sky sits a little above centre)
+// view centre: where the optical axis lands on screen (the sky sits a little above centre)
 const view = { cx: .5, cy: .5 };
 const S = { p: 0, goal: 0, spin: 0, time: 0, last: performance.now(), fov0: 35, mode: P.has("p") || P.get("stage") === "sky" || P.has("target") || P.has("ra") ? "frozen" : "home",
   sky: { dir: radec(281, -4), goal: radec(281, -4), fov: 50 }, live: false, drag: false };
@@ -194,7 +193,7 @@ function applyView() {
   camera.updateProjectionMatrix();
 }
 
-// ---------------------------------------------------------------- sky (v2): procedural decorative stars, Milky Way weighted, RA/Dec grid
+// ---------------------------------------------------------------- sky: procedural decorative stars, Milky Way weighted, RA/Dec grid
 const R_SKY = 500;
 const NGP = radec(192.859, 27.128), GC = radec(266.405, -28.936);
 function skyPoint() { const z = rnd() * 2 - 1, ph = rnd() * Math.PI * 2, r = Math.sqrt(1 - z * z); return new THREE.Vector3(r * Math.cos(ph), z, r * Math.sin(ph)); }
@@ -248,12 +247,12 @@ const gridMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true
 }
 scene.add(skyG);
 
-// ---------------------------------------------------------------- SPHEREx: the designer's model (design/models/jutsu-1/telescope.glb)
+// ---------------------------------------------------------------- SPHEREx: the model (assets/telescope.glb)
 // The GLB is placed at scale .9, lifted down by 1.35 (its cones run y 1.14..3.22 in model units). Everything it
-// shows from outside is recoloured to shades of white (the designer, 14 Nov: no coloured parts). Its three cones are not
-// drawn: the clay layers end as exactly those cones and stay. Its hood is replaced by v2's barrel.
+// shows from outside is recoloured to shades of white (no coloured parts). Its three cones are not
+// drawn: the clay layers end as exactly those cones and stay. Its hood is replaced by the barrel below.
 const GS = .9, GY = -1.35;
-const gltf = await new GLTFLoader().loadAsync("../models/jutsu-1/telescope.glb");
+const gltf = await new GLTFLoader().loadAsync("assets/telescope.glb");
 const rig = gltf.scene.getObjectByName("RIG_turntable");
 const craft = new THREE.Group();
 scene.add(craft);
@@ -273,7 +272,7 @@ const toneMat = (name) => {
   if (!toneMats.has(name)) toneMats.set(name, new THREE.MeshStandardMaterial({ ...(TONES[name] || TONES.MAT_metal_silver), side: THREE.DoubleSide }));
   return toneMats.get(name);
 };
-const insideMat = new THREE.MeshStandardMaterial({ color: 0x2a2b2e, metalness: .8, roughness: .45, side: THREE.DoubleSide });   // deck, as v2
+const insideMat = new THREE.MeshStandardMaterial({ color: 0x2a2b2e, metalness: .8, roughness: .45, side: THREE.DoubleSide });   // deck
 // the dark surfaces inside the telescope keep a floor of very dark teal (about #0c181c on screen): never pure black
 const FLOOR = new THREE.Color().setRGB(.014, .032, .038), floorMats = [insideMat];
 const bandMat = new THREE.MeshStandardMaterial({ ...TONES.MAT_metal_silver, side: THREE.DoubleSide, transparent: true, opacity: 0 });
@@ -293,8 +292,8 @@ for (const o of [...rig.children]) {
   if (n === "PLD_deck") o.scale.set(.93, 1, .93);                                     // its dark edge stays inside the cone feet
   (inside ? gCore.b : /^SOL/.test(n) ? gSol.b : /^SHD/.test(n) ? gOuter : gBus.b).add(o);
 }
-// v2's telescope: an open barrel (off-axis design, no secondary in the way) with baffle rings and the mirror at
-// its foot. The mirror is black (the designer, 14 Nov) and only lights up at the end of the fall.
+// the barrel: an open barrel (off-axis design, no secondary in the way) with baffle rings and the mirror at
+// its foot. The mirror is black and only lights up at the end of the fall.
 const GLOW = new THREE.Color(0xd6f6fb);
 const mirrorMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
 {
@@ -324,7 +323,7 @@ const mirrorMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
 // Then every point moves straight to its place on the layer's cone (exactly the GLB cone): the rim leads, the
 // feet of all three arrive together, the inner layers open their tops a little later.
 const coneW = (rb, y0, rt, y1) => [rb * GS, rt * GS, y0 * GS + GY, (y1 - y0) * GS];   // GLB cone -> world
-const SH = [ // cone (world); size at home; how much later its top opens; ribs; outer face; inner face (v2's metal tones)
+const SH = [ // cone (world); size at home; how much later its top opens; ribs; outer face; inner face (metal tones)
   { cone: coneW(.6, 1.1436, 2.06, 3.2236), k: 1, lag: 0, ribs: 64, out: [0xecebe6, 0, .5], inn: [0xd4d6d9, .16] },
   { cone: coneW(.58, 1.14, 1.62, 2.9), k: .96, lag: .09, ribs: 48, out: [0xdfe1e4, .45, .34], inn: [0xb9bcc0, .23] },
   { cone: coneW(.56, 1.18, 1.2, 2.46), k: .92, lag: .18, ribs: 40, out: [0xd8dade, .45, .34], inn: [0xa0a4a9, .3] },
@@ -443,7 +442,7 @@ const shells = [];
     const own = { uK: { value: d.k }, uLag: { value: d.lag }, uCone: { value: new THREE.Vector4(...d.cone) },
       uInCol: { value: new THREE.Color(0xffffff) }, uInRough: { value: .92 }, uInMetal: { value: 0 } };
     // one material for both faces: the outer face takes the material's own values, the inner face the uIn* ones.
-    // polygonOffset lets the rib and seam lines sit on the surface (v2).
+    // polygonOffset lets the rib and seam lines sit on the surface.
     const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0, roughness: .92, side: THREE.DoubleSide, envMapIntensity: .25,
       polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
     mat.onBeforeCompile = (sh) => {
@@ -488,7 +487,7 @@ const shells = [];
     craft.add(mesh); shells.push(mesh); floorMats.push(mat);
   });
 }
-// v2's dressing of each cone: ribs and seams as hairlines, a glowing rim, a foot ring. They fade in once the cone stands.
+// the dressing of each cone: ribs and seams as hairlines, a glowing rim, a foot ring. They fade in once the cone stands.
 const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false });
 const seamMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false });
 const footMat = new THREE.MeshStandardMaterial({ color: 0xb9bcc0, metalness: .6, roughness: .4, transparent: true, opacity: 0 });
@@ -592,10 +591,10 @@ function readScroll(y) {
 const T = { form: [.05, .41], calm: [.04, .3], metal: [.22, .42], core: [.1, .24], bus: [.2, .4], panel: [.29, .45],
   bands: [.35, .43], dress: [.37, .47], rims: [.41, .5], dark: [.05, .88],
   cam: [.03, .4, .68, .885], sep: [.49, .68], flash: [.85, .9], open: [.905, .99] };
-const OUT = [1.75, 1.05, .4];                                     // shields separate along the axis (v2), world units
+const OUT = [1.75, 1.05, .4];                                     // shields separate along the axis, world units
 
 // ---------------------------------------------------------------- one camera path, start to mirror
-// Round the form, up over the aperture (v2's rise and swing), then down the axis through the three rims and the
+// Round the form, up over the aperture (a rise and a swing), then down the axis through the three rims and the
 // barrel to just above the mirror. One spline and one clock, so there is no stop between the parts.
 const LOOK0 = new THREE.Vector3(0, .15, 0);
 const C1 = new THREE.Vector3(1.4, 7.6, 1.9);
@@ -655,8 +654,8 @@ function apply(p, dt) {
   const hh = 6.6 * Math.tan(S.fov0 * D2R / 2);            // half the height of the view at the form's distance
   const bob = home ? .045 * Math.sin(S.time * .6) : 0;    // a slow breath
   let px = narrow ? (hh * W() / H() - .5) * away : f[10] * clamp(W() / H() / 1.6, .55, 1.15), py = (narrow ? (hh - .85) * away : f[11]) + bob, ps = narrow ? lerp(1, .5, away) : f[12];
-  // page 4: the real plate sits on the form, a round dark lens centred behind it (the designer, 14 Nov evening: keep the
-  // photo on the object). Its place and size come from the plate's screen rect; it faces the camera while it is up.
+  // page 4: the real plate sits on the form, a round dark lens centred behind it (the photo stays on the
+  // object). Its place and size come from the plate's screen rect; it faces the camera while it is up.
   const kl = narrow ? 0 : f[15];
   let faceY = 0;
   if (kl > .001) {
@@ -716,7 +715,7 @@ function apply(p, dt) {
   // the mirror lights up as we come down the barrel: the screen brightens into the flash instead of going black
   mirrorMat.color.copy(GLOW).multiplyScalar(5 * Math.pow(clamp((fall - .5) / .5, 0, 1), 2));
 
-  // the flash, then the white field stop opens onto the sky (v2 toSky)
+  // the flash, then the white field stop opens onto the sky
   const veil = $("veil");
   const ko = lin(T.open[0], T.open[1], p);
   if (p < T.open[0]) {
@@ -762,7 +761,7 @@ function apply(p, dt) {
 }
 
 // ---------------------------------------------------------------- Begin plays the sequence
-// No scroll driving (the designer, 14 Nov): the first screen is an ordinary section and the page below is free for more.
+// No scroll driving: the first screen is an ordinary section and the page below is free for more.
 const DUR = (REDUCED ? 1600 : 12000) / Math.max(.1, +P.get("speed") || 1);
 function lockStage(on) {
   document.documentElement.classList.toggle("locked", on);
@@ -796,7 +795,7 @@ function through(night, fn) {
   f.classList.toggle("night", night); f.classList.add("on");
   setTimeout(() => { fn(); requestAnimationFrame(() => requestAnimationFrame(() => f.classList.remove("on"))); }, REDUCED ? 0 : 380);
 }
-// a target chosen on the page: straight to the sky beside it, then the zoom into its field (as v2)
+// a target chosen on the page: straight to the sky beside it, then the zoom into its field
 function openDirect(id) {
   const t = TARGETS.find((x) => x.id === id);
   if (!t || S.mode !== "home" || S.resetting) return;
@@ -808,7 +807,7 @@ function openDirect(id) {
   });
 }
 $("begin").addEventListener("click", begin);
-// the last page: back to the first one (the designer, 14 Nov)
+// the last page: back to the first one
 for (const b of document.querySelectorAll("[data-top]")) b.addEventListener("click", () => scrollTo({ top: 0, behavior: REDUCED ? "auto" : "smooth" }));
 for (const b of document.querySelectorAll("[data-begin]")) b.addEventListener("click", () => S.mode === "home" && through(false, begin));
 for (const b of document.querySelectorAll("[data-open]")) b.addEventListener("click", () => openDirect(b.dataset.open));
@@ -818,7 +817,7 @@ addEventListener("keydown", (e) => {
   if (e.key === "Escape" && S.mode !== "home" && document.activeElement?.id !== "q") backToStart();
 });
 
-// ---------------------------------------------------------------- sky (v2): markers, picks, search, drag
+// ---------------------------------------------------------------- sky: markers, picks, search, drag
 const TARGETS = [
   { id: "barnard", name: "Barnard's Star", ra: 269.452, dec: 4.693, note: "The fastest-moving star on the sky: about 10″ a year." },
   { id: "eps-indi-b", name: "Epsilon Indi B", ra: 330.84, dec: -56.786, note: "A pair of brown dwarfs 12 light years away." },
@@ -900,7 +899,7 @@ $("search").addEventListener("submit", (e) => {
   if (TARGETS.some((x) => x.id === t.id)) lookAt(t); else openFree(t.ra, t.dec);
 });
 // any spot of sky: the live server builds its frames (the five challenge targets come from the gallery files)
-// is the live server there? one quick health check at start (none when web/config.js sets SPX_API to ""); the hover hint reads it
+// is the live server there? one quick health check at start (none when config.js sets SPX_API to ""); the hover hint reads it
 findServer().then((u) => { S.server = !!u; });
 async function openFree(ra, dec) {
   const msg = $("askmsg");

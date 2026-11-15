@@ -1,14 +1,15 @@
-# Publishes the site to GitHub Pages, keeping the repository's folder layout:
-#   /design/v5/   the landing page (the site root redirects here)
-#   /web/         the full tool, with the prebuilt gallery under /web/data/
-# The five gallery targets work without a server. Free coordinates need the API server:
+# Publishes web/ to GitHub Pages exactly as it is in the repository:
+#   /        the landing page
+#   /tool/   the full tool
+#   /data/   the prebuilt gallery of the five challenge targets
+# The gallery works without a server. Free coordinates need the API server:
 # set the repository variable SPX_API_URL to its https address and run this workflow again.
 name: Publish the static page
 
 on:
   push:
     branches: [dev]
-    paths: ["web/**", "design/**", ".github/workflows/pages.yml"]
+    paths: ["web/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -32,18 +33,12 @@ jobs:
         env:
           SPX_API_URL: ${{ vars.SPX_API_URL }}
         run: |
-          mkdir -p site/web site/design/v5/assets site/design/models/jutsu-1
-          cp -r web/. site/web/
+          mkdir site
+          cp -r web/. site/
           # developer fixtures are synthetic test data; they do not belong on the public site
-          rm -rf site/web/dev-fixtures site/web/README.md
-          printf '// Written at publish time. "" = gallery only (no live server).\nwindow.SPX_API = "%s";\n' "${SPX_API_URL}" > site/web/config.js
-          # the landing page: only the files it loads
-          cp design/v5/index.html design/v5/style.css design/v5/app.js design/v5/tool.js site/design/v5/
-          cp design/v5/assets/land-110m.json site/design/v5/assets/
-          cp design/models/jutsu-1/telescope.glb site/design/models/jutsu-1/
-          # the site root opens the landing page and keeps the query string (?target=wise-0855 ...)
-          cp design/site-root.html site/index.html
-          du -sh site site/web site/design
+          rm -rf site/tool/dev-fixtures site/tool/README.md
+          printf '// Written at publish time. "" = gallery only (no live server).\nwindow.SPX_API = "%s";\n' "${SPX_API_URL}" > site/config.js
+          du -sh site site/tool site/data
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

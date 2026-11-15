@@ -1,21 +1,21 @@
-// SPHEREx Blink, design study v5: the plate screen (v2's look) on real data.
-// Two sources, one contract (v1, PLAN.md section 5), both read only:
-//   gallery  the five challenge targets, built in advance: web/data/<key>/ (static files)
-//   live     any other position (a click on the sky, typed coordinates): the live server named in web/config.js
+// SPHEREx Blink: the plate screen on real data.
+// Two sources, one data contract (v1), both read only:
+//   gallery  the five challenge targets, built in advance: data/<key>/ (static files)
+//   live     any other position (a click on the sky, typed coordinates): the live server named in config.js
 //            (/api/manifest, /api/band, /api/frame, /api/gaia, /api/spectrum). It asks the archive which exposures
 //            cover the field, reads their pixels and stacks them; a band can take up to a minute.
-// Rules taken from the placeholder page web/app.js (orchestrator, 14 Nov): little-endian .f32 with row 0 = south,
+// Rules of the data contract: little-endian .f32 with row 0 = south,
 // one asinh scale per band shared by all passes, NaN = no data, +Infinity = saturated (brightest), saturation
 // carried to the other passes where they are bright too, passes with fewer than 5 exposures skipped by default,
 // passes with 0 exposures have no file. Unknown fields are ignored. Nothing here is synthetic; the decorative sky
 // behind fades out before a frame shows.
 const D2R = Math.PI / 180, SVGNS = "http://www.w3.org/2000/svg", enc = encodeURIComponent;
-const DATA = new URL("../../web/data/", import.meta.url).href;
-export const FULL_TOOL = new URL("../../web/index.html", import.meta.url).href;
+const DATA = new URL("data/", import.meta.url).href;
+export const FULL_TOOL = new URL("tool/", import.meta.url).href;
 export const FIELD_DEG = 0.1166;                  // 7 arcmin: the server's largest field today
 // A free position is rounded once, to 4 decimals (0.36 arcsec; the grid pixel is 3 arcsec), and that one value is used
 // for the server request and for the address. The server keys a field on 4 decimals: a 6-decimal request and a
-// 5-decimal address could fall on two sides of a rounding edge and build the same field twice (orchestrator, 14 Nov).
+// 5-decimal address could fall on two sides of a rounding edge and build the same field twice.
 export const round4 = (x) => Math.round(x * 1e4) / 1e4;
 
 // ---------------------------------------------------------------- data
@@ -253,7 +253,7 @@ export function createTool(c) {
     const hud = $("hud"), lab = $("fovlab");
     hud.style.opacity = 1;
     const angle = Math.acos(clamp(from.dot(goal), -1, 1)) / D2R;
-    // the designer, 14 Nov evening: zoom in the middle of the screen, then slide the field to the plate's place on the left.
+    // zoom in the middle of the screen, then slide the field to the plate's place on the left.
     // mid = the screen's horizontal centre at the plate's height, so the slide afterwards is a sideways move only.
     const mid = { cx: .5, cy: pc.cy };
     // slew: longer for a longer way; the field widens a little mid-slew (a breath before the plunge)

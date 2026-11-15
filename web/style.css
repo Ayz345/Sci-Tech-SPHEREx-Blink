@@ -13,10 +13,6 @@
   --gut: clamp(16px, 3.2vw, 48px);
   --P: min(56vh, 540px);
 }
-html[data-font="a"] { --display: "Fraunces", Georgia, serif; }
-html[data-font="b"] { --display: "Playfair Display", Georgia, serif; }
-html[data-font="c"] { --display: "Cormorant", Georgia, serif; }
-html[data-font="d"] { --display: "Noto Serif Display", Georgia, serif; }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--paper); color: var(--ink); }
@@ -49,7 +45,7 @@ body.tool #gl { cursor: default; }
 .page.dark { --c1: var(--fg); --c2: #c9c9c5; --c3: var(--fg-2); --rule: rgba(242, 242, 240, .2); }
 .page .inner { max-width: 31rem; pointer-events: auto; will-change: opacity, transform, filter; opacity: 0; visibility: hidden; }
 .page .inner.wide { max-width: 38rem; }
-/* page 1 (Earth): the longer heading from the orchestrator fits in three lines and the button stays on a short screen */
+/* page 1 (Earth): the longer heading fits in three lines and the button stays on a short screen */
 .page .inner.earth { max-width: 42rem; }
 .page .inner.earth h2 { font-size: clamp(32px, 3.7vw, 62px); margin-bottom: 1.2rem; }
 .page.left .inner { grid-column: 1; justify-self: start; }
@@ -88,9 +84,7 @@ body.playing .page:not(#stage) * { visibility: hidden !important; }
   font-family: var(--display); font-weight: 400; margin: 0;
   font-size: clamp(44px, 7.4vw, 128px); line-height: 1.02; letter-spacing: -0.025em; font-optical-sizing: auto;
 }
-html[data-font="a"] #hero h1 { font-weight: 350; }
-html[data-font="c"] #hero h1, html[data-font="c"] .page h2 { font-weight: 500; letter-spacing: -0.015em; }
-html[data-font="d"] #hero h1, html[data-font="d"] .page h2 { font-weight: 300; }
+#hero h1 { font-weight: 350; }
 #hero .sub { max-width: 34em; margin: clamp(22px, 3.4vw, 44px) 0 0; font-size: clamp(15px, 1.15vw, 18px); line-height: 1.55; color: var(--ink-2); }
 #begin { margin-top: 28px; pointer-events: auto; }
 #credit { position: absolute; left: 24px; bottom: 18px; margin: 0; font-size: 12px; color: var(--ink-2); transition: color .4s; }
@@ -114,13 +108,13 @@ body.playing:not(.sky):not(.tool) #credit { visibility: hidden !important; }
 /* 3: the proof plate (real frames) */
 /* page 3: three columns, words | the real plate | an empty slot the form fits into (nothing overlaps the plate) */
 #proof { margin: 0; width: min(40vh, 400px, 100%); }
-/* page 4 (the designer, 14 Nov evening): words on the left; the plate and the white lens behind it larger and further to
+/* page 4: words on the left; the plate and the white lens behind it larger and further to
    the left-centre. The lens follows the plate's rect (app.js), so only the plate moves here: a fixed words column, the
    plate starts one lens overhang (~.2 x its width + gap) after it. */
 #p-proof { grid-template-columns: minmax(0, 31rem) minmax(0, 1fr) auto; }
 #p-proof #proof { width: min(48vh, 470px, 100%, calc((100vw - 31rem) * .3)); justify-self: start; margin-left: clamp(40px, 6.5vw, 150px); }
-/* page 4, right: WISE 0855's track on the sky (orchestrator's chart), one ink, slides in from the right (app.js) */
-/* the designer: larger, and closer to the middle: it starts right at the lens's edge instead of the screen's right edge */
+/* page 4, right: WISE 0855's track on the sky (the chart), one ink, slides in from the right (app.js) */
+/* larger, and close to the middle: it starts right at the lens's edge instead of the screen's right edge */
 #wtrack { grid-column: 3; justify-self: start; margin: 0 0 0 -15px; width: clamp(240px, 22vw, 380px); color: var(--c1); }
 @media (max-width: 1500px) { #wtrack { width: 260px; } #p-proof #proof { margin-left: 60px; } }
 #wtrack > svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -144,9 +138,7 @@ body.playing:not(.sky):not(.tool) #credit { visibility: hidden !important; }
 .page p.after { margin-top: 1.2rem; }
 
 /* 4, 7: lists */
-.feats, .facts { list-style: none; padding: 0; margin: 1.6rem 0 0; }
-.feats li { padding: .62rem 0; border-top: 1px solid var(--rule); font-size: 15px; color: var(--c1); }
-.feats li:last-child { border-bottom: 1px solid var(--rule); }
+.facts { list-style: none; padding: 0; margin: 1.6rem 0 0; }
 .facts { text-align: left; margin: 0 0 1.4rem; max-width: 34rem; }
 .facts li { padding: .65rem 0; border-top: 1px solid var(--rule); font-size: 15px; line-height: 1.55; color: var(--c2); }
 .page p.ack { margin: 1.4rem 0 0; max-width: 40rem; font-size: 11.5px; line-height: 1.55; color: var(--c3); }
@@ -165,7 +157,7 @@ body.playing:not(.sky):not(.tool) #credit { visibility: hidden !important; }
 .targets b { font: 350 clamp(20px, 1.7vw, 26px)/1.1 var(--display); }
 .targets span { font-size: 14px; line-height: 1.45; color: var(--c2); }
 
-/* ------------------------------------------------------------ sky (from v2) */
+/* ------------------------------------------------------------ sky */
 #sky { position: fixed; inset: 0; z-index: 5; pointer-events: none; opacity: 0; visibility: hidden; color: var(--fg); transition: opacity .7s, visibility .7s; }
 body.sky #sky { opacity: 1; visibility: visible; }
 #sky .ask {
@@ -228,7 +220,7 @@ body.tool #credit { visibility: hidden; }
   font: 400 11px var(--mono); letter-spacing: .14em; color: var(--fg-2); text-transform: uppercase; opacity: 0; transition: opacity .6s; }
 #frame { position: fixed; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 6; }
 
-/* ------------------------------------------------------------ the plate screen (v2's parts, laid out to fill the screen) */
+/* ------------------------------------------------------------ the plate screen (laid out to fill the screen) */
 /* the plate takes the full height on the left; name, status, controls, the wavelength ruler with the spectrum and the
    notes share one column on the right; the time ruler runs across the bottom */
 #tool {
