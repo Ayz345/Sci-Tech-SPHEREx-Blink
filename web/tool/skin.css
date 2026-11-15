@@ -1,7 +1,7 @@
-/* SPHEREx Blink, full tool: the skin of the start page (design/release) laid over web/tool/style.css.
+/* SPHEREx Blink, full tool: the skin of the start page (web/index.html, web/style.css) laid over web/tool/style.css.
    Load it after style.css (or merge it in). It changes no id, class or behaviour; it sets the shell:
    a two-tier top bar, the image large on the left, one readable column on the right, a 13 px floor for text,
-   fewer things at first sight. Values and names follow design/release/style.css (:root). */
+   fewer things at first sight. Values and names follow the start page's web/style.css (:root). */
 
 :root {
   /* the start page's tokens */
@@ -134,7 +134,7 @@ fieldset label { font-size: 15px; }
 }
 
 /* ---------------------------------------------------------------- continuous move between the start page and the tool:
-   cross-document View Transitions. The names match the start page's (design/release); timing and easing are set there.
+   cross-document View Transitions. The names match the start page's (web/index.html); timing and easing are set there.
    Browsers without support, and reduced motion, get a plain page change. The embed takes no part. */
 @view-transition { navigation: auto; }
 body:not(.embed) #canvas { view-transition-name: vt-plate; }

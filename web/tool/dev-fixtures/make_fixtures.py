@@ -1,9 +1,9 @@
-"""Write fake data in the v1 contract layout (PLAN.md section 5) for testing the web page.
+"""Write fake data in the v1 contract layout (see web/tool/README.md) for testing the web page.
 
     python web/tool/dev-fixtures/make_fixtures.py
-    -> web/dev-fixtures/data/index.json, fake-mover/..., fake-nocover/...
+    -> web/tool/dev-fixtures/data/index.json, fake-mover/..., fake-nocover/...
 
-Open with:  http://localhost:8765/?data=dev-fixtures/data&target=fake-mover
+Open with:  http://localhost:8765/tool/?data=dev-fixtures/data&target=fake-mover
 Everything here is synthetic; nothing comes from SPHEREx.
 """
 import json
@@ -184,7 +184,7 @@ def make_mover():
             "flag_legend": {n: f"SYNTHETIC placeholder meaning for {n} (fixture)" for n in names + ["HOT", "COLD"]}}
     (d / "spectrum.json").write_text(json.dumps({"meta": meta, "points": spec}), encoding="utf-8")
 
-    # F2: automatic candidates in the PLAN.md section 17 layout (synthetic)
+    # F2: automatic candidates in the candidates.json layout (synthetic; see web/tool/README.md)
     def pos(xy, ep):
         ra, dec = pix2world(*xy)
         return {"epoch": ep["id"], "ra": round(ra, 6), "dec": round(dec, 6), "snr": 9.0}

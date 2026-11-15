@@ -1,8 +1,9 @@
 # web/tool/ — the full tool
 
-The full SPHEREx Blink tool, published at `…/tool/`. The start page is the site root (`web/index.html`), linked
-from the product name in the header; the gallery is `web/data/` and the server address `web/config.js`, both shared
-with the start page. It reads data contract v1 (PLAN.md section 5). No build step, no dependencies. `style.css` follows the
+The full SPHEREx Blink tool, published at `…/tool/`. The start page is the site root (`web/index.html`), reached
+with "← Sky"; the gallery is `web/data/` and the server address `web/config.js`, both shared with the start page.
+It reads data contract v1 (`manifest.json`, `{band}.json`, `.f32` frames; the fields are listed under "What the
+page checks" below). No build step, no dependencies. `style.css` follows the
 start page's design (space black, off-white text, Fraunces / DM Sans / IBM Plex Mono); the three fonts come from the same
 single Google Fonts request as the start page, so the browser contacts Google Fonts when the page opens.
 
@@ -39,12 +40,13 @@ python -m http.server 8765 --bind 127.0.0.1 -d web
 ```
 
 On start the page checks the live server named in `config.js` (`window.SPX_API`, one `/api/health` request with a
-1.5 s timeout; set it to the deployed server, or `""` for gallery only). With `""` (the public GitHub Pages site)
-the header says "gallery of five targets (no live server on this site)", and every server-only control (other
-fields, names, free positions, windows, clicked-point spectra, refine/report) stays clickable and says that it needs
-the live server, which is not part of the site, with a link to "Run it" in the repository README. An address that
+1.5 s timeout; set it to the deployed server, or `""` for gallery only). With `""` (a copy published without SPX_API_URL)
+the source line says "gallery of five targets (this copy of the site has no live server configured)", and every
+server-only control (other fields, names, free positions, windows, clicked-point spectra, refine/report) stays
+clickable and says that it needs the live server, which this copy has not configured, with a link to "Run it" in
+the repository README. An address that
 does not answer keeps the "not reachable right now" wording. Users never add parameters. Developer parameters are checked: `?api=` must be an https address or a server
-on localhost/127.0.0.1, `?data=` a relative path on this site; anything else is ignored and the header says why.
+on localhost/127.0.0.1, `?data=` a relative path on this site; anything else is ignored and the status line says why.
 Text that comes from data files or the server is always written as text, never as HTML. One failed request does not
 switch the page to "not reachable": `/api/health` is asked first, and only if it does not answer either is the
 server treated as down (then it is asked every 3 s until it answers).
@@ -53,9 +55,9 @@ typed position (decimal degrees or sexagesimal, e.g. `08h55m10.831s` `−07d14m4
 gallery fields opens that target with a note ("This position … lies in the WISE 0855 gallery field …"; the typed
 position stays in the address as `at=`). "Download spectrum (CSV)" under the spectrum writes the loaded spectrum from
 the browser: one column per point field, units and every meta note as `#` comment lines. `embed-example.html` shows
-the embedded player (760 × 560) with the code to copy; the footer links to it. The request log starts closed.
-Server trouble is said in plain words: 429 = too many requests, wait a minute; 502/503/504 = the archive (IRSA) or
-the server is not answering, try again in a few minutes (the server's own sentence and error id follow in brackets).
+the embedded player (760 × 560) with the code to copy; "More" links to it. The request log (About) starts closed.
+Server trouble is said in plain words: 429 = too many requests, wait a minute; 502/503/504 = the public SPHEREx image files or
+the server are not answering, try again in a few minutes (the server's own sentence and error id follow in brackets).
 A field that could not be loaded gets a "Try again" button. Gaia DR3 stars are never waited for: while they load, or when the Gaia
 archive does not answer, a line under the Gaia toggle says so (with "Try again"), and the image and the spectrum
 go on. A 429 uses the server's own waiting time ("try again in 404 s" -> "Wait about 7 minutes"). A spectrum at a clicked point says that it is being
@@ -70,7 +72,7 @@ Users never add parameters:
   check found one; otherwise the page says "The live server is not reachable right now, so only the five gallery
   targets are available."
 - A target that is not in the static gallery is asked from the live server.
-- The header ("source: …") says which source is in use.
+- The server dot and its tooltip ("source: …", next to "More") say which source is in use.
 
 Developer parameters (they override the check):
 
@@ -82,7 +84,7 @@ Developer parameters (they override the check):
 | `http://127.0.0.1:8765/tool/?api=none` | no server check (gallery only) |
 | `…&ra=133.79&dec=-7.24&fov=0.1` | free coordinates (needs a live server) |
 
-State in the URL: `band`, `mode` (blink · diff · sum), `frame`, `zoom`, `layer` (image · weight · flagfrac).
+State in the URL: `band`, `mode` (blink · diff · sum · rgb, with `rgb=R,G,B`), `frame`, `zoom`, `layer` (image · weight · flagfrac).
 
 Synthetic fixtures (not committed): `python web/tool/dev-fixtures/make_fixtures.py`. They cover a mover, Gaia stars,
 a band without a `scale` (percentile fallback), an epoch with 0 exposures, a `pending` band without files and a
@@ -111,7 +113,7 @@ position without coverage.
   with no data in all three is "no data"), +Infinity = full brightness.
 - `embed=1`: player and band/frame/view controls only, with the acknowledgement as one small line and an
   "open full view" link; the WISE image switch, the low-coverage switch and refine/report are left to the full view
-  so the player fits a 560 px high frame. The "copy embed code" button in the header copies an iframe snippet for the current view.
+  so the player fits a 560 px high frame. The "copy embed code" button under "More" copies an iframe snippet for the current view.
 - Field buttons 3′ / 7′ / 15′: need the server; options above `max_fov_deg` (manifest or `/api/health`) are
   disabled with the reason in the tooltip. A gallery target becomes a free field via `/api/resolve`, so the grid
   still follows the moving object. 7′ is the default; 15′ is enabled when the server allows it (`max_fov_deg`
@@ -134,7 +136,7 @@ position without coverage.
   low option. The slider can still reach them (dashed marker, "no data in this band") and shows a "no data" frame,
   so the epoch is seen to exist.
 - PSF-wing plot: labelled "Indicative only, not a formal detection of variability." For the selected band it shows
-  `meta.wing_bands[band]` as a neutral comparison ("×2.42 between epochs; bright control stars reach ×1.47 —
+  `meta.wing_bands[band]` as a neutral comparison ("×2.42 between epochs; bright control stars reach ×1.51 —
   exceeds / within the bright-star scatter"; `significant` only picks the phrase) and a one-line summary over all
   bands. `meta.wing` (method text) is shown verbatim inside a "Method details" section that is closed by default.
   If the selected band has no `wing_bands` entry, the plot is replaced by "No PSF-wing series in D5. Available
@@ -152,18 +154,17 @@ live server, also for a gallery target opened from static files. The window gets
 `wave_um`, `n_exposures` and `note` (the selection rule: an exposure is used when the wavelength at the field
 centre falls in the window) are shown. Without the live server the page says so.
 
-## Credits in the footer
+## Credits (About)
 
-While the WISE image or the CatWISE layer is in use, the footer shows the AllWISE and CatWISE2020 credit lines;
+While the WISE image or the CatWISE layer is in use, "Credits" under About shows the AllWISE and CatWISE2020 credit lines;
 while the Gaia overlay is on, the Gaia DR3 acknowledgement. Texts verbatim from the IRSA and ESA pages.
 
 ## WISE image in the blink
 
 When `{key}/wise.json` and `wise_W1.f32` / `wise_W2.f32` exist (resampled onto this field's grid, row 0 = south),
-the Frame box shows "Add the WISE image to the blink" with a W1/W2 choice (`?wise=W2` in the address; `frame=wise`
+the Layers tab shows a "WISE image" switch with a W1/W2 choice, and the time strip a "2010 · WISE" card (`?wise=W2` in the address; `frame=wise`
 opens on it, also in the embedded view). The WISE frame goes first in the sequence (oldest), is drawn with its
-own `bands[].scale` and carries a "WISE W2 · date · not SPHEREx" banner; the slider's leftmost position and a
-"WISE" marker stand for it. It is in the blink only: difference, sum, false colour and candidates never use it.
+own `bands[].scale` and carries a "WISE W2 · date · not SPHEREx" banner; the first card in the time strip stands for it. It is in the blink only: difference, sum, false colour and candidates never use it.
 Overlays on it use the WISE date (Gaia and CatWISE moved to `epoch_mjd`; without a date Gaia is not drawn). The
 measure tool accepts marks on it with that date; when `epoch_mjd` is null it refuses and says why. Field names
 (`epoch_mjd, date, survey, note, bands[{id, file, scale}]`) are read in `loadWise()`.
@@ -180,7 +181,7 @@ Field names (`source_name, ra, dec, pmra, pmdec, w1mag, w2mag, ref_mjd`) are map
 ## Automatic candidates (F2)
 
 When the field has candidates (`{key}/candidates.json` for gallery targets, `/api/candidates?key=` for fields
-from the live server; PLAN.md section 17 F2 layout), the Overlays box shows "Automatic candidates" with the fixed
+from the live server), the Overlays box (Layers tab) shows "Automatic candidates" with the fixed
 note "Automatic candidates are places to look at, not detection claims." Each candidate is a dashed ring at its
 position in the current epoch (faint at the nearest epoch when it has none there) with a short label (`mover`,
 `variable`, or `known: Gaia DR3 <id>` when `known` is true; a nearby Gaia star alone is only in the tooltip). The list shows id, label, bands, S/N and rate; clicking
@@ -220,9 +221,9 @@ Aladin's overlay canvas black over its image (15 Nov 2026: the box and ring were
   "GPL-3", the later 3.9.2-beta says "LGPL-3.0-or-later"). Not bundled or modified.
 - Survey ids are from Aladin's built-in list and the CDS MocServer. They are passed to Aladin as HiPS URLs, not
   ids, because the id resolver Aladin 3.8.2 calls (`alasky.unistra.fr`) does not resolve (checked 14 Nov 2026);
-  the URLs are each survey's `hips_service_url` mirrors from its MocServer record, tried in order (IRSA first),
-  and the first whose `properties` file answers is used. unWISE, NEOWISER and Pan-STARRS are only on CDS
-  servers, which did not answer on 14 Nov 2026; the panel then says so.
+  the URLs are each survey's `hips_service_url` mirrors from its MocServer record (see above for the order and
+  the probe). unWISE, NEOWISER and Pan-STARRS are only on CDS servers, which did not answer on 14 and 15 Nov
+  2026; the panel then says so.
 - Aladin Lite itself also sends a start-up log request to `alasky.unistra.fr`; it fails without effect.
 
 ## Measure / mark (key `m`)
@@ -271,4 +272,4 @@ north (catalogue 10.4″/yr); WISE 0855 W → 9.6 ± 4.3″/yr west (catalogue ~
   centres the grid on the moving object and returns `target_track` (key suffix `_pm…_e…`). Only if a manifest
   still has no `target_track` does the page propagate the proper motion itself.
 - Epochs with `n_used` 0 in the band file are not requested (no file exists); they show "no data".
-- The request log at the bottom of the page shows the status, time and size of every request.
+- The request log (About tab) shows the status, time and size of every request.

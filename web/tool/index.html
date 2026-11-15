@@ -31,7 +31,7 @@
         <label class="muted">speed <input id="speed" type="range" min="1" max="10" value="3"></label>
         <span id="epochLabel" class="mono"></span>
       </div>
-      <input id="epoch" type="range" min="0" max="0" value="0" aria-label="epoch">
+      <input id="epoch" type="range" min="0" max="0" value="0" aria-label="pass">
       <div id="epochMarks" class="mono" role="group" aria-label="passes over this field"></div>
     </div>
     <div id="embedLine" class="muted"><a id="fullView" target="_blank" rel="noopener">open full view</a> · <span id="ackLine"></span></div>
@@ -112,8 +112,8 @@
     <div class="tabpane" data-pane="view" role="tabpanel">
       <fieldset><legend>View</legend>
         <label>mode <select id="mode">
-          <option value="blink">blink</option><option value="diff">difference (epoch − mean of others)</option>
-          <option value="sum">sum (mean of all epochs)</option>
+          <option value="blink">blink</option><option value="diff">difference (pass − mean of the others)</option>
+          <option value="sum">sum (mean of all passes)</option>
           <option value="rgb">false colour (3 bands)</option></select></label>
         <div id="rgbBox" hidden>
           <label>red <select id="rgbR"></select></label>
@@ -144,7 +144,7 @@
         <fieldset><legend>WISE image</legend>
           <div id="wiseBox" hidden>
           <div class="row">
-            <label id="wiseToggle" class="toggle" title="add the WISE image to the blink, next to the SPHEREx epochs"><input type="checkbox" id="wiseOn"> <span id="wiseLabel">WISE</span></label>
+            <label id="wiseToggle" class="toggle" title="add the WISE image to the blink, next to the SPHEREx passes"><input type="checkbox" id="wiseOn"> <span id="wiseLabel">WISE</span></label>
             <select id="wiseBand" title="WISE band"><option>W2</option><option>W1</option></select>
             <span id="wiseShort" class="muted"></span>
           </div>
@@ -155,7 +155,7 @@
       <fieldset id="overlayBox"><legend>Overlays</legend>
         <label><input type="checkbox" id="ovQuery" checked> query position (+)</label>
         <label><input type="checkbox" id="ovTrack" checked> target track</label>
-        <label><input type="checkbox" id="ovGaia"> Gaia DR3 (propagated to epoch)</label>
+        <label><input type="checkbox" id="ovGaia"> Gaia DR3 (moved to each pass)</label>
         <div id="gaiaNote" class="muted"></div>
         <div id="catBox" hidden>
           <label><input type="checkbox" id="ovCat"> CatWISE2020 <span class="muted">(squares)</span></label>
@@ -193,7 +193,7 @@
       <div class="tabpane" data-pane="about" role="tabpanel">
         <details id="notesBox" open hidden><summary id="notesSum">Notes on this target</summary><ul id="notes"></ul></details>
         <details id="metaBox"><summary>About this field</summary><section id="meta"></section></details>
-        <details id="keysBox"><summary>Keyboard</summary><div class="muted">Keys: space play/pause · ←/→ epoch · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · m measure · +/− zoom. Pixel scale is read from the manifest grid; SPHEREx native pixel is 6.15″.</div></details>
+        <details id="keysBox"><summary>Keyboard</summary><div class="muted">Keys: space play/pause · ←/→ pass · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · m measure · +/− zoom. Pixel scale is read from the manifest grid; SPHEREx native pixel is 6.15″.</div></details>
         <details id="creditsBox"><summary>Credits</summary>
           <div id="credits">
       <p id="creditWise" hidden>AllWISE makes use of data from WISE, which is a joint project of the University of California, Los Angeles, and the Jet Propulsion Laboratory/California Institute of Technology, and NEOWISE, which is a project of the Jet Propulsion Laboratory/California Institute of Technology. WISE and NEOWISE are funded by the National Aeronautics and Space Administration.</p>
@@ -210,7 +210,7 @@
 
 
 <details id="aladinBox">
-  <summary>More surveys (Aladin Lite) — other sky surveys at the same place</summary>
+  <summary>More surveys (Aladin Lite, LGPL v3) — other sky surveys at the same place</summary>
   <div class="row">
     <label>survey <select id="aladinSurvey">
       <option value="CDS/P/allWISE/color">AllWISE color (W1, W2, W4)</option>

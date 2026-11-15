@@ -1,4 +1,4 @@
-// SPHEREx Blink — the full tool (web/tool/), reading data contract v1 (PLAN.md section 5).
+// SPHEREx Blink — the full tool (web/tool/), reading data contract v1 (manifest, band files, frames; see web/tool/README.md).
 // Plain ES module, no build step. Gallery targets come from static files; free positions, name lookup and field
 // changes go to the live server found on start (config.js), or to the server forced with ?api= (developer).
 
@@ -28,10 +28,10 @@ function safeData(v) {
 const API_PARAM = safeApi(params.get("api"));
 const FORCED = !!API_PARAM && API_PARAM !== "none";
 let API = FORCED ? API_PARAM.replace(/\/$/, "") : ""; // the live server in use ("" = none)
-// no server address at all (the public site writes SPX_API = ""): not a fault, the site simply has none
+// no server address at all (a copy of the site published without SPX_API_URL writes SPX_API = ""): not a fault
 const NO_SERVER = !FORCED && (API_PARAM === "none" || !String(window.SPX_API || "").trim());
 const README_RUN = "https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink#run-it";
-const NOSRV_TXT = "This needs the live server, which is not part of this site. The five gallery targets work here; " +
+const NOSRV_TXT = "This needs the live server, and this copy of the site has no live server configured. The five gallery targets work here; " +
   "run the server locally for any other position (see the README).";
 // the message for a server-only feature: "no server on this site" (with the README link) or "not reachable right now"
 function noServer(el, what, err = false) {
@@ -58,7 +58,7 @@ const EMBED = params.get("embed") === "1";
 const DATA_PARAM = safeData(params.get("data"));
 const DATA = (DATA_PARAM || "../data").replace(/\/$/, ""); // the gallery sits next to the tool: web/data/
 const D2R = Math.PI / 180;
-// design/v5 palette for drawings: off-white and greys plus one accent (ember)
+// palette for drawings (the start page's): off-white and greys plus one accent (ember)
 const INK = { fg: "#f2f2f0", fg2: "#c9c9c5", fg3: "#a3a3a0", fg4: "#8d8d93", rule: "rgba(242,242,240,0.32)", ember: "#e0482a" };
 
 // ---------- user wavelength windows (F1): band id w<lo>_<hi> in nm, built by the live server on request ----------
@@ -138,7 +138,8 @@ async function fetchLogged(url, as, init) {
 }
 
 // server errors in words a visitor can act on; the server's own sentence (and error id) is kept after it
-function friendly(e, what, archive = "the SPHEREx archive (IRSA)") {
+const SPX_FILES = "the public SPHEREx image files";
+function friendly(e, what, archive = SPX_FILES) {
   const code = +e.status, msg = String(e.message || "").replace(/^\d{3}\s*/, "").trim();
   const tail = msg ? ` (server: ${msg})` : "";
   if (code === 429) { // the server says how long to wait ("try again in 404 s"); otherwise about a minute
@@ -146,8 +147,8 @@ function friendly(e, what, archive = "the SPHEREx archive (IRSA)") {
     const wait = s > 90 ? `about ${Math.ceil(s / 60)} minutes` : s > 0 ? `${s} seconds` : "a minute";
     return `${what}: too many requests to the live server in a short time. Wait ${wait}, then try again.${tail}`;
   }
-  if ([502, 503, 504].includes(code)) return `${what}: ${archive} or the live server is not answering right now. ` +
-    `Try again in a few minutes${archive.includes("IRSA") ? "; the five gallery targets work meanwhile" : ""}.${tail}`;
+  if ([502, 503, 504].includes(code)) return `${what}: ${archive} or the live server ${archive === SPX_FILES ? "are" : "is"} not answering right now. ` +
+    `Try again in a few minutes${archive === SPX_FILES ? "; the five gallery targets work meanwhile" : ""}.${tail}`;
   return `${what} failed: ${msg || e}`;
 }
 // the status line with a "Try again" button (for a field that could not be loaded)
@@ -392,7 +393,7 @@ async function loadTarget() {
       `(centre RA ${(+g.crval[0]).toFixed(5)}°, Dec ${(+g.crval[1]).toFixed(5)}°); showing that field.` }));
   }
   syncNotes();
-  if (!S.m.epochs?.length) { status(S.m.message || "No epochs for this position.", true); return; }
+  if (!S.m.epochs?.length) { status(S.m.message || "No SPHEREx passes over this position.", true); return; }
 
   $("epoch").max = S.m.epochs.length - 1;
   S.epoch = Math.min(S.epoch, S.m.epochs.length - 1);
@@ -417,9 +418,9 @@ async function loadTarget() {
   }
   const bigField = USE_API && (+S.m.query?.fov_deg || 0) > 0.2;
   status(bigField
-    ? `${S.m.epochs.length} epochs, ${S.m.bands.length} bands. ${(+S.m.query.fov_deg * 60).toFixed(0)}′ field: the server reads about 120 to 190 MB ` +
+    ? `${S.m.epochs.length} passes, ${S.m.bands.length} bands. ${(+S.m.query.fov_deg * 60).toFixed(0)}′ field: the server reads about 120 to 190 MB ` +
       `per band from the archive, so the first band (${S.band}) usually takes 30–70 s; the other bands follow.`
-    : `${S.m.epochs.length} epochs, ${S.m.bands.length} bands. Loading ${S.band}…`);
+    : `${S.m.epochs.length} passes, ${S.m.bands.length} bands. Loading ${S.band}…`);
 
   loadGaia();
   loadCandidates().then(draw);
@@ -509,7 +510,7 @@ function loadBand(band) {
       const failed = S.m.bands.find((b) => b.id === band)?.status === "failed";
       if (!failed && !$("status").textContent.includes("low-coverage")) status(""); // keep a failure message
       if (isCustom(band) && !failed && S.m.epochs.every((_, i) => emptyEpoch(band, i)))
-        $("winNote").textContent = "No exposure has its field-centre wavelength inside this window in any epoch; try a wider window.";
+        $("winNote").textContent = "No exposure has its field-centre wavelength inside this window in any pass; try a wider window.";
       fixEpoch(); draw(); syncUrl();
     });
 }
@@ -726,7 +727,7 @@ function autoScale() {
   const bj = S.bandInfo.get(S.band);
   if (bj && bj.scale) return { ...bj.scale, src: `band file ${S.band}.json` };
   const [lo, hi] = percentile(all, [1, 99.7]);
-  return { vmin: lo, vmax: hi, soft: (hi - lo) * 0.05 || 1e-6, src: "fallback: 1–99.7th percentile of all epochs" };
+  return { vmin: lo, vmax: hi, soft: (hi - lo) * 0.05 || 1e-6, src: "fallback: 1–99.7th percentile of all passes" };
 }
 
 function stretch(x, s) {
@@ -761,7 +762,7 @@ function drawRGB(ctx, ep, nx, ny, z) {
   $("scaleSrc").textContent = `false colour: R ${ch.r} · G ${ch.g} · B ${ch.b}, each with its band's own scale`;
   if (!fr.some(Boolean)) {
     ctx.fillStyle = INK.fg4; ctx.font = "15px 'IBM Plex Mono', ui-monospace, monospace";
-    ctx.fillText(ids.some((b) => S.frames.get(`${b}|${ep.id}|image`) instanceof Promise) ? "loading…" : "no data for these bands/epoch", 12, 24);
+    ctx.fillText(ids.some((b) => S.frames.get(`${b}|${ep.id}|image`) instanceof Promise) ? "loading…" : "no data for these bands in this pass", 12, 24);
     return;
   }
   off.width = nx; off.height = ny;
@@ -799,7 +800,7 @@ function loadRGB() {
 
 // ---------- drawing ----------
 const off = document.createElement("canvas");
-// credit lines in the footer while the matching layer is in use (texts verbatim from the IRSA / ESA pages)
+// credit lines under About while the matching layer is in use (texts verbatim from the IRSA / ESA pages)
 function updateCredits() {
   const wiseUsed = !!(S.wise && S.wiseOn), catUsed = !!(S.catwise && $("ovCat").checked);
   $("creditWise").hidden = $("creditCat").hidden = !(wiseUsed || catUsed);
@@ -869,7 +870,7 @@ function draw() {
     const pending = S.frames.get(`${S.band}|${ep.id}|${S.layer}`) instanceof Promise;
     const bad = S.badFrames?.has(`${S.band}|${S.m.epochs[S.epoch].id}|${S.layer}`);
     ctx.fillText(pending ? "loading…" : offline ? "server not reachable, retrying…"
-      : bad ? "this frame does not match the field's grid, so it is not drawn" : "no data for this band/epoch", 12, 24);
+      : bad ? "this frame does not match the field's grid, so it is not drawn" : "no data for this band in this pass", 12, 24);
   }
   overlays(ctx, ep);
   lowLabel(ctx);
@@ -973,7 +974,7 @@ function drawMarks(ctx) {
 // ---------- refine on single exposures, report (live server) ----------
 // POST /api/track re-measures the marked object on single exposures; GET /api/report downloads the file the
 // server writes (CSV, or an MPC draft in ADES). The page never contacts the MPC and never writes report content.
-// ?mocktrack=within|between (developer) reads web/dev-fixtures/track_*.json instead of the server.
+// ?mocktrack=within|between (developer) reads web/tool/dev-fixtures/track_*.json instead of the server.
 const MOCK = params.get("mocktrack");
 S.track = null;
 const serverForTrack = () => !!(MOCK || API);
@@ -1085,7 +1086,7 @@ function openReport() {
   }));
   const goodNight = t.counts.draft != null ? t.counts.draft > 0 : t.nights.some((n) => n.included !== false && n.nAcc >= 3);
   const why = t.regime === "between_epochs" ? ADES_BLOCKED_BETWEEN
-    : t.regime !== "within_visit" ? `The server did not classify this motion as within one visit (${t.regime ?? "unknown"}); use the CSV.`
+    : t.regime !== "within_visit" ? `The server did not classify this motion as within one pass (${t.regime ?? "unknown"}); use the CSV.`
     : !goodNight ? "The MPC asks for at least three observations per night; no 24-hour window has three accepted measurements. Use the CSV."
     : S.health?.ades_schema === false ? "The server cannot check ADES files against the MPC schema right now, so it does not offer them; use the CSV." : "";
   $("dlgAdes").disabled = $("dlgAdesXml").disabled = !!why; $("dlgWhy").textContent = why;
@@ -1192,7 +1193,7 @@ function overlays(ctx, ep) {
 }
 
 // ---------- plots (spectrum + light curve) ----------
-// design/v5 palette: off-white and greys plus one accent (ember); epochs differ by tone and marker shape, not hue
+// the start page's palette: off-white and greys plus one accent (ember); passes differ by tone and marker shape, not hue
 const EPOCH_TONES = ["#f2f2f0", "#c9c9c5", "#a3a3a0", "#e6e1d6", "#b5b5b0", "#8d8d93"];
 const EPOCH_SHAPES = ["circle", "square", "up", "down", "x", "plus"]; // the diamond stays for points recovered from overflow
 const epochTone = (e) => EPOCH_TONES[(e ?? 0) % EPOCH_TONES.length];
@@ -1423,7 +1424,7 @@ function plots() {
     // neutral comparison: the wing series is consistent with variability, it does not prove it
     // (meta.wing_bands[].significant only picks one of the two phrases; the word itself is never shown)
     const cmp = (v) => (v.significant ? "exceeds the bright-star scatter" : "within the bright-star scatter");
-    const line = cur ? `${S.band}: ${fx(cur.ratio)} between epochs; bright control stars reach ${fx(cur.threshold)} — ${cmp(cur)}` : "";
+    const line = cur ? `${S.band}: ${fx(cur.ratio)} between passes; bright control stars reach ${fx(cur.threshold)} — ${cmp(cur)}` : "";
     const summary = Object.keys(wbs).length ? "All bands: " + Object.entries(wbs).map(([b, v]) =>
       `${b} ${fx(v.ratio)} (${cmp(v)})`).join(", ") : "";
     $("wingNote").replaceChildren(...[line, summary].filter(Boolean).map((t) => Object.assign(document.createElement("div"), { textContent: t })));
@@ -1630,7 +1631,7 @@ async function loadWise() {
   const unit = bands.find((b) => b.id === S.wiseBand)?.unit;
   const yr = (S.wise.date || "").slice(0, 4);
   $("wiseLabel").textContent = `${yr ? yr + " · " : ""}WISE`;
-  $("wiseShort").textContent = `${S.wise.survey}${yr ? ` from ${yr}` : ""}: switch it on to blink it with the SPHEREx epochs (a moving object sits ${yr ? "where it was in " + yr : "where it was then"}).`;
+  $("wiseShort").textContent = `${S.wise.survey}${yr ? ` from ${yr}` : ""}: switch it on to blink it with the SPHEREx passes (a moving object sits ${yr ? "where it was in " + yr : "where it was then"}).`;
   $("wiseNote").textContent = [`${S.wise.survey}, ${S.wise.date || "date not given"}`, meta.epoch_source, unit && `unit: ${unit}`, S.wise.note]
     .filter(Boolean).map((t) => String(t).trim().replace(/([^.])$/, "$1.")).join(" ");
   if (params.get("frame") === "wise" && wiseActive()) S.onWise = true;
@@ -2155,7 +2156,7 @@ function wire() {
       $("readout").textContent = head + [["R", c.r], ["G", c.g], ["B", c.b]].map(([k, b]) => {
         const f = frameOf(b, ep, "image"), raw = f && inside ? f[yi * nx + xi] : NaN;
         const other = inside && raw !== Infinity && satHere(satMask(b), yi * nx + xi, f, bandScale(b).vmax);
-        return `${k} ${b} ${fmt(raw)}${other ? " (saturated in another epoch)" : ""}`;
+        return `${k} ${b} ${fmt(raw)}${other ? " (saturated in another pass)" : ""}`;
       }).join("   ");
       return;
     }
@@ -2167,7 +2168,7 @@ function wire() {
     const other = S.layer === "image" && inside && own?.[i] !== Infinity && satHere(satMask(S.band), i, own, bandScale(S.band).vmax);
     const w = frameOf(S.band, epId, "weight"), fw = w && inside ? w[i] : null;
     $("readout").textContent = head + `${S.layer} value ${fmt(inside ? raw : NaN)}` +
-      (other ? " (saturated in another epoch)" : "") + (fw != null ? `   weight ${fw}` : "");
+      (other ? " (saturated in another pass)" : "") + (fw != null ? `   weight ${fw}` : "");
   };
   // measure mode: a click adds a mark, a drag moves the mark under the cursor
   $("measureBtn").onclick = () => setMeasuring(!S.measuring);
@@ -2267,7 +2268,7 @@ if (params.get("ra")) { const f = $("coordForm"); f.ra.value = params.get("ra");
 function renderSource(probing) {
   const h = S.health, srv = API ? `live server ${API}` + (h ? ` (${h.version ?? ""} ${h.commit ?? ""}, max field ${(+h.max_fov_deg * 60).toFixed(1)}′)` : "") : "";
   const rej = PARAM_REJECTS.length ? " · " + PARAM_REJECTS.join(" · ") : "";
-  const full = NO_SERVER ? "gallery of five targets (no live server on this site)"
+  const full = NO_SERVER ? "gallery of five targets (this copy of the site has no live server configured)"
     : FORCED ? `${srv} (all targets)` : [`gallery files ${DATA}/`, probing ? "looking for the live server…" : srv || "live server not reachable"].join(" · ");
   const [txt, cls] = NO_SERVER ? ["gallery only", "off"] : probing ? ["checking server…", "wait"]
     : API ? ["live server", "on"] : ["server offline · gallery only", "off"];
