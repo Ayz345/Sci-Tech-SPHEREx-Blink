@@ -258,7 +258,7 @@ export function createTool(c) {
   const askRetry = (err) => new Promise((resolve) => {
     const lead = err.message === "no-server" ? "The live server is not answering right now. Try again in a moment"
       : /^429/.test(err.message) ? `The server is busy right now. Try again in ${busyWait(err.detail)}`
-      : "The archive is not answering right now. Try again in a few minutes";
+      : "The server could not read the image files right now. Try again in a few minutes";
     setStatus(`${lead}; the five targets work meanwhile. <button type="button" class="retry">Try again</button>`);
     $("status").querySelector(".retry").onclick = () => resolve();
   });
@@ -297,19 +297,19 @@ export function createTool(c) {
       setStatus("Looking up which SPHEREx exposures cover this field.");
       const pulse = $("pframe").animate([{ opacity: 1 }, { opacity: .35 }, { opacity: 1 }], { duration: 1400, iterations: Infinity });
       // the archive can be slow; the server keeps asking for up to about half a minute, and the page waits with it
-      const slow = setTimeout(() => run === Q.run && setStatus("The archive is slow to answer right now. The server keeps asking; this can take up to half a minute."), 5000);
+      const slow = setTimeout(() => run === Q.run && setStatus("This is taking longer than usual; the server is still working on it."), 5000);
       let got = await asked;
       while (got.err && archiveDown(got.err) && run === Q.run) {
         clearTimeout(slow); pulse.pause();
         await askRetry(got.err);
         if (run !== Q.run) return;
-        setStatus("Asking the archive again."); pulse.play();
+        setStatus("Trying again."); pulse.play();
         got = await loadPosition(t.ra, t.dec).then((e) => ({ e }), (err) => ({ err }));
       }
       clearTimeout(slow); pulse.cancel();
       if (run !== Q.run) return;
       if (got.err) return setStatus(got.err.message === "no-server"
-        ? `This position needs the live server, which is not part of this site. The five targets work here. <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink#run-it" target="_blank" rel="noopener">How to run the server</a>`
+        ? `This copy of the site has no live server configured. The five targets work here. <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink#run-it" target="_blank" rel="noopener">How to run the server</a>`
         : `The live server could not answer for this field (${got.err.message}).`);
       Q.e = got.e;
       if (!Q.e.m.epochs?.length) return setStatus(Q.e.m.message || "SPHEREx has no exposures of this field in the released data.");
@@ -448,7 +448,7 @@ export function createTool(c) {
     const total = m.n_images ?? m.bands.filter((b) => /^D\d$/.test(b.id)).reduce((s, b) => s + b.n_exposures.reduce((a, x) => a + x, 0), 0);
     $("tcoord").textContent = `${coords(m.query.ra, m.query.dec)}  ·  ${nPass()} ${nPass() === 1 ? "pass" : "passes"}, ${total} exposures, ${fmtDate(m.epochs[0].date)} to ${fmtDate(m.epochs.at(-1).date)}`;
     const span = `<strong>${total} SPHEREx exposures</strong> in <strong>${nPass()} ${nPass() === 1 ? "pass" : "passes"}</strong>, ${fmtDate(m.epochs[0].date)} to ${fmtDate(m.epochs.at(-1).date)}`;
-    setStatus(live ? `The archive lists ${span} for this field.` : `Gallery target. Its frames were built in advance from ${span}.`);
+    setStatus(live ? `We found ${span} for this field.` : `Gallery target. Its frames were built in advance from ${span}.`);
     const pulse = $("pframe").animate([{ opacity: 1 }, { opacity: .35 }, { opacity: 1 }], { duration: 1400, iterations: Infinity });
     $("timecol").classList.add("on");
     for (let i = 1; i <= nPass(); i++) { drawTime(i, i); await wait(340); if (!alive()) return pulse.cancel(); }
@@ -475,7 +475,7 @@ export function createTool(c) {
         if (!archiveDown(err)) return setStatus(`The frames could not be read (${err.message}).`);
         await askRetry(err);
         if (!alive()) return;
-        setStatus("Asking the archive again.");
+        setStatus("Trying again.");
       }
     }
     stop();

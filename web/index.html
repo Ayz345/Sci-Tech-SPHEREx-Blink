@@ -43,7 +43,7 @@
     <div id="hero">
       <h1>Blink the <em>infrared</em><br>sky, pass <em>after</em> pass.</h1>
       <p class="sub">Every look NASA&rsquo;s SPHEREx took at one spot of sky, flipped like Tombaugh&rsquo;s plates in 1930.
-        Whatever moved, stands out.</p>
+        Whatever moved stands out.</p>
       <button id="begin" class="pill" type="button">Begin</button>
     </div>
     <p id="credit">Data: NASA/IPAC SPHEREx via IRSA &middot; spacecraft model is AI-generated (3D Jutsu)</p>
@@ -57,14 +57,14 @@
   <section class="page dark left" aria-labelledby="h-built">
     <div class="inner earth">
       <p class="k">01 &middot; Why we built it</p>
-      <h2 id="h-built">Anyone, anywhere<br>on Earth, can help<br>discover <em>new worlds</em>.</h2>
+      <h2 id="h-built">Anyone, anywhere<br>on Earth, can help<br>look for <em>new worlds</em>.</h2>
       <p class="lead">No telescope, no account, no code: only a browser.</p>
       <p>We built a blink machine for SPHEREx. It finds every SPHEREx exposure of a spot in the sky, builds one clean
         frame per pass and plays them, so what moved or changed stands out. Give it any position or name; the five
         challenge targets open at once from stored frames.</p>
       <p class="fine">Volunteers have already discovered asteroids, comets, stars and brown dwarfs by comparing pictures
         of the sky taken at different times. SPHEREx could hold the next ones.</p>
-      <p class="fine">For the challenge&rsquo;s five targets that meant 1,949 exposures.</p>
+      <p class="fine">For the challenge&rsquo;s five targets, the tool read 1,949 SPHEREx exposures.</p>
       <button class="pill" type="button" data-begin>Look for yourself</button>
     </div>
   </section>
@@ -76,7 +76,7 @@
       <h2 id="h-read">We take only<br>the rows we <em>need</em>.</h2>
       <p>A SPHEREx image file is about 66&nbsp;MB. We read its header, work out where the target falls on the detector,
         and ask the archive for just those rows of the image, flag and variance layers.</p>
-      <p>We indexed the archive ourselves: the pointing and time of all 1,628,230 SPHEREx images, read from the public
+      <p>We indexed the archive ourselves: the pointing and time of all 1,628,230 Level&nbsp;2 images in the public bucket (to 5 October 2026), read from the public
         files. Any position opens without waiting for the archive&rsquo;s search service.</p>
       <dl class="stats">
         <div><dt>66&nbsp;MB</dt><dd>one image file</dd></div>
@@ -93,7 +93,7 @@
       <h2 id="h-clean">We hold the<br>sky <em>still</em>.</h2>
       <p>Every pass and every band is drawn on one grid fixed on the sky (3&Prime; pixels, north up), so a moving object
         changes place on screen and the stars do not.</p>
-      <p class="fine">We mask 19 kinds of flagged pixels, subtract the local background, and combine the exposures of a
+      <p class="fine">We mask 20 kinds of flagged pixels, subtract the local background, and combine the exposures of a
         pass with a clipped, variance-weighted mean. All frames of a band share one brightness scale, so the blink does
         not flicker.</p>
     </div>
@@ -104,13 +104,13 @@
     <div class="inner">
       <p class="k">04 &middot; What we found</p>
       <h2 id="h-proof">WISE 0855,<br>where it <em>moved</em> to.</h2>
-      <p>The challenge&rsquo;s coordinate is where this brown dwarf was around 2010; it is now about 2.1&prime; west of
+      <p>The challenge&rsquo;s coordinate is where this brown dwarf was around 2010; it is now about 2.2&prime; west of
         it. We cut our own wavelength window, 4.3&ndash;5.0&nbsp;&micro;m, and it is there in all three passes
         (S/N 10.9, 17.2, 19.9).</p>
       <p>Mark it once in the WISE image from 2010 and once in SPHEREx in 2026, and the tool measures its motion:
         8.1&nbsp;&plusmn;&nbsp;0.3&nbsp;&Prime;/yr, towards the west. The published value is 8.15&nbsp;&Prime;/yr.</p>
-      <p class="fine">The source seen at short wavelengths is a fixed Gaia star, not the brown dwarf; it closes on that
-        star: 11.4&Prime;, 8.2&Prime;, 3.8&Prime;. From SPHEREx alone we measure &minus;8.8&nbsp;&plusmn;&nbsp;1.2 and
+      <p class="fine">The source seen at short wavelengths is a fixed Gaia star, not the brown dwarf. The brown dwarf is
+        closing on that star: 11.4&Prime;, 8.2&Prime;, then 3.8&Prime; away. From SPHEREx alone we measure &minus;8.8&nbsp;&plusmn;&nbsp;1.2 and
         +1.5&nbsp;&plusmn;&nbsp;1.2&nbsp;&Prime;/yr (published: &minus;8.12, +0.68; Luhman &amp; Esplin 2016).</p>
       <button class="pill" type="button" data-open="wise-0855">Blink WISE 0855</button>
     </div>
@@ -169,7 +169,7 @@
       <p class="fine">Neighbours within 25&Prime; are fitted together with the target, so their light is not counted as
         its own. Saturated points are shown as lower limits. On RW Aurigae the brightness changes between passes in all
         six detector bands, measured against control stars in the same images. You can also choose your own wavelengths:
-        drag a range on the spectrum and the tool blinks only the exposures taken there; that is how we found WISE 0855.</p>
+        drag a range on the spectrum and the tool blinks only the exposures taken there; that is how we picked out WISE 0855.</p>
       <button class="pill" type="button" data-open="rw-aur">See RW Aurigae</button>
     </div>
   </section>
@@ -245,9 +245,8 @@
         the Jet Propulsion Laboratory/California Institute of Technology. WISE and NEOWISE are funded by the National
         Aeronautics and Space Administration.</p>
       <p class="ack">CatWISE2020: Eisenhardt et al. (2020), Marocco et al. (2021).</p>
-      <p class="ack mono">Built with three.js (MIT); fonts Fraunces, DM Sans and IBM Plex Mono (SIL OFL); coastlines from Natural Earth; spacecraft model generated with 3D Jutsu (AI).</p>
-      <p class="ack">Name lookup: Sesame name resolver, CDS, Strasbourg. Also used: Luhman &amp; Esplin 2016 (its motion),
-        Natural Earth (the coastlines).<br>
+      <p class="ack mono">Built with three.js (MIT); fonts Fraunces, DM Sans and IBM Plex Mono (SIL OFL); coastlines from Natural Earth; world-atlas (ISC); noise shader after Ashima Arts / S. Gustavson (MIT); Aladin Lite, CDS (LGPL v3) in the tool; spacecraft model generated with 3D Jutsu (AI).</p>
+      <p class="ack">Name lookup: Sesame name resolver, CDS, Strasbourg. Also used: Luhman &amp; Esplin 2016 (proper motion of WISE&nbsp;0855).<br>
         <!-- Team: no personal names, photos or voices on this page. -->
         Sci-Tech: SPHEREx Blink &middot; Team Sci-Tech &middot; NASA Space Apps Challenge 2026, &ldquo;Planet X and SPHEREx&rdquo;.</p>
     </div>

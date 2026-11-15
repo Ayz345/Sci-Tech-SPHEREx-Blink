@@ -967,7 +967,7 @@ async function openFree(ra, dec, name = "") {
     msg.querySelector(".retry").onclick = () => openFree(ra, dec, name);
     return;
   }
-  if (!S.server) { msg.innerHTML = `This position needs the live server, which is not part of this site. The five targets work here. <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink#run-it" target="_blank" rel="noopener">How to run the server</a>`; return; }
+  if (!S.server) { msg.innerHTML = `This copy of the site has no live server configured. The five targets work here. <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink#run-it" target="_blank" rel="noopener">How to run the server</a>`; return; }
   tool.open({ ra, dec, free: true, name }, { fast: FAST });
 }
 // where on the sky a point of the screen looks
