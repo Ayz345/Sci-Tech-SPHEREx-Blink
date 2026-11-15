@@ -19,6 +19,12 @@ on localhost/127.0.0.1, `?data=` a relative path on this site; anything else is 
 Text that comes from data files or the server is always written as text, never as HTML. One failed request does not
 switch the page to "not reachable": `/api/health` is asked first, and only if it does not answer either is the
 server treated as down (then it is asked every 3 s until it answers).
+Without parameters the page opens WISE 0855 and plays it (no autoplay with reduced motion). Without a server, a
+typed position (decimal degrees or sexagesimal, e.g. `08h55m10.831s` `−07d14m42.53s`) that falls inside one of the
+gallery fields opens that target with a note ("This position … lies in the WISE 0855 gallery field …"; the typed
+position stays in the address as `at=`). "Download spectrum (CSV)" under the spectrum writes the loaded spectrum from
+the browser: one column per point field, units and every meta note as `#` comment lines. `embed-example.html` shows
+the embedded player (760 × 560) with the code to copy; the footer links to it. The request log starts closed.
 Users never add parameters:
 
 - Gallery targets (`?target=`) always open from the static files under `web/data/`, at once, without waiting for

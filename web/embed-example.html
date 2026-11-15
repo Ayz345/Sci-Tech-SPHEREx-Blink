@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPHEREx Blink · embed example</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+<style>
+  main.example { display: block; max-width: 800px; }
+  .example iframe { width: 760px; max-width: 100%; height: 560px; border: 1px solid var(--line); border-radius: 6px; display: block; }
+  .example textarea { width: 100%; max-width: 760px; height: 5.5em; font: 12px ui-monospace, Consolas, monospace;
+    background: #1d1d21; color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 6px; }
+  .example a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header><strong>SPHEREx Blink</strong> <span class="muted">embed example</span> <a class="muted" href="./">back to the full tool</a></header>
+<main class="example">
+  <p>The player can be placed in another page with an iframe. This one shows WISE 0855 at 760 × 560 px; the frame keeps
+    the blink, band and frame controls and a link to the full view, and the SPHEREx acknowledgement stays visible.</p>
+  <iframe id="demo" title="SPHEREx Blink: WISE 0855" loading="lazy"></iframe>
+  <p><label for="code">Code to copy (change <code>target=</code> to barnard, eps-indi-b, rw-aur or r-dra for the other gallery targets):</label></p>
+  <textarea id="code" readonly></textarea>
+  <p><button id="copy" type="button">Copy code</button> <span id="copied" class="muted"></span></p>
+  <p class="muted">In the full tool, "copy embed code" in the header copies the same snippet for the view on screen.</p>
+</main>
+<script>
+  // the address is built from where this page is served, so the snippet works on any host
+  const src = new URL("./?target=wise-0855&embed=1", location.href).href;
+  document.getElementById("demo").src = src;
+  const code = `<iframe src="${src}" width="760" height="560" style="border:0" loading="lazy" title="SPHEREx Blink: WISE 0855"></iframe>`;
+  document.getElementById("code").value = code;
+  document.getElementById("copy").onclick = async () => {
+    try { await navigator.clipboard.writeText(code); document.getElementById("copied").textContent = "copied"; }
+    catch { const t = document.getElementById("code"); t.select(); document.getElementById("copied").textContent = "selected: press Ctrl+C"; }
+  };
+</script>
+</body>
+</html>

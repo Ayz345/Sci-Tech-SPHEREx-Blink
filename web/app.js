@@ -176,8 +176,8 @@ const S = {
 };
 
 // ---------- WCS (plain TAN from manifest.grid; pixel coords 0-based, y = 0 south) ----------
-function world2pix(ra, dec) {
-  const g = S.m.grid, a0 = g.crval[0] * D2R, d0 = g.crval[1] * D2R, a = ra * D2R, d = dec * D2R;
+function world2pix(ra, dec, g = S.m.grid) {
+  const a0 = g.crval[0] * D2R, d0 = g.crval[1] * D2R, a = ra * D2R, d = dec * D2R;
   const cosc = Math.sin(d0) * Math.sin(d) + Math.cos(d0) * Math.cos(d) * Math.cos(a - a0);
   const xi = Math.cos(d) * Math.sin(a - a0) / cosc / D2R;
   const eta = (Math.cos(d0) * Math.sin(d) - Math.sin(d0) * Math.cos(d) * Math.cos(a - a0)) / cosc / D2R;
@@ -190,6 +190,31 @@ function pix2world(x, y) {
   const ra = g.crval[0] + Math.atan2(xi, den) / D2R;
   const dec = Math.atan2(eta * Math.cos(d0) + Math.sin(d0), Math.hypot(xi, den)) / D2R;
   return [(ra + 360) % 360, dec];
+}
+// "133.795", "08:55:10.831", "08h55m10.831s", "08 55 10.831" (RA in hours when sexagesimal); Dec likewise in degrees
+function parseAngle(str, isRa) {
+  const t = String(str ?? "").trim().replace(/[−‒–]/g, "-");
+  if (!t) return NaN;
+  if (/^[+-]?\d+(\.\d*)?$/.test(t)) return +t; // decimal degrees
+  const m = t.match(/^([+-]?)(\d+(?:\.\d*)?)\s*[hd:°\s]\s*(\d+(?:\.\d*)?)?\s*[m:'′\s]?\s*(\d+(?:\.\d*)?)?\s*[s"″]?$/i);
+  if (!m) return NaN;
+  const v = +m[2] + (+m[3] || 0) / 60 + (+m[4] || 0) / 3600, sign = m[1] === "-" ? -1 : 1;
+  return sign * v * (isRa ? 15 : 1);
+}
+// without a server: does a position fall inside one of the gallery fields? -> {key, name, ra, dec} of the best one
+async function galleryFieldAt(ra, dec) {
+  if (!Number.isFinite(ra) || !Number.isFinite(dec)) return null;
+  const list = [...$("targets").children].map((b) => ({ key: b.dataset.key, name: b.textContent }));
+  let best = null;
+  for (const t of list) {
+    let m; try { m = await (await fetch(src.manifest({ target: t.key }))).json(); } catch { continue; }
+    const g = m.grid; if (!g) continue;
+    const [x, y] = world2pix(ra, dec, g), [ny, nx] = g.shape;
+    if (!(x >= -0.5 && y >= -0.5 && x <= nx - 0.5 && y <= ny - 0.5)) continue;
+    const off = Math.hypot(x - (nx - 1) / 2, y - (ny - 1) / 2);
+    if (!best || off < best.off) best = { ...t, off, ra: g.crval[0], dec: g.crval[1] };
+  }
+  return best;
 }
 const mjdOfYear = (yr) => 51544.5 + (yr - 2000) * 365.25;
 const pixArcsec = () => Math.abs(S.m.grid.cdelt[1]) * 3600;
@@ -224,12 +249,22 @@ async function loadTarget() {
   const q = { target: params.get("target"), key: params.get("key"), ra: params.get("ra"), dec: params.get("dec"),
     fov: params.get("fov") || "0.1", pmra: params.get("pmra"), pmdec: params.get("pmdec"),
     ref_epoch: params.get("ref_epoch"), name: params.get("name") };
-  if (!q.target && !q.key && !(q.ra && q.dec)) { status("Pick a target or enter coordinates."); return; }
+  // the bare address opens WISE 0855 and plays it (the target buttons stay above); reduced motion: no autoplay
+  if (!q.target && !q.key && !(q.ra && q.dec)) {
+    q.target = "wise-0855";
+    S.autoplay = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const p = new URLSearchParams(location.search); p.set("target", q.target); history.replaceState(null, "", "?" + p.toString());
+  }
   const gallery = !!(q.target || q.key);
   if (!FORCED) {
     // gallery targets open from static files at once (no waiting for the probe); a free position needs the server
     USE_API = !gallery && await serverReady;
     if (!gallery && !USE_API) {
+      // a position inside one of the gallery fields still works without a server: open that field
+      if (!$("targets").children.length) await loadIndex();
+      const ra = parseAngle(q.ra, true), dec = parseAngle(q.dec, false), hit = await galleryFieldAt(ra, dec);
+      // open that gallery target; "at" keeps the typed position so the note (and a shared link) can say why
+      if (hit) { navigate({ target: hit.key, at: `${ra.toFixed(6)},${dec.toFixed(6)}` }); return; }
       if (NO_SERVER) noServer($("status"), "");
       else status("The live server is not reachable right now, so only the five gallery targets are available.", true);
       return;
@@ -269,6 +304,14 @@ async function loadTarget() {
     sum.textContent = `${items.length} note${items.length > 1 ? "s" : ""}`; ul.append(...items); det.append(sum, ul);
     $("notes").replaceChildren(det);
   } else $("notes").replaceChildren(...items);
+  // opened from a typed position inside this gallery field (no server): say so above the notes
+  const typed = (params.get("at") || "").split(",").map(Number);
+  if (gallery && typed.length === 2 && typed.every(Number.isFinite)) {
+    const g = S.m.grid;
+    $("notes").prepend(Object.assign(document.createElement("li"), { textContent:
+      `This position (RA ${typed[0].toFixed(5)}°, Dec ${typed[1].toFixed(5)}°) lies in the ${S.m.name || S.key} gallery field ` +
+      `(centre RA ${(+g.crval[0]).toFixed(5)}°, Dec ${(+g.crval[1]).toFixed(5)}°); showing that field.` }));
+  }
   if (!S.m.epochs?.length) { status(S.m.message || "No epochs for this position.", true); return; }
 
   $("epoch").max = S.m.epochs.length - 1;
@@ -311,6 +354,7 @@ async function loadTarget() {
   }
   await loadBand(S.band);
   draw();
+  if (S.autoplay) { S.autoplay = false; setPlaying(true); }
   // static: fetch the other bands in the background, one after another
   for (const b of S.m.bands) if (b.id !== S.band && b.status !== "empty") await loadBand(b.id).catch(() => {});
 }
@@ -979,6 +1023,28 @@ function scatter(svg, pts, xk, yk, xlabel, ylabel) {
   h += S.m.epochs.map((e, i) => `<text x="${(L + i * step).toFixed(0)}" y="12" fill="${EPOCH_COLORS[e.id % EPOCH_COLORS.length]}" font-size="10">${escapeHtml(String(e.date))}</text>`).join("");
   svg.innerHTML = h;
 }
+// the loaded spectrum as CSV, made in the browser: one column per point field, units and meta notes as # comments
+function spectrumCsv() {
+  const raw = S.spectrum, pts = Array.isArray(raw) ? raw : raw?.points || [], meta = raw?.meta || {};
+  const cols = [...new Set(pts.flatMap((p) => Object.keys(p)))];
+  const cell = (v) => {
+    if (v == null) return "";
+    const t = Array.isArray(v) ? v.join("|") : typeof v === "object" ? JSON.stringify(v) : String(v);
+    return /[",\n#]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const one = (t) => String(t).replace(/\s*\n\s*/g, " ");
+  const where = S.specAt && S.specAt !== "target" ? `point RA ${S.specAt[0].toFixed(6)}, Dec ${S.specAt[1].toFixed(6)}` : "target";
+  const head = [
+    `SPHEREx Blink spectrum: ${S.m?.name || S.key} (${S.key}), ${where}`,
+    `units: flux and err in ${meta.flux_unit || "the flux unit of the data"}; wavelength_um and bandwidth_um in micrometres; mjd in days (MJD)`,
+    "flags: names of the FLAGS bits set in the aperture, separated by |; points with masked_fraction >= 0.999 have no usable pixel (the page does not draw them)",
+    ...Object.entries(meta).filter(([, v]) => v != null && typeof v !== "object").map(([k, v]) => `${k}: ${one(v)}`),
+    ...Object.entries(meta).filter(([, v]) => v && typeof v === "object").map(([k, v]) => `${k}: ${one(JSON.stringify(v))}`),
+    "data: SPHEREx (NASA/IPAC IRSA); see the page's acknowledgement",
+  ];
+  return head.map((h) => `# ${h}`).join("\n") + "\n" + cols.join(",") + "\n" +
+    pts.map((p) => cols.map((c) => cell(p[c])).join(",")).join("\n") + "\n";
+}
 function pointTip(p, yk) {
   const v = p[yk], unit = S.spectrum?.meta?.flux_unit || "";
   const lines = [
@@ -1026,6 +1092,7 @@ function plots() {
   const empty = (p) => p.masked_fraction != null && +p.masked_fraction >= 0.999;
   const pts = all.filter((p) => !empty(p)), nEmpty = all.length - pts.length;
   const meta = raw?.meta || {}, unit = meta.flux_unit || "flux";
+  $("specCsv").disabled = !(Array.isArray(raw) ? raw : raw?.points || []).length;
   $("specWhere").textContent = S.specAt === "target" ? "(target position)" : S.specAt ? `(${S.specAt.map((v) => v.toFixed(5)).join(", ")})` : "";
   scatter($("spec"), pts, "wavelength_um", "flux", "µm", unit); // flagged points drawn faint
   renderFlagLegend(pts, meta);
@@ -1641,6 +1708,11 @@ function wire() {
     } catch (err) { status(`Could not resolve "${name}": ${err.message}`, true); }
   };
   $("play").onclick = () => setPlaying(!S.playing);
+  $("specCsv").onclick = () => {
+    const at = S.specAt && S.specAt !== "target" ? `_ra${S.specAt[0].toFixed(5)}_dec${S.specAt[1].toFixed(5)}` : "";
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([spectrumCsv()], { type: "text/csv" })), download: `${S.key}${at}_spectrum.csv` });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
   $("wiseOn").onchange = (e) => { S.wiseOn = e.target.checked; if (!S.wiseOn) S.onWise = false; wiseSlider(); draw(); syncUrl(); };
   $("wiseBand").onchange = (e) => { S.wiseBand = e.target.value; draw(); syncUrl(); };
   $("copyEmbed").onclick = copyEmbed;

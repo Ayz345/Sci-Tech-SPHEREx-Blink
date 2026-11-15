@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SPHEREx Blink · test harness</title>
+<title>SPHEREx Blink</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -149,6 +149,7 @@
       <button id="winGo" type="button" title="drag across the spectrum or type two wavelengths">Blink this window</button>
     </div>
     <div id="winNote" class="muted"></div>
+    <div class="row"><button id="specCsv" type="button" disabled title="the spectrum on screen as a CSV file, made in your browser">Download spectrum (CSV)</button></div>
     <details id="flagBox" hidden><summary id="flagSummary" class="muted">Flags</summary>
       <div class="muted">Point at a spectrum point to see the FLAGS bits set in its aperture. Meanings as given by the data.</div>
       <div id="flagSource" class="muted"></div>
@@ -168,12 +169,13 @@
 
 <section id="meta"></section>
 
-<details id="logBox" open><summary>Request log</summary><ol id="log" class="mono"></ol></details>
+<details id="logBox"><summary>Request log</summary><ol id="log" class="mono"></ol></details>
 
 <footer class="muted">
   Keys: space play/pause · ←/→ epoch · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · m measure · +/− zoom.
   Pixel scale is read from the manifest grid; SPHEREx native pixel is 6.15″.
   <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink/blob/dev/handoff/results/methods_v2.md" target="_blank" rel="noopener">Methods</a>
+  · <a href="embed-example.html">Embed example</a>
   <div id="credits">
     <p id="creditWise" hidden>AllWISE makes use of data from WISE, which is a joint project of the University of California, Los Angeles, and the Jet Propulsion Laboratory/California Institute of Technology, and NEOWISE, which is a project of the Jet Propulsion Laboratory/California Institute of Technology. WISE and NEOWISE are funded by the National Aeronautics and Space Administration.</p>
     <p id="creditCat" hidden>CatWISE2020: Eisenhardt et al. (2020), Marocco et al. (2021); IRSA DOIs 10.26131/IRSA126, IRSA133, IRSA551, IRSA552.</p>
