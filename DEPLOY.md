@@ -20,7 +20,7 @@ repository variable **`SPX_API_URL`**. After the server is up, set `SPX_API_URL`
 always-on instance near the data (S3 is in us-east-1, N. Virginia):
 
 ```sh
-git clone https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink && cd Sci-Tech-SPHEREx-Blink && gcloud run deploy spx-blink --source . --region us-east4 --memory 4Gi --cpu 1 --min-instances 1 --max-instances 1 --no-cpu-throttling --allow-unauthenticated --set-env-vars SPX_CACHE=/tmp/cache,SPX_CACHE_MAX_GB=1.5,SPX_MAX_FOV_DEG=0.11667,SPX_COMMIT=$(git rev-parse --short HEAD)
+git clone https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink && cd Sci-Tech-SPHEREx-Blink && gcloud run deploy spx-blink --source . --region us-east4 --memory 4Gi --cpu 1 --min-instances 1 --max-instances 1 --no-cpu-throttling --allow-unauthenticated --set-env-vars SPX_CACHE=/tmp/cache,SPX_CACHE_MAX_GB=1.5,SPX_MAX_FOV_DEG=0.11667,SPX_SIA_RETRY_BUDGET_S=60,SPX_SIA_MAX_ATTEMPTS=20,SPX_COMMIT=$(git rev-parse --short HEAD)
 ```
 
 `SPX_COMMIT` puts the deployed commit into `/api/health` (a build from source has no git folder in the image;
@@ -55,6 +55,7 @@ Why these settings:
 | `SPX_CACHE=/tmp/cache`, `SPX_CACHE_MAX_GB=1.5` | the cache lives in that memory; above 1.5 GB the oldest cutouts and fields are removed |
 | `SPX_MAX_FOV_DEG=0.11667` | largest field 7′. `0.25` allows 15′: 30–70 s per band and 0.7–1.1 GB read per field (`handoff/results/fov_timing_v2.json`) |
 | request timeout | `/api/band` waits up to 90 s for a band; Cloud Run's default request timeout is longer |
+| `SPX_SIA_RETRY_BUDGET_S=60`, `SPX_SIA_MAX_ATTEMPTS=20` | on 15 Nov IRSA answered 6 of 30 SIA2 queries (502s in 1–3 s, answers in 23–24 s). Simulated on those answers: both image lists of a field arrive 96% of the time with 60 s / 20 attempts, 70% with the defaults (25 s / 10); median 31 s, 90th percentile 54 s |
 
 Check it at `https://<address>/api/health`:
 
@@ -101,7 +102,9 @@ The image listens on `$PORT` (default 8000), runs as a non-root user, and keeps 
 | `SPX_MAX_CUTOUT_SETS` | 2 | fields whose cutouts stay in memory |
 | `SPX_MAX_WINDOWS_PER_FIELD` | 12 | user wavelength windows kept per field |
 | `SPX_BACKGROUND_S3_WORKERS` | 8 | S3 connections for bands nobody is waiting for |
-| `SPX_SIA_RETRY_BUDGET_S` | 25 | seconds of IRSA SIA2 retries before a 503 |
+| `SPX_SIA_RETRY_BUDGET_S` | 25 | seconds of IRSA SIA2 retries before a 503 (the command above sets 60) |
+| `SPX_SIA_MAX_ATTEMPTS` | 10 | IRSA SIA2 attempts per image list (the command above sets 20) |
+| `SPX_THREADS` | 32 | threads for blocking work (opening a field holds one while IRSA is retried) |
 | `SPX_BAND_WAIT_S` | 90 | seconds a request waits for its band |
 | `SPX_GALLERY` | `web/data` | the gallery folder (notes, CatWISE files) |
 | `FORWARDED_ALLOW_IPS` | `*` | proxies trusted for the client address (request limits) |

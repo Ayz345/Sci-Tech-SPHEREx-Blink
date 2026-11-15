@@ -884,3 +884,8 @@ def test_bad_band_ids_rejected_before_the_field_opens(client, monkeypatch):
             assert r.status_code == code and r.json()["schema"] == 1, (path, band, r.status_code, r.text)
     r = client.get("/api/band", params={"key": "wise-0855", "band": "D1"})     # a good id: opening fails, 503
     assert r.status_code == 503
+
+
+def test_health_shows_sia_and_threads(client):
+    h = _strict(client.get("/api/health"))
+    assert h["sia"]["max_attempts"] >= 1 and h["sia"]["retry_budget_s"] > 0 and h["threads"] >= 5

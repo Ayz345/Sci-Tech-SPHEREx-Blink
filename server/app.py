@@ -680,10 +680,28 @@ app = FastAPI(title="SPHEREx blink API", version=spx.__version__)
 _janitor_started = False
 
 
+#: IRSA SIA2 attempts per list (spx.access keeps its own default of 10; the frame code there is frozen, so the
+#: server sets it). Measured 15 Nov from here: 6 of 30 SIA2 queries answered, 502s in 0.8-2.6 s, answers in
+#: 23-24 s; simulated on those answers, budget 60 s with 20 attempts gets both collections of a field 96% of the
+#: time (25 s / 10 attempts: 70%), median 31 s, 90th percentile 54 s. Set with SPX_SIA_RETRY_BUDGET_S too.
+if os.environ.get("SPX_SIA_MAX_ATTEMPTS"):
+    access.SIA_MAX_ATTEMPTS = int(os.environ["SPX_SIA_MAX_ATTEMPTS"])
+#: Threads of the default pool (asyncio.to_thread). Python's default is CPU + 4: 5 on a one-CPU instance, and
+#: opening a field holds one while IRSA is retried (up to a minute), so a few new fields would block everything.
+THREAD_POOL = int(os.environ.get("SPX_THREADS") or 32)
+_pool_set = False
+
+
 @app.middleware("http")
 async def _start_janitor(request: Request, call_next):
-    """The disk-cache janitor starts with the first request (not at import: tests import the app)."""
-    global _janitor_started
+    """At the first request (not at import: tests import the app): the default thread pool's size, and the
+    disk-cache janitor."""
+    global _janitor_started, _pool_set
+    if not _pool_set:
+        from concurrent.futures import ThreadPoolExecutor
+        asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=THREAD_POOL,
+                                                                           thread_name_prefix="spx"))
+        _pool_set = True
     if not _janitor_started and CACHE_MAX_BYTES > 0:
         _janitor_started = True
         threading.Thread(target=_cache_janitor, daemon=True, name="cache-janitor").start()
@@ -1021,6 +1039,8 @@ async def api_health():
                             time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(CACHE_STATE["checked"])),
                             "last_cleanup": CACHE_STATE["last_cleanup"]},
                   "band_waiters": {"now": _band_waiters, "max": MAX_BAND_WAITERS},
+                  "sia": {"retry_budget_s": access.SIA_RETRY_BUDGET_S, "max_attempts": access.SIA_MAX_ATTEMPTS},
+                  "threads": THREAD_POOL,
                   "memory_limits": {"fields_in_memory": MAX_FIELDS_IN_MEMORY, "cutout_sets": MAX_CUTOUT_SETS,
                                     "cutout_sets_in_memory": len(reg.cutouts),
                                     "windows_per_field": MAX_WINDOWS_PER_FIELD},
