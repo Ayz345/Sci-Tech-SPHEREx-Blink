@@ -657,3 +657,36 @@ def test_catwise_served_for_gallery_targets_only(client):
     key = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "queue": 0}))["key"]
     r = client.get("/api/catwise", params={"key": key})
     assert r.status_code == 404 and "no WISE catalogue" in r.json()["message"]
+
+
+# --------------------------------------------------------------------------- public server: errors (B6)
+
+def test_unhandled_error_is_json_with_cors_and_no_detail(client, monkeypatch):
+    from server import app as A
+    def boom(*a, **k):
+        raise RuntimeError(r"C:\secret\path\file.fits exploded")
+    monkeypatch.setattr(A.Registry, "manifest", boom)
+    with TestClient(A.app, raise_server_exceptions=False) as c:
+        r = c.get("/api/manifest", params={"ra": RA0, "dec": DEC0}, headers={"Origin": "http://127.0.0.1:8765"})
+    assert r.status_code == 500 and r.headers["access-control-allow-origin"] == "*"
+    j = r.json()
+    assert j["schema"] == 1 and "error id" in j["message"] and "secret" not in r.text and "RuntimeError" not in r.text
+
+
+def test_band_failure_does_not_leak_the_exception(client, monkeypatch):
+    from server import pipeline as P
+    def boom(*a, **k):
+        raise OSError(r"[Errno 2] No such file: 'C:\cache\private\x.npz'")
+    monkeypatch.setattr(P, "build_band", boom)
+    key = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}))["key"]
+    r = client.get("/api/band", params={"key": key, "band": "D1"})
+    assert r.status_code == 503 and "error id" in r.json()["message"] and "private" not in r.text
+    m = client.get("/api/manifest", params={"ra": RA0, "dec": DEC0}).json()
+    errs = [b.get("error") for b in m["bands"] if b.get("error")]
+    assert errs and all("private" not in e and "error id" in e for e in errs)
+
+
+def test_track_body_must_be_an_object(track_client):
+    for body in ([], "x", 3, None):
+        r = track_client.post("/api/track", json=body)
+        assert r.status_code == 400 and r.json()["schema"] == 1, (body, r.text)

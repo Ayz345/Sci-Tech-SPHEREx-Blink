@@ -67,6 +67,18 @@ MAX_CUTOUT_SETS = int(os.environ.get("SPX_MAX_CUTOUT_SETS") or 2)
 
 # --------------------------------------------------------------------------- errors / json
 
+def error_id(what: str, exc: BaseException | None = None) -> str:
+    """Log an internal error with a short id and return the id; clients get the id, never the exception text
+    (it can hold file paths or upstream pages)."""
+    import uuid
+    eid = uuid.uuid4().hex[:8]
+    if exc is not None:
+        log.error("[%s] %s: %s", eid, what, f"{type(exc).__name__}: {exc}", exc_info=exc)
+    else:
+        log.error("[%s] %s", eid, what)
+    return eid
+
+
 class ApiError(Exception):
     def __init__(self, status: int, message: str):
         super().__init__(message)
@@ -250,7 +262,7 @@ class Registry:
                 self._build(fs, job)
             except Exception as e:
                 log.exception("band %s %s failed", key, band)
-                job.state, job.error = "error", f"{type(e).__name__}: {e}"[:300]
+                job.state, job.error = "error", error_id(f"band {key} {band}", e)
             finally:
                 job.t_end = time.time()
                 job.event.set()
@@ -315,7 +327,7 @@ class Registry:
             log.info("candidates %s: %d in %.1fs", fs.field.key, len(out.get("candidates", [])), time.time() - t0)
         except Exception as e:
             log.exception("candidates %s failed", fs.field.key)
-            fs.candidates_state = f"error: {type(e).__name__}: {e}"[:300]
+            fs.candidates_state = "error: " + error_id(f"candidates {fs.field.key}", e)
 
     def _cutout_set(self, key: str) -> dict:
         with self.lock:
@@ -348,7 +360,7 @@ class Registry:
             if j and j.state in ("running", "pending") and j.total:
                 b["progress"] = round(j.done / j.total, 3)
             if j and j.state == "error":
-                b["error"] = j.error
+                b["error"] = f"could not be built (error id {j.error})"
         return m
 
     def touch(self, key: str) -> None:
@@ -508,14 +520,27 @@ async def _api_error(request: Request, exc: ApiError):
     return jresp({"schema": P.SCHEMA, "message": exc.message}, exc.status)
 
 
+@app.exception_handler(Exception)
+async def _internal_error(request: Request, exc: Exception):
+    """Unhandled errors: JSON like every other answer, with the CORS headers (this handler runs outside the CORS
+    middleware), and an id instead of the exception text."""
+    eid = error_id(f"{request.method} {request.url.path}", exc)
+    resp = jresp({"schema": P.SCHEMA, "message": f"internal error (error id {eid}); this is a bug on our side"}, 500)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Expose-Headers"] = EXPOSE_HEADERS
+    return resp
+
+
 @app.exception_handler(access.SiaError)
 async def _sia_error(request: Request, exc: access.SiaError):
-    return jresp({"schema": P.SCHEMA, "message": f"IRSA SIA2 is not answering: {exc}"}, 503)
+    return jresp({"schema": P.SCHEMA, "message": "IRSA SIA2 is not answering; try again in a few minutes "
+                                                 f"(error id {error_id('SIA2', exc)})"}, 503)
 
 
 @app.exception_handler(access.FetchError)
 async def _fetch_error(request: Request, exc: access.FetchError):
-    return jresp({"schema": P.SCHEMA, "message": f"SPHEREx data on S3 is not reachable: {exc}"}, 503)
+    return jresp({"schema": P.SCHEMA, "message": "SPHEREx data on S3 is not reachable; try again in a few minutes "
+                                                 f"(error id {error_id('S3', exc)})"}, 503)
 
 
 async def _field(key: str, open_kw: dict | None = None, queue: bool = True) -> FieldState:
@@ -559,7 +584,7 @@ async def api_band(key: str, band: str):
     fs = await _field(key)
     job = await asyncio.to_thread(registry().wait_band, fs, band, BAND_WAIT_S)
     if job.state == "error":
-        raise ApiError(503, f"band {band} failed: {job.error}")
+        raise ApiError(503, f"band {band} could not be built (error id {job.error}); try again later")
     if not job.event.is_set():
         raise ApiError(504, f"band {band} is still being built ({job.done}/{job.total} images); try again")
     path = fs.out / f"{band}.json"
@@ -595,7 +620,7 @@ async def api_candidates(key: str):
         raise ApiError(503, "the candidate finder (spx.detect) is not installed on this server")
     st = fs.candidates_state
     if st and st.startswith("error"):
-        raise ApiError(503, f"candidate search failed: {st[7:]}")
+        raise ApiError(503, f"candidate search failed (error id {st[7:]})")
     reg = registry()
     if st is None:
         reg.maybe_candidates(fs)
@@ -623,7 +648,7 @@ async def api_gaia(key: str):
     try:
         g = await asyncio.to_thread(P.gaia_sources, fs.field)
     except Exception as e:
-        raise ApiError(503, f"Gaia archive is not answering: {e}")
+        raise ApiError(503, f"Gaia archive is not answering (error id {error_id('gaia ' + key, e)})")
     return jresp(g)
 
 
@@ -695,7 +720,7 @@ def _sesame(name: str) -> dict | None:
     try:
         resp = requests.get("https://cds.unistra.fr/cgi-bin/nph-sesame/-oxp/SNV?" + quote(name), timeout=5)
     except (requests.ConnectionError, requests.Timeout) as e:
-        raise ApiError(503, f"name resolver not answering: {e}")
+        raise ApiError(503, f"name resolver not answering (error id {error_id('resolve', e)})")
     txt = resp.text
 
     def g(tag, s=txt):
@@ -716,7 +741,7 @@ def _validation_status() -> dict:
     try:
         return mpc.validation_status()
     except Exception as e:  # health must answer even if the check itself breaks
-        return {"status": "error", "message": str(e)[:200]}
+        return {"status": "error", "message": f"error id {error_id('validation status', e)}"}
 
 
 @app.get("/api/health")
@@ -807,6 +832,8 @@ async def api_track(request: Request):
         body = await request.json()
     except Exception:
         raise ApiError(400, "body must be JSON: {band, marks: [{ra, dec, mjd}]}")
+    if not isinstance(body, dict):
+        raise ApiError(400, "body must be a JSON object: {band, marks: [{ra, dec, mjd}]}")
     band = str(body.get("band") or "")
     marks = body.get("marks") or []
     try:
