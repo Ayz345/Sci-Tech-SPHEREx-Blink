@@ -227,14 +227,22 @@ def rate_limit(request, group: str) -> None:
                             f"try again in {wait:.0f} s", {"Retry-After": f"{wait:.0f}"})
 
 
-def new_field_allowed(request, key: str) -> None:
+def _unhit(ip: str, group: str) -> None:
+    """Take back the last counted request (a new field that could not be opened does not use up the limit)."""
+    with _rate_lock:
+        q = _rate_hits.get((ip, group))
+        if q:
+            q.pop()
+
+
+def new_field_allowed(request, key: str) -> bool:
     """A field not yet on the server costs downloads: per-IP and server-wide limits before it is opened."""
     if not RATE_ON:
-        return
+        return False
     reg = registry()
     with reg.lock:
         if key in reg.fields or key in reg.opening:
-            return
+            return False
         active = sum(1 for fs in reg.fields.values()
                      if any(not j.event.is_set() for b, j in fs.jobs.items() if b not in fs.windows))
     if active >= MAX_ACTIVE_FIELDS:
@@ -245,6 +253,7 @@ def new_field_allowed(request, key: str) -> None:
         raise ApiError(429, f"too many new fields from your address ({NEW_FIELDS_PER_IP} per "
                             f"{NEW_FIELD_WINDOW_S / 60:.0f} min); try again in {wait:.0f} s",
                        {"Retry-After": f"{wait:.0f}"})
+    return True
 
 
 # --------------------------------------------------------------------------- errors / json
@@ -812,8 +821,13 @@ async def api_manifest(request: Request, target: str | None = None, ra: str | No
         kw = {"ra": r, "dec": d, "fov_deg": fv, "pm": pm, "name": name,
               "source": "SIMBAD via CDS Sesame (proper motion given)" if pm else None}
     rate_limit(request, "manifest")
-    new_field_allowed(request, key)
-    fs = await _field(key, kw, bool(queue))
+    counted = new_field_allowed(request, key)
+    try:
+        fs = await _field(key, kw, bool(queue))
+    except Exception:
+        if counted:   # IRSA did not answer, etc.: the attempt does not use up this address's new-field limit
+            _unhit(client_ip(request), "new_field")
+        raise
     registry().touch(fs.field.key)
     return jresp(registry().manifest(fs))
 

@@ -959,3 +959,23 @@ def test_cors_on_every_error_status(client, monkeypatch):
         check(c.get("/api/manifest", params={"ra": RA0, "dec": DEC0}, headers=H))                     # 500
     assert set(seen) >= {400, 404, 413, 429, 500, 503, 504}, seen
     assert all(v == "*" for v in seen.values()), seen
+
+
+def test_failed_new_field_does_not_count(client, monkeypatch):
+    from server import app as A
+    monkeypatch.setattr(A, "RATE_ON", True)
+    monkeypatch.setattr(A, "NEW_FIELDS_PER_IP", 2)
+    state = {"down": True}
+    real = access.find_images
+
+    def maybe_down(*a, **k):
+        if state["down"]:
+            raise access.SiaError("SIA2 HTTP 502")
+        return real(*a, **k)
+    monkeypatch.setattr(access, "find_images", maybe_down)
+    for i in range(5):                                         # five failed attempts: none counted
+        assert client.get("/api/manifest", params={"ra": RA0 + i, "dec": DEC0, "queue": 0}).status_code == 503
+    state["down"] = False
+    for i in range(2):                                         # the limit (2) is still all there
+        assert client.get("/api/manifest", params={"ra": RA0 + 10 + i, "dec": DEC0, "queue": 0}).status_code == 200
+    assert client.get("/api/manifest", params={"ra": RA0 + 20, "dec": DEC0, "queue": 0}).status_code == 429
