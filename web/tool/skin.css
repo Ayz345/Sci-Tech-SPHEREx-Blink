@@ -71,8 +71,8 @@ body:not(.embed) canvas { width: var(--P); height: var(--P); }
 #fovButtons { gap: 6px; }
 #fovButtons button { padding: 5px 13px; }
 #bandRow { margin-top: 24px; }
-#bands { gap: 6px; }
-#bands button { padding: 7px 15px; min-width: 56px; }
+#bands { gap: 5px; }
+#bands button { padding: 7px 10px; min-width: 44px; flex: 1 1 44px; max-width: 76px; }  /* web/tool: D1…D6 and W share one row (an own window may wrap) */
 #bands button b { font-size: 14px; }
 #bands button small { font-size: 12.5px; }               /* the band's range sits under its name, quieter */
 #swapBand { font-size: 13px; }
