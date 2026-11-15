@@ -27,7 +27,7 @@ function littleEndian(buf) {
   return out;
 }
 async function getJSON(u) { const r = await fetch(u); if (!r.ok) throw new Error(`${r.status} ${u.split("?")[0].split("/").pop()}`); return r.json(); }
-async function getF32(u) { const r = await fetch(u); if (!r.ok) { if (r.status >= 500) throw new Error(`${r.status} frame`); return null; } return new Float32Array(littleEndian(await r.arrayBuffer())); }
+async function getF32(u) { const r = await fetch(u); if (!r.ok) { if (r.status >= 500 || r.status === 429) throw new Error(`${r.status} frame`); return null; } return new Float32Array(littleEndian(await r.arrayBuffer())); }
 // the live server: looked for when it is first needed, and again after a failure (a cold start can take a few seconds)
 let API = "";
 export async function findServer() {
@@ -52,7 +52,11 @@ const urls = (e) => (e.live ? {
   spectrum: () => `${DATA}${e.key}/spectrum.json`,
 });
 export function loadTarget(key) {
-  if (!store.has(key)) store.set(key, getJSON(`${DATA}${key}/manifest.json`).then((m) => entry(key, m, false)));
+  if (!store.has(key)) {
+    const p = getJSON(`${DATA}${key}/manifest.json`).then((m) => entry(key, m, false));
+    p.catch(() => store.delete(key));   // a failed request is asked again next time
+    store.set(key, p);
+  }
   return store.get(key);
 }
 export async function loadPosition(ra, dec) {
@@ -67,7 +71,7 @@ export async function loadBand(e, band) {
   const u = urls(e);
   if (!(band in e.bandJson)) {
     if (e.live) e.bandJson[band] = await getJSON(u.band(band));             // waits until the server has built it
-    else e.bandJson[band] = await getJSON(u.band(band)).catch(() => null);
+    else e.bandJson[band] = await getJSON(u.band(band)).catch((err) => { if (/^4[0-9][0-9]/.test(err.message) || err.name === "SyntaxError") return null; throw err; });
   }
   const mb = e.m.bands.find((b) => b.id === band);
   if (e.live && mb && mb.status === "pending") mb.status = "ready";
@@ -127,9 +131,8 @@ export function paint(cv, e, band, i, { invert = false, showLow = false } = {}) 
 }
 // The AllWISE image of 2010 on this field's 3 arcsec grid (gallery targets only): data/<key>/wise.json + wise_W2.f32,
 // row 0 = south, its own brightness scale. Not SPHEREx: it is only shown in the blink and never enters a measurement.
-async function loadWise(e) {
-  if (e.live) return null;
-  if (e.wise !== undefined) return e.wise;
+function loadWise(e) { return e.live ? Promise.resolve(null) : (e.wiseP ||= loadWiseNow(e)); }
+async function loadWiseNow(e) {
   e.wise = null;
   try {
     const meta = await getJSON(`${DATA}${e.key}/wise.json`);
@@ -292,7 +295,7 @@ export function createTool(c) {
       landFrame();
     }
     Q.band = Q.e.m.default_band || (Q.e.m.bands.find((b) => b.status === "ready") || Q.e.m.bands[0]).id; Q.showLow = false;
-    reveal(run, fast);
+    reveal(run, fast).catch((err) => { if (run === Q.run) setStatus(`This field could not be shown (${err.message}).`); });
   }
   function fail(msg) {
     const tool = $("tool");
@@ -397,6 +400,7 @@ export function createTool(c) {
   function reset() {
     clearInterval(Q.timer); Q.playing = false; Q.ready = false; Q.epoch = 0; Q.wiseOn = false; Q.onWise = false;
     $("wise").hidden = true; $("wise").setAttribute("aria-pressed", "false"); $("foot").innerHTML = foot0;
+    $("pframe").getAnimations().forEach((a) => a.cancel()); $("low").setAttribute("aria-pressed", "false");
     $("plate").style.opacity = 0; $("cv").classList.remove("developing");
     $("ov").replaceChildren(); $("envelope").textContent = ""; $("tnotes").replaceChildren();
     for (const id of ["spec", "timecol", "controls"]) $(id).classList.remove("on");
@@ -444,6 +448,11 @@ export function createTool(c) {
     fixLow();
     // C. each pass develops in place
     const list = m.epochs.map((_, i) => i).filter(ok);
+    if (Q.e.wise) {   // the button takes the WISE frame out of the blink and puts it back
+      Q.wiseOn = true;
+      $("wise").hidden = false; $("wise").setAttribute("aria-pressed", "true");
+      $("foot").innerHTML = `${foot0} &middot; WISE image: AllWISE, NASA/IPAC (IRSA)`;
+    }
     if (!list.length) { Q.ready = true; $("controls").classList.add("on"); render(); return setStatus(`Band ${Q.band} has no usable exposures of this field. Choose another band on the ruler.`); }
     for (const i of list) {
       setStatus(`Pass ${i + 1} of ${nPass()}, ${fmtDate(dateOf(Q.e, Q.band, i))}: ${usedOf(Q.e, Q.band, i)} exposures stacked, bad pixels masked.`);
@@ -451,11 +460,7 @@ export function createTool(c) {
       await wait(900); if (!alive()) return;
     }
     Q.ready = true; Q.epoch = list[0] ?? 0;
-    if (Q.e.wise) {   // the WISE image of 2010 is the blink's first frame; the button takes it out and puts it back
-      Q.wiseOn = true; Q.onWise = true;
-      $("wise").hidden = false; $("wise").setAttribute("aria-pressed", "true");
-      $("foot").innerHTML = `${foot0} &middot; WISE image: AllWISE, NASA/IPAC (IRSA)`;
-    }
+    if (Q.e.wise) Q.onWise = true;   // the WISE image of 2010 is the blink's first frame
     $("low").hidden = !m.epochs.some((_, i) => isLow(Q.e, Q.band, i));
     $("play").disabled = nBlink() < 2; $("controls").classList.add("on");
     render(false, true);
@@ -533,7 +538,7 @@ export function createTool(c) {
       const r = el("rect", { x: L0 + 4, y: base - h, width: bw, height: h, fill: cur ? "#fff" : "none", stroke: "#fff", "stroke-width": 1, opacity: cur ? 1 : .6, "pointer-events": "all" }, g);
       if (!on) r.setAttribute("stroke-dasharray", "2 2");
       el("text", { x: L0, y: base - h - 9, "font-size": Wd < 560 ? 11 : 12.5, "text-anchor": "start", fill: cur ? "#fff" : "#8a8a88", "letter-spacing": ".04em" }, g).textContent = `${Q.e.wise.date.slice(0, 4)} · WISE W2`;
-      el("text", { x: L0, y: base + 24, "font-size": 12, fill: "#6a6a67", "letter-spacing": ".06em" }, g).textContent = Q.e.wise.survey;
+      el("text", { x: L0, y: base + 24, "font-size": 12, fill: "#8a8a85", "letter-spacing": ".06em" }, g).textContent = Q.e.wise.survey;
       g.onclick = () => Q.ready && selectWise();
       g.onkeydown = (ev) => (ev.key === "Enter" || ev.key === " ") && Q.ready && (ev.preventDefault(), selectWise());
     }
@@ -545,7 +550,7 @@ export function createTool(c) {
       const jan = d.getUTCMonth() === 0;
       el("line", { x1: X(mjd), y1: base, x2: X(mjd), y2: base + (jan ? 8 : 4), stroke: "#fff", "stroke-opacity": jan ? .6 : .3 }, sv);
       if (!jan && (R - L) * 30.4 / (t1 - t0) < 46) continue;
-      el("text", { x: X(mjd) + 3, y: base + 24, "font-size": jan ? 13 : 12, fill: jan ? "#f2f2f0" : "#6a6a67", "letter-spacing": ".06em" }, sv).textContent =
+      el("text", { x: X(mjd) + 3, y: base + 24, "font-size": jan ? 13 : 12, fill: jan ? "#f2f2f0" : "#8a8a85", "letter-spacing": ".06em" }, sv).textContent =
         jan ? String(d.getUTCFullYear()) : d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }).toUpperCase();
     }
     const b = bandOf(), maxN = Math.max(...m.bands.flatMap((x) => x.n_exposures || [0]), 1);
@@ -616,6 +621,7 @@ export function createTool(c) {
     Q.wiseOn = on; Q.onWise = on;
     $("wise").setAttribute("aria-pressed", on);
     $("play").disabled = nBlink() < 2;
+    if (nBlink() < 2) stopPlay();
     render(); doneStatus();
   }
   function selectWise() { if (!Q.e?.wise) return; if (!Q.wiseOn) setWise(true); else { Q.onWise = true; render(); } }
@@ -657,9 +663,11 @@ export function createTool(c) {
     history.replaceState({}, "", location.pathname + "?stage=sky");
     const tool = $("tool");
     await tool.animate([{ opacity: 1 }, { opacity: 0 }], { duration: REDUCED ? 1 : 350, fill: "forwards" }).finished;
+    if (run !== Q.run) return;   // kill() ran meanwhile: everything is already off
     $("pframe").replaceChildren(); $("hud").style.opacity = 0;
     const fovA = S.sky.fov, v0 = { ...view }, v1 = { cx: .5, cy: portrait() ? .38 : .42 };
     await tween(1700, (k) => {
+      if (run !== Q.run) return;
       const f = Math.exp(lerp(Math.log(fovA), Math.log(50), k));
       S.sky.fov = f;
       S.toolFade = clamp((f - 1.2) / 7, 0, 1); S.toolGrid = .06 * k;
@@ -690,7 +698,7 @@ export function createTool(c) {
     if (Q.ready) { drawTime(nPass()); drawWave(1); }
   }
   function onKey(e) {
-    if (!Q.open || e.target.closest?.("input")) return false;
+    if (!Q.open || (e.target.closest?.("input") && e.key !== "Escape")) return false;
     if (e.key === "ArrowRight") step(1);
     else if (e.key === "ArrowLeft") step(-1);
     else if (e.key === "Escape") close();

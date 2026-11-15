@@ -553,20 +553,24 @@ const pageFit = [], pageShift = [];
 // the document's scroll length, and (on small screens) a scale that fits a tall page into the screen
 function measurePages() {
   $("track").style.height = ((PAGES.length - 1) * STEP + 1) * innerHeight + "px";
-  INNERS.forEach((els, j) => {
-    pageFit[j] = 1;
-    if (!j || !els.length) return;
-    const pad = parseFloat(getComputedStyle(PAGES[j]).paddingTop) || 0, prev = els.map((el) => el.style.transform);
-    for (const el of els) el.style.transform = "none";
+  INNERS.forEach((all, j) => {
+    pageFit[j] = 1; pageShift[j] = 0;
+    if (!j || !all.length) return;
+    const els = all.filter((el) => el.offsetHeight > 0);          // a block that is not shown (the chart on a phone) takes no part
+    if (!els.length) return;
+    const pad = parseFloat(getComputedStyle(PAGES[j]).paddingTop) || 0, prev = all.map((el) => el.style.transform);
+    for (const el of all) el.style.transform = "none";
     // stacked (phone): the heights add up; side by side (page 4's words and plate on a wide screen): the taller one
     const stacked = els.length > 1 && els[1].offsetTop >= els[0].offsetTop + els[0].offsetHeight - 1;
     const h = els.length > 1 && !stacked ? Math.max(...els.map((el) => el.offsetHeight)) : els.reduce((a, el) => a + el.offsetHeight, 0) + (els.length > 1 ? 26 : 0);
-    els.forEach((el, k) => (el.style.transform = prev[k]));
+    all.forEach((el, k) => (el.style.transform = prev[k]));
     pageFit[j] = Math.min(1, (innerHeight - 2 * pad + 40) / Math.max(1, h));
     // a page taller than the screen overflows its grid (downwards on a wide screen, both ways on a phone), so after the
-    // scale the words would not sit in the middle: move the group's measured centre to the screen's centre
-    const top = Math.min(...els.map((el) => el.offsetTop)), bot = Math.max(...els.map((el) => el.offsetTop + el.offsetHeight));
-    pageShift[j] = pageFit[j] < 1 ? PAGES[j].clientHeight / 2 - (top + bot) / 2 : 0;
+    // scale the words would not sit in the middle: move the group's measured centre to the screen's centre. Blocks stacked
+    // on top of each other scale about the centre of the group (not each about its own centre, which would open a gap).
+    const top = Math.min(...els.map((el) => el.offsetTop)), bot = Math.max(...els.map((el) => el.offsetTop + el.offsetHeight)), gc = (top + bot) / 2;
+    pageShift[j] = pageFit[j] < 1 ? PAGES[j].clientHeight / 2 - gc : 0;
+    for (const el of els) el.style.transformOrigin = stacked ? `50% ${(gc - el.offsetTop).toFixed(1)}px` : "";
   });
 }
 // y = the (smoothed) scroll position that drives the form and the page colour; the words follow the real one
@@ -624,7 +628,7 @@ const camU = track([[T.cam[0], 0, 0], [T.cam[1], U3], [T.cam[2], U5, .45 * (U5 -
 const HZ = new THREE.Vector3(-C1.x, 0, -C1.z).normalize();     // "up" on screen once we look straight down
 const Y = new THREE.Vector3(0, 1, 0);
 
-if (P.has("p")) S.p = S.goal = clamp(+P.get("p"), 0, 1);
+if (P.has("p")) S.p = S.goal = clamp(+P.get("p") || 0, 0, 1);
 if (P.get("stage") === "sky" || P.has("target") || P.has("ra")) S.p = S.goal = 1;
 if (S.mode === "frozen") { document.documentElement.classList.add("locked"); document.body.classList.add("playing"); }
 const tmp = new THREE.Vector3(), dir = new THREE.Vector3(), up = new THREE.Vector3(), look = new THREE.Vector3(), white = new THREE.Color(0xffffff);
@@ -925,6 +929,7 @@ async function openFree(ra, dec) {
     msg.textContent = "Looking for the live server…";
     S.server = !!(await findServer());
     msg.textContent = "";
+    if (!S.live) return;   // the visitor went back to the start page meanwhile
   }
   if (!S.server && window.SPX_API) {   // a server is configured but did not answer (it can be starting up)
     msg.innerHTML = `The live server is not answering right now. Try again in a moment; the five targets work meanwhile. <button type="button" class="retry">Try again</button>`;
