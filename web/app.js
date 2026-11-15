@@ -58,6 +58,8 @@ const EMBED = params.get("embed") === "1";
 const DATA_PARAM = safeData(params.get("data"));
 const DATA = (DATA_PARAM || "data").replace(/\/$/, "");
 const D2R = Math.PI / 180;
+// design/v5 palette for drawings: off-white and greys plus one accent (ember)
+const INK = { fg: "#f2f2f0", fg2: "#c9c9c5", fg3: "#a3a3a0", fg4: "#8d8d93", rule: "rgba(242,242,240,0.32)", ember: "#e0482a" };
 
 // ---------- user wavelength windows (F1): band id w<lo>_<hi> in nm, built by the live server on request ----------
 const isCustom = (id) => /^w\d+_\d+$/.test(id || "");
@@ -590,7 +592,7 @@ function drawRGB(ctx, ep, nx, ny, z) {
   const fr = ids.map((b, k) => { const f = frameOf(b, ep.id, "image"); return applySat(f, satMask(b), Infinity, f, sc[k].vmax); });
   $("scaleSrc").textContent = `false colour: R ${ch.r} · G ${ch.g} · B ${ch.b}, each with its band's own scale`;
   if (!fr.some(Boolean)) {
-    ctx.fillStyle = "#888"; ctx.font = "14px system-ui";
+    ctx.fillStyle = INK.fg4; ctx.font = "14px system-ui";
     ctx.fillText(ids.some((b) => S.frames.get(`${b}|${ep.id}|image`) instanceof Promise) ? "loading…" : "no data for these bands/epoch", 12, 24);
     return;
   }
@@ -682,7 +684,7 @@ function draw() {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, nx * z, ny * z);
   } else {
-    ctx.fillStyle = "#888"; ctx.font = "14px system-ui";
+    ctx.fillStyle = INK.fg4; ctx.font = "14px system-ui";
     const pending = S.frames.get(`${S.band}|${ep.id}|${S.layer}`) instanceof Promise;
     ctx.fillText(pending ? "loading…" : offline ? "server not reachable, retrying…" : "no data for this band/epoch", 12, 24);
   }
@@ -695,7 +697,7 @@ function draw() {
 // The motion is a straight-line fit of position against time over all marks; the uncertainty assumes the click
 // is good to about one grid pixel per mark. Everything here runs in the browser, without the server.
 S.marks = []; S.measuring = false; S.markSeq = 0;
-const MARK_COLOR = "#ff4fd8";
+const MARK_COLOR = INK.ember; // the user's own marks carry the one accent
 function addMark(ra, dec) {
   if (S.onWise) { // a mark on the WISE frame carries the WISE date; without one it cannot be timed
     if (S.wise.mjd == null) { status("This WISE image has no date in wise.json, so a mark on it cannot be timed; mark the SPHEREx frames instead.", true); return; }
@@ -928,7 +930,7 @@ function lowLabel(ctx) {
   ctx.font = "bold 13px system-ui";
   const w = ctx.measureText(txt).width + 12, x = (ctx.canvas.width - w) / 2;
   ctx.fillStyle = "rgba(0,0,0,0.75)"; ctx.fillRect(x, 6, w, 22);
-  ctx.fillStyle = "#ffcc66"; ctx.fillText(txt, x + 6, 22);
+  ctx.fillStyle = INK.fg; ctx.fillText(txt, x + 6, 22);
 }
 
 function toScreen(ra, dec) {
@@ -940,7 +942,7 @@ function overlays(ctx, ep) {
   const z = S.zoom;
   ctx.lineWidth = 1.5;
   if ($("ovGaia").checked && S.gaia && ep.mjd_mid != null) { // no date (a WISE frame without epoch): not drawn
-    ctx.strokeStyle = "#4fd1c5";
+    ctx.strokeStyle = INK.fg4; // Gaia: grey circles
     for (const g of S.gaia) {
       const dt = (ep.mjd_mid - mjdOfYear(g.ref_epoch ?? 2016)) / 365.25;
       const dec = g.dec + ((g.pmdec || 0) * dt) / 3.6e6;
@@ -952,7 +954,7 @@ function overlays(ctx, ep) {
   if ($("ovTrack").checked && S.m.target_track?.length) {
     const pts = S.m.target_track.map((t) => [t.epoch, ...toScreen(t.ra, t.dec)]);
     // marks must not cover the source: small dots for other epochs, open ticks around the current one
-    ctx.strokeStyle = ctx.fillStyle = "#e89a3c";
+    ctx.strokeStyle = ctx.fillStyle = INK.fg; // target track: off-white ticks and dots
     for (const [e, x, y] of pts) {
       if (e === ep.id) {
         const a = 2.5 * z, b = 5 * z;
@@ -965,7 +967,7 @@ function overlays(ctx, ep) {
   }
   if ($("ovQuery").checked && S.m.query) {
     const [x, y] = toScreen(S.m.query.ra, S.m.query.dec), r = 6 * z;
-    ctx.strokeStyle = "#ff5c8a";
+    ctx.strokeStyle = INK.fg3; // query position: grey cross
     ctx.beginPath(); ctx.moveTo(x - r, y); ctx.lineTo(x - r / 3, y); ctx.moveTo(x + r / 3, y); ctx.lineTo(x + r, y);
     ctx.moveTo(x, y - r); ctx.lineTo(x, y - r / 3); ctx.moveTo(x, y + r / 3); ctx.lineTo(x, y + r); ctx.stroke();
   }
@@ -988,39 +990,54 @@ function overlays(ctx, ep) {
 }
 
 // ---------- plots (spectrum + light curve) ----------
-const EPOCH_COLORS = ["#4fd1c5", "#e89a3c", "#c084fc", "#7ee787", "#ff7b72", "#79c0ff"];
+// design/v5 palette: off-white and greys plus one accent (ember); epochs differ by tone and marker shape, not hue
+const EPOCH_TONES = ["#f2f2f0", "#c9c9c5", "#a3a3a0", "#e6e1d6", "#b5b5b0", "#8d8d93"];
+const EPOCH_SHAPES = ["circle", "square", "up", "down", "x", "plus"]; // the diamond stays for points recovered from overflow
+const epochTone = (e) => EPOCH_TONES[(e ?? 0) % EPOCH_TONES.length];
+// one epoch marker as SVG: filled, or open (lower limits); x and plus are always strokes
+function epochMarker(e, cx, cy, r, open, extra = "") {
+  const shape = EPOCH_SHAPES[(e ?? 0) % EPOCH_SHAPES.length], c = epochTone(e), x = +cx, y = +cy, f = (v) => v.toFixed(1);
+  const paint = open || shape === "x" || shape === "plus" ? `fill="none" stroke="${c}" stroke-width="1.2"` : `fill="${c}"`;
+  if (shape === "circle") return `<circle cx="${f(x)}" cy="${f(y)}" r="${r}" ${paint} ${extra}/>`;
+  if (shape === "square") return `<rect x="${f(x - r * 0.9)}" y="${f(y - r * 0.9)}" width="${f(r * 1.8)}" height="${f(r * 1.8)}" ${paint} ${extra}/>`;
+  if (shape === "up") return `<path d="M${f(x)} ${f(y - r * 1.15)}L${f(x + r)} ${f(y + r * 0.75)}H${f(x - r)}Z" ${paint} ${extra}/>`;
+  if (shape === "down") return `<path d="M${f(x)} ${f(y + r * 1.15)}L${f(x + r)} ${f(y - r * 0.75)}H${f(x - r)}Z" ${paint} ${extra}/>`;
+  if (shape === "x") return `<path d="M${f(x - r)} ${f(y - r)}L${f(x + r)} ${f(y + r)}M${f(x + r)} ${f(y - r)}L${f(x - r)} ${f(y + r)}" ${paint} ${extra}/>`;
+  return `<path d="M${f(x - r * 1.2)} ${f(y)}H${f(x + r * 1.2)}M${f(x)} ${f(y - r * 1.2)}V${f(y + r * 1.2)}" ${paint} ${extra}/>`;
+}
 function scatter(svg, pts, xk, yk, xlabel, ylabel) {
   const W = 460, H = 220, L = 52, B = 30, T = 24, R = 10; // T leaves a row above the plot for the epoch legend
-  if (!pts.length) { svg.innerHTML = `<text x="20" y="30" fill="#888" font-size="13">no data</text>`; return; }
+  if (!pts.length) { svg.innerHTML = `<text x="20" y="30" fill="${INK.fg4}" font-size="13">no data</text>`; return; }
   const xs = pts.map((p) => p[xk]), good = pts.filter((p) => !p.flagged);
   const ys = (good.length ? good : pts).map((p) => p[yk]);
   const [x0, x1] = [Math.min(...xs), Math.max(...xs)], [y0, y1] = percentile([Float32Array.from(ys)], [1, 99]);
   const sx = (x) => L + ((x - x0) / (x1 - x0 || 1)) * (W - L - R);
   Object.assign(svg.dataset, { x0, x1, L, R, W }); // for the wavelength-window drag on the spectrum
   const sy = (y) => H - B - ((y - y0) / (y1 - y0 || 1)) * (H - B - T);
-  let h = `<line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="#555"/><line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" stroke="#555"/>`;
-  h += `<text x="${L}" y="${H - 8}" fill="#888" font-size="11">${x0.toFixed(2)}</text><text x="${W - R}" y="${H - 8}" fill="#888" font-size="11" text-anchor="end">${x1.toFixed(2)} ${escapeHtml(String(xlabel))}</text>`;
-  h += `<text x="4" y="${T + 10}" fill="#888" font-size="11">${y1.toPrecision(3)}</text><text x="4" y="${H - B}" fill="#888" font-size="11">${y0.toPrecision(3)}</text>`;
-  h += `<text x="4" y="${H / 2}" fill="#888" font-size="11">${escapeHtml(String(ylabel))}</text>`;
+  let h = `<line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="${INK.rule}"/><line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" stroke="${INK.rule}"/>`;
+  h += `<text x="${L}" y="${H - 8}" fill="${INK.fg4}" font-size="11">${x0.toFixed(2)}</text><text x="${W - R}" y="${H - 8}" fill="${INK.fg4}" font-size="11" text-anchor="end">${x1.toFixed(2)} ${escapeHtml(String(xlabel))}</text>`;
+  h += `<text x="4" y="${T + 10}" fill="${INK.fg4}" font-size="11">${y1.toPrecision(3)}</text><text x="4" y="${H - B}" fill="${INK.fg4}" font-size="11">${y0.toPrecision(3)}</text>`;
+  h += `<text x="4" y="${H / 2}" fill="${INK.fg4}" font-size="11">${escapeHtml(String(ylabel))}</text>`;
   for (const p of pts) {
-    const c = EPOCH_COLORS[(p.epoch ?? 0) % EPOCH_COLORS.length];
+    const c = epochTone(p.epoch);
     // faint: flagged, or (psf_deblended) consistent with zero given the neighbour residual (|flux| < 0.15 × neighbor_flux)
     const faint = (p.flagged && !p.overflow) || (p.neighbor_flux > 0 && Math.abs(p[yk]) < 0.15 * p.neighbor_flux);
     const cx = sx(p[xk]).toFixed(1), cy = Math.max(T, Math.min(H - B, sy(p[yk])));
     // hover text: the point's values and the names of the FLAGS bits set in its aperture (F3)
     const tip = `<title>${escapeHtml(pointTip(p, yk))}</title>`;
     if (p.saturated && yk === "flux") { // lower limit: open marker with an upward tick
-      h += `<g stroke="${c}" fill="none" opacity="0.7"><circle cx="${cx}" cy="${cy.toFixed(1)}" r="2.6"/>` +
+      h += `<g stroke="${c}" fill="none" opacity="0.7">${epochMarker(p.epoch, cx, cy, 2.6, true)}` +
         `<path d="M${cx} ${(cy - 2.6).toFixed(1)}v-7m-2.5 2.5l2.5-2.5 2.5 2.5"/>${tip}</g>`;
     } else if (p.overflow && yk === "flux") { // recovered from overflow: a valid measurement, filled diamond
       h += `<path d="M${cx} ${(cy - 3.2).toFixed(1)}l3.2 3.2-3.2 3.2-3.2-3.2z" fill="${c}" opacity="${faint ? 0.2 : 1}">${tip}</path>`;
     } else {
-      h += `<circle cx="${cx}" cy="${cy.toFixed(1)}" r="2.2" fill="${c}" opacity="${faint ? 0.2 : 1}">${tip}</circle>`;
+      h += `<g opacity="${faint ? 0.2 : 1}">${epochMarker(p.epoch, cx, cy, 2.3, false)}${tip}</g>`;
     }
   }
   // epoch legend in its own row above the plot, so it never covers data points
   const step = Math.min(68, (W - L - R) / Math.max(1, S.m.epochs.length));
-  h += S.m.epochs.map((e, i) => `<text x="${(L + i * step).toFixed(0)}" y="12" fill="${EPOCH_COLORS[e.id % EPOCH_COLORS.length]}" font-size="10">${escapeHtml(String(e.date))}</text>`).join("");
+  h += S.m.epochs.map((e, i) => epochMarker(e.id, L + i * step + 3, 8.5, 2.6, false) +
+    `<text x="${(L + i * step + 9).toFixed(0)}" y="12" fill="${INK.fg3}" font-size="10">${escapeHtml(String(e.date))}</text>`).join("");
   svg.innerHTML = h;
 }
 // the loaded spectrum as CSV, made in the browser: one column per point field, units and meta notes as # comments
@@ -1238,13 +1255,13 @@ async function openAladin() {
         showReticle: false, showCooGrid: false, showLayersControl: false, showGotoControl: false, showFullscreenControl: false,
         showFrame: false, showZoomControl: true, showProjectionControl: false, showSimbadPointerControl: false, showShareControl: false });
       // this grid's outline and the target's current position
-      const ov = A.graphicOverlay({ color: "#e89a3c", lineWidth: 2 });
+      const ov = A.graphicOverlay({ color: INK.ember, lineWidth: 2 });
       aladin.addOverlay(ov);
       const [ny, nx] = g.shape, c = [[-0.5, -0.5], [nx - 0.5, -0.5], [nx - 0.5, ny - 0.5], [-0.5, ny - 0.5]].map(([x, y]) => pix2world(x, y));
       ov.add(A.polygon(c));
       const t = S.m.target_track?.find((p) => p.epoch === S.m.epochs[S.epoch]?.id) || S.m.target_track?.at(-1) || S.m.query;
       if (t) {
-        const cat = A.catalog({ name: "target", color: "#ff4fd8", sourceSize: 18, shape: "circle" });
+        const cat = A.catalog({ name: "target", color: INK.fg, sourceSize: 18, shape: "circle" });
         aladin.addCatalog(cat); cat.addSources([A.source(+t.ra, +t.dec)]);
       }
     } catch (e) {
@@ -1308,12 +1325,12 @@ function wiseBanner(ctx) {
   ctx.font = "bold 13px system-ui";
   const w = ctx.measureText(t).width + 12, x = (ctx.canvas.width - w) / 2;
   ctx.fillStyle = "rgba(0,0,0,0.8)"; ctx.fillRect(x, 6, w, 22);
-  ctx.fillStyle = "#79c0ff"; ctx.fillText(t, x + 6, 22);
+  ctx.fillStyle = INK.fg; ctx.fillText(t, x + 6, 22);
 }
 
 // ---------- CatWISE2020 layer: {key}/catwise.json (gallery) or /api/catwise?key= (live fields) ----------
 S.catwise = null;
-const CAT_COLOR = "#7ee787", CAT_EPOCH = 2015.4;
+const CAT_COLOR = INK.fg3, CAT_EPOCH = 2015.4;
 // server answer -> page fields (one place to adapt): source_name, ra, dec, pmra/pmdec (mas/yr or null), w1mag, w2mag, ref_mjd
 function normCatwise(j) {
   return (Array.isArray(j) ? j : j.sources || []).map((s) => ({
@@ -1400,7 +1417,7 @@ function catwiseAt(sx, sy, mjd) {
 // ---------- automatic candidates (F2): {key}/candidates.json or /api/candidates?key= ----------
 // Places to look at, not detection claims. Without a file the control stays hidden.
 S.cands = null;
-const CAND_COLOR = "#ffd84f";
+const CAND_COLOR = INK.fg2;
 // n_bands counts independent wavelength ranges (W overlaps D5/D6), so it is never written next to "bands"
 const NUMW = ["no", "one", "two", "three", "four", "five", "six", "seven"];
 const rangesTxt = (n) => n === 1 ? "one independent wavelength range" : `${NUMW[n] ?? n} independent ranges`;
@@ -1798,7 +1815,7 @@ function wire() {
     spec.querySelector("#winSel")?.remove();
     const d = spec.dataset, px = (um) => +d.L + ((um - +d.x0) / (+d.x1 - +d.x0)) * (+d.W - +d.L - +d.R);
     const x = Math.min(px(a), px(b)), w = Math.abs(px(b) - px(a));
-    spec.insertAdjacentHTML("beforeend", `<rect id="winSel" x="${x}" y="24" width="${w}" height="166" fill="#e89a3c" opacity="0.18"/>`);
+    spec.insertAdjacentHTML("beforeend", `<rect id="winSel" x="${x}" y="24" width="${w}" height="166" fill="${INK.ember}" opacity="0.2"/>`);
   };
   let selFrom = null;
   spec.addEventListener("mousedown", (ev) => { selFrom = umAt(ev); });

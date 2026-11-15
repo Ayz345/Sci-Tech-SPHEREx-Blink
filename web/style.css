@@ -91,7 +91,7 @@ footer a { color: var(--fg-2); }
 #credits p { margin: 6px 0; color: var(--fg-3); }
 #links a, #embedLine a { color: var(--fg-2); margin-right: 10px; font-size: 12.5px; }
 #links a:hover, #embedLine a:hover { color: var(--fg); }
-#measureBtn.on { color: #000; background: #ff4fd8; border-color: #ff4fd8; }
+#measureBtn.on { color: #fff; background: var(--accent); border-color: var(--accent); }
 #bands button .rm { margin-left: 4px; color: var(--fg-3); }
 #bands button .rm:hover { color: var(--bad); }
 #winBox { gap: 6px; margin-top: 6px; }

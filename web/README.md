@@ -168,7 +168,7 @@ From the live server the target's spectrum is asked for without ra/dec, so the s
 ## Sky context panel (F5, Aladin Lite)
 
 "More surveys (Aladin Lite)" is closed by default; Aladin Lite is loaded only when it is opened (more surveys; the static WISE image and CatWISE layers above are the primary WISE view), and never in
-the embedded view. It shows the player's centre and field (orange box = this grid, ring = the target at the
+the embedded view. It shows the player's centre and field (red box = this grid, ring = the target at the
 current epoch) in a chosen survey: AllWISE color, AllWISE W2, unWISE color, NEOWISER color, 2MASS color, DSS2
 color, Pan-STARRS DR1 color. If the script or WebGL2 is missing, one sentence says so and the page is unaffected.
 
