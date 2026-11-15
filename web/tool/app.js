@@ -330,6 +330,10 @@ async function loadTarget() {
   }
   if (params.get("name") && !S.m.name?.includes(params.get("name"))) S.m.name = `${params.get("name")} (${S.m.name || S.key})`;
   document.title = `${S.m.name || S.key} · SPHEREx Blink`;
+  // the stage heading: the target's name and where it is
+  $("tname").textContent = S.m.name || S.key;
+  const qy = S.m.query || {};
+  $("tcoord").textContent = qy.ra != null ? `RA ${(+qy.ra).toFixed(5)}°  Dec ${(+qy.dec).toFixed(5)}°` : "";
   renderMeta();
   const items = (S.m.notes || []).map((n) => Object.assign(document.createElement("li"), { textContent: n }));
   // the target's notes: one box that can be closed (closed in the embed, so the player fits the frame)
@@ -362,7 +366,9 @@ async function loadTarget() {
   renderBands(); renderFov(); updateLinks();
   if (S.mode === "rgb") loadRGB();
   if (!params.get("zoom")) { // big image on the left: the largest whole zoom that fits (the embed keeps its compact size)
-    const nx = S.m.grid.shape[1], room = EMBED ? 420 : Math.min(760, Math.max(300, innerWidth - 2 * 40 - 460));
+    // wide enough for the panel beside it, and low enough that the time strip stays on the first screen
+    const nx = S.m.grid.shape[1], room = EMBED ? 420
+      : Math.min(760, Math.max(280, innerWidth < 1000 ? innerWidth - 40 : innerWidth - 2 * 40 - 470), Math.max(280, innerHeight - 330));
     S.zoom = Math.max(1, Math.min(6, Math.floor(room / nx))); $("zoom").value = String(S.zoom);
   }
   const bigField = USE_API && (+S.m.query?.fov_deg || 0) > 0.2;
@@ -481,22 +487,57 @@ function fixEpoch() {
     S.epoch = ok.find((i) => i > S.epoch) ?? ok[0] ?? S.epoch;
   }
 }
-// epoch markers under the slider: skipped (low-coverage) epochs are drawn faint
+// the time strip: every pass over the field is a dated stop (low coverage faint, no data dashed); the WISE image,
+// when the field has one, is the first stop and is labelled as a different instrument
 function renderEpochMarks() {
   if (!S.m?.epochs) return;
-  const wiseMark = wiseActive() ? [Object.assign(document.createElement("span"), {
-    textContent: "WISE", className: "wise" + (S.onWise ? " cur" : ""), title: `WISE ${S.wiseBand} ${S.wise.date || ""} (not SPHEREx)` })] : [];
-  $("epochMarks").replaceChildren(...wiseMark, ...S.m.epochs.map((e, i) => {
-    const s = document.createElement("span"), low = isLow(S.band, i), empty = emptyEpoch(S.band, i);
-    const n = bandEpoch(S.band, i)?.n_used;
-    s.textContent = e.date.slice(2, 7);
-    s.className = (empty ? "empty" : low ? "low" : "") + (i === S.epoch && !S.onWise ? " cur" : "");
-    s.title = empty ? `${e.date}: no data in this band (skipped in playback)`
+  const stops = [];
+  if (S.wise) {
+    const yr = (S.wise.date || "").slice(0, 4) || "WISE";
+    const w = document.createElement("button");
+    w.type = "button"; w.className = "stop wise" + (S.onWise ? " cur" : "");
+    w.setAttribute("aria-pressed", String(!!S.onWise));
+    w.innerHTML = `<b>${escapeHtml(yr)}</b><span>WISE ${escapeHtml(S.wiseBand)}</span><small>different instrument</small>`;
+    w.title = `WISE ${S.wiseBand} ${S.wise.date || ""}: not SPHEREx; click to blink it with the SPHEREx passes`;
+    w.onclick = () => {
+      if (!S.wiseOn) { S.wiseOn = true; $("wiseOn").checked = true; wiseSlider(); }
+      S.onWise = true; $("epoch").value = -1; draw(); syncUrl();
+    };
+    stops.push(w, Object.assign(document.createElement("span"), { className: "gap", textContent: "…", ariaHidden: "true" }));
+  }
+  stops.push(...S.m.epochs.map((e, i) => {
+    const b = document.createElement("button"), low = isLow(S.band, i), empty = emptyEpoch(S.band, i);
+    const n = bandEpoch(S.band, i)?.n_used, cur = i === S.epoch && !S.onWise;
+    b.type = "button"; b.className = "stop" + (empty ? " empty" : low ? " low" : "") + (cur ? " cur" : "");
+    b.setAttribute("aria-pressed", String(cur));
+    b.innerHTML = `<b>${escapeHtml(String(e.date))}</b><span>SPHEREx pass ${i + 1}</span><small>${empty ? "no data" : `${n ?? "?"} exposures${low ? " · low" : ""}`}</small>`;
+    b.title = empty ? `${e.date}: no data in this band (skipped in playback)`
       : low ? `low coverage: ${n ?? "?"} exposures — ${S.showLow ? "shown" : "skipped"}` : e.date;
-    return s;
+    b.disabled = empty;
+    b.onclick = () => { $("epoch").value = i; $("epoch").oninput({ target: $("epoch") }); };
+    return b;
   }));
+  $("epochMarks").replaceChildren(...stops);
 }
-
+// legend under the image: only the layers that are switched on, drawn as on the image
+function renderLegend() {
+  const it = (on, svg, text) => (on ? `<span><svg viewBox="0 0 16 16" aria-hidden="true">${svg}</svg>${text}</span>` : "");
+  const g = (c, extra = "") => `fill="none" stroke="${c}" stroke-width="1.5" ${extra}`;
+  $("layerLegend").innerHTML = [
+    it($("ovTrack").checked && S.m?.target_track?.length, `<path d="M8 1v4M8 11v4M1 8h4M11 8h4" ${g(INK.fg)}/>`, "target (expected position)"),
+    it($("ovQuery").checked, `<path d="M2 8h4M10 8h4M8 2v4M8 10v4" ${g(INK.fg3)}/>`, "query position"),
+    it($("ovGaia").checked && S.gaia?.length, `<circle cx="8" cy="8" r="5" ${g(INK.fg4)}/>`, "Gaia DR3 star"),
+    it(S.catwise && $("ovCat").checked, `<rect x="3" y="3" width="10" height="10" ${g(INK.fg3)}/>`, "CatWISE2020 source"),
+    it(S.cands && $("ovCand").checked, `<circle cx="8" cy="8" r="5.5" ${g(INK.fg2, 'stroke-dasharray="2.5 2"')}/>`, "automatic candidate"),
+    it(S.marks.length, `<circle cx="8" cy="8" r="5" ${g(INK.ember)}/>`, "your marks"),
+  ].join("");
+}
+// the side panel: one section at a time (the embed shows its few controls without tabs)
+function setTab(name) {
+  document.querySelectorAll("#tabs [data-tab]").forEach((b) => { const on = b.dataset.tab === name; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
+  document.querySelectorAll(".tabpane").forEach((p) => { p.hidden = !EMBED && p.dataset.pane !== name; });
+  try { localStorage.setItem("spx-tab", name); } catch { /* storage off */ }
+}
 // no data for this band/epoch: listed with 0 exposures, or the band file says n_used 0
 function emptyEpoch(band, i) {
   if (S.m.bands.find((b) => b.id === band)?.n_exposures?.[i] === 0) return true;
@@ -1035,6 +1076,7 @@ function overlays(ctx, ep) {
   drawCatwise(ctx, ep.mjd_mid);
   drawCandidates(ctx, ep);
   drawMarks(ctx);
+  renderLegend();
 }
 
 // ---------- plots (spectrum + light curve) ----------
@@ -2008,6 +2050,15 @@ serverReady.then((ok) => {
   if (FORCED && !ok) status(`Server ${API} is not reachable; without ?api= the page shows the five gallery targets.`, true);
 });
 wire();
+if (EMBED) $("panel").prepend($("timeBox")); // the embed keeps its time controls beside the image, so it fits 560 px
+document.querySelectorAll("#tabs [data-tab]").forEach((b) => { b.onclick = () => setTab(b.dataset.tab); });
+$("tabs").onkeydown = (e) => { // arrow keys move between tabs
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+  const bs = [...document.querySelectorAll("#tabs [data-tab]")], i = bs.findIndex((b) => b.getAttribute("aria-selected") === "true");
+  const n = bs[(i + (e.key === "ArrowRight" ? 1 : bs.length - 1)) % bs.length]; setTab(n.dataset.tab); n.focus(); e.stopPropagation();
+};
+{ let t = null; try { t = localStorage.getItem("spx-tab"); } catch { /* storage off */ }
+  setTab(["band", "view", "layers", "measure", "about"].includes(t) ? t : "band"); }
 loadIndex();
 loadTarget();
 // developer hook (?debug=1): place marks at exact positions/times, e.g. to replay a known asteroid passage

@@ -21,7 +21,9 @@ a:hover { text-decoration-color: var(--fg); }
 .mono, code, #log { font-family: var(--mono); font-size: 12px; letter-spacing: .02em; }
 .muted { color: var(--muted); }
 
-header { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+/* one top row: the product name, target choice and coordinates, the server badge */
+header { display: flex; gap: 12px 22px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+#headRight { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-left: auto; }
 header strong { font: 350 30px/1 var(--display); letter-spacing: -.01em; }
 #home { color: var(--fg); text-decoration: none; }
 #home:hover { text-decoration: underline; text-decoration-color: var(--line-2); }
@@ -31,7 +33,9 @@ header strong { font: 350 30px/1 var(--display); letter-spacing: -.01em; }
 .badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--fg-3); }
 .badge.on::before { background: var(--fg); box-shadow: 0 0 0 3px rgba(242, 242, 240, .12); }
 .badge.off::before { background: var(--accent); }
-#pick { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+#pick { display: flex; gap: 10px 16px; flex-wrap: wrap; align-items: center; }
+#coordForm { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+#coordForm label { display: inline-flex; gap: 6px; align-items: center; }
 #targets { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* controls: mono pills, as the landing page's ghost buttons */
@@ -51,12 +55,44 @@ label { color: var(--fg-2); }
 #notes li { padding: .3rem 0 .3rem .9rem; border-left: 1px solid var(--line-2); margin-bottom: .35rem; font-size: 13.5px; }
 
 /* the image large on the left, the controls in groups on the right */
-main { display: grid; grid-template-columns: auto minmax(300px, 440px); gap: clamp(24px, 3vw, 48px); align-items: start; justify-content: start; }
+main { display: grid; grid-template-columns: minmax(0, auto) minmax(320px, 420px); gap: clamp(24px, 3vw, 48px); align-items: start; justify-content: center; margin-top: 8px; }
+#stageHead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin: 4px 0 12px; }
+#tname { margin: 0; font: 350 clamp(30px, 3vw, 46px)/1 var(--display); letter-spacing: -.02em; }
+#tcoord { color: var(--fg-2); }
+#stageHead #fovButtons { margin-left: auto; }
+#layerLegend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0 2px; color: var(--fg-2); font-size: 11.5px; }
+#layerLegend span { display: inline-flex; align-items: center; gap: 6px; }
+#layerLegend svg { width: 14px; height: 14px; background: none; border: 0; }
+/* the time strip under the image: every pass is a stop; WISE comes first, marked as another instrument */
+#timeBox { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.timeRow { flex-wrap: wrap; }
+.timeRow #epochLabel { margin-left: auto; font-size: 11.5px; }
+#epochMarks { display: flex; gap: 6px; flex-wrap: wrap; align-items: stretch; margin: 10px 0 6px; }
+#epochMarks .stop { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; border-radius: 10px; padding: 6px 12px; text-align: left; min-width: 118px; }
+#epochMarks .stop b { font: 500 13px var(--mono); color: var(--fg); }
+#epochMarks .stop span { font: 400 11px var(--sans); color: var(--fg-2); }
+#epochMarks .stop small { font: 400 10.5px var(--mono); color: var(--fg-3); }
+#epochMarks .stop.cur { background: var(--fg); border-color: var(--fg); }
+#epochMarks .stop.cur b, #epochMarks .stop.cur span, #epochMarks .stop.cur small { color: #000; }
+#epochMarks .stop.low { opacity: .55; }
+#epochMarks .stop.empty { border-style: dashed; }
+#epochMarks .stop.wise { border-color: var(--warm); }
+#epochMarks .stop.wise small { color: var(--warm); }
+#epochMarks .stop.wise.cur { background: var(--warm); border-color: var(--warm); }
+#epochMarks .gap { align-self: center; color: var(--fg-3); padding: 0 2px; }
+/* the side panel: one section at a time */
+#tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+#tabs button { border: 0; border-radius: 0; padding: 8px 10px; font: 400 11px var(--mono); letter-spacing: .12em; text-transform: uppercase;
+  color: var(--fg-3); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+#tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--fg); }
+.tabpane fieldset:first-child { border-top: 0; padding-top: 0; }
 #view { max-width: 100%; min-width: 0; }
 canvas { display: block; background: #000; max-width: 100%; image-rendering: pixelated; cursor: crosshair; }
 #readout { margin-top: 6px; min-height: 2.8em; white-space: pre; color: var(--fg-2); }
 aside { min-width: 0; }
 #notesBox { border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; margin-bottom: 14px; background: var(--panel); }
+#status:empty { display: none; }
+#status { margin: 6px 0; }
 #notesBox > summary { font: 400 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fg-2); }
 #notesBox[open] > summary { margin-bottom: 6px; }
 #notesBox #notes { margin: 0; }
@@ -68,7 +104,7 @@ aside { min-width: 0; }
 .toggle:has(input:checked) { background: var(--fg); color: #000; border-color: var(--fg); }
 .toggle:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; }
 #wiseBox { margin-top: 10px; }
-#wiseShort { margin-top: 6px; font-size: 12.5px; }
+#wiseShort { font-size: 12.5px; }
 #wiseMore > summary { font-size: 12px; margin-top: 4px; }
 fieldset { border: 0; border-top: 1px solid var(--line); border-radius: 0; margin: 0 0 12px; padding: 8px 0 10px; }
 legend { padding: 0 8px 0 0; font: 400 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fg-3); }
@@ -80,15 +116,9 @@ fieldset label { display: block; margin: 5px 0; }
 #bands button.on small { color: #333; }
 .row { display: flex; gap: 10px; align-items: center; }
 #epoch { width: 100%; margin-top: 10px; }
-#epochMarks { display: flex; justify-content: space-between; font-size: 10px; color: var(--fg-3); margin: -2px 2px 4px; }
-#epochMarks .low { opacity: .35; text-decoration: line-through; }
-#epochMarks .empty { opacity: .6; border: 1px dashed var(--fg-3); border-radius: 3px; padding: 0 2px; }
-#epochMarks .cur { color: var(--fg); }
-#epochMarks .wise { color: var(--warm); font-style: italic; }
-#epochMarks .wise.cur { text-decoration: underline; }
 #epochLabel { color: var(--fg-2); }
-#wiseBox { margin-top: 4px; }
 #wiseBox label { display: inline; }
+#wiseBox .row { flex-wrap: wrap; }
 #wiseNote, #scaleSrc, #measureHelp, #refineWhy, #winNote, #specNote { font-size: 12px; line-height: 1.5; color: var(--fg-3); }
 #plots { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 22px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
 #plots > div { min-width: 0; }
@@ -157,7 +187,8 @@ dialog label { display: block; margin: 8px 0; }
 #embedLine { display: none; font-size: 11px; max-width: 520px; color: var(--fg-3); }
 /* ?embed=1: player and essential controls only; the acknowledgement stays as one small line */
 body.embed { padding: 6px; }
-body.embed header, body.embed #pick, body.embed footer, body.embed #logBox, body.embed #meta,
+body.embed header, body.embed #pick, body.embed footer, body.embed #tabs, body.embed #stageHead, body.embed #layerLegend,
+body.embed .tabpane[data-pane="layers"], body.embed .tabpane[data-pane="about"], body.embed #logBox, body.embed #meta,
 body.embed #plots, body.embed #specNote, body.embed #metaBox, body.embed #stretchBox, body.embed #overlayBox { display: none; }
 body.embed #embedLine { display: block; max-width: 420px; }
 body.embed #readout { white-space: normal; max-width: 420px; }
@@ -176,15 +207,24 @@ body.embed #notesBox > summary { color: var(--warm); font-size: 10px; }
 body.embed #notes li { border-left: 0; padding: 0; font-size: 12px; }
 body.embed #status { min-height: 0; font-size: 12px; }
 body.embed #epochLabel, body.embed #readout { font-size: 11px; }
+body.embed #timeBox { margin-top: 0; padding-top: 0; border-top: 0; }
+body.embed .timeRow #epochLabel { margin-left: 0; }
+body.embed #epochMarks { gap: 3px; margin: 4px 0; }
+body.embed #epochMarks .stop { min-width: 0; padding: 2px 6px; border-radius: 6px; }
+body.embed #epochMarks .stop span, body.embed #epochMarks .stop small, body.embed #epochMarks .gap { display: none; }
+body.embed #epochMarks .stop b { font-size: 10.5px; }
 body.embed #readout { min-height: 0; margin-top: 2px; }
 body.embed #embedLine { font-size: 10px; line-height: 1.25; }
 /* measuring stays in the embed; help text, refine and report are in the full view */
 body.embed #measureHelp, body.embed #refineWhy, body.embed #measureBox .row, body.embed #refineResult { display: none; }
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
   body:not(.embed) main { grid-template-columns: minmax(0, 1fr); }
+  #headRight { margin-left: 0; }
 }
 @media (max-width: 640px) {
   header strong { font-size: 24px; }
   main { gap: 14px; }
   aside { max-width: none; }
+  #epochMarks .stop { min-width: 0; flex: 1 1 30%; }
+  #tabs { overflow-x: auto; }
 }

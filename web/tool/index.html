@@ -12,13 +12,8 @@
 </head>
 <body>
 <header>
-  <strong><a id="home" href="../" title="back to the SPHEREx Blink start page">SPHEREx Blink</a></strong> <a class="muted" href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink" target="_blank" rel="noopener">source code</a>
-  <span id="source" class="badge"></span>
-  <span id="links"></span>
-  <button id="copyEmbed" type="button" disabled title="copy an iframe snippet for this view">copy embed code</button>
-</header>
-
-<section id="pick">
+  <strong><a id="home" href="../" title="back to the SPHEREx Blink start page">SPHEREx Blink</a></strong>
+  <section id="pick">
   <div id="targets"></div>
   <form id="coordForm">
     <label>Name <input name="name" size="14" placeholder="e.g. RW Aur"></label>
@@ -28,45 +23,57 @@
     <label>FOV <input name="fov" size="6" placeholder="deg" value="0.1"></label>
     <button>Go</button>
   </form>
-  <div id="fovButtons" class="row"><span class="muted">field</span></div>
-  <div id="fovConfirm" class="row" hidden></div>
-</section>
-
-<div id="status"></div>
+  </section>
+  <div id="headRight">
+    <span id="source" class="badge"></span>
+    <span id="links"></span>
+    <button id="copyEmbed" type="button" disabled title="copy an iframe snippet for this view">copy embed code</button>
+    <a class="muted" href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink" target="_blank" rel="noopener">source code</a>
+  </div>
+</header>
+<div id="fovConfirm" class="row" hidden></div>
+<div id="status" role="status" aria-live="polite"></div>
 
 <main>
   <div id="view">
-    <canvas id="canvas" width="420" height="420"></canvas>
+    <div id="stageHead"><h1 id="tname"></h1><span id="tcoord" class="mono"></span><div id="fovButtons" class="row"><span class="muted">field</span></div></div>
+    <canvas id="canvas" width="420" height="420" aria-label="SPHEREx image of the field; move the pointer to read positions"></canvas>
     <div id="readout" class="mono">move the mouse over the image</div>
-    <div id="embedLine" class="muted"><a id="fullView" target="_blank" rel="noopener">open full view</a> · <span id="ackLine"></span></div>
-  </div>
-
-  <aside>
-    <details id="notesBox" open hidden><summary id="notesSum">Notes on this target</summary><ul id="notes"></ul></details>
-
-    <fieldset><legend>Frame</legend>
-      <div class="row">
-        <button id="play">Play</button>
-        <label>speed <input id="speed" type="range" min="1" max="10" value="3"></label>
+    <div id="layerLegend" class="mono" aria-label="what the marks on the image mean"></div>
+    <div id="timeBox">
+      <div class="row timeRow">
+        <button id="play" type="button">Play</button>
+        <label class="muted">speed <input id="speed" type="range" min="1" max="10" value="3"></label>
+        <span id="epochLabel" class="mono"></span>
       </div>
-      <input id="epoch" type="range" min="0" max="0" value="0">
-      <div id="epochMarks" class="mono"></div>
-      <div id="epochLabel" class="mono"></div>
+      <input id="epoch" type="range" min="0" max="0" value="0" aria-label="epoch">
+      <div id="epochMarks" class="mono" role="group" aria-label="passes over this field"></div>
       <label class="muted"><input type="checkbox" id="showLow"> show low-coverage frames (fewer than 5 exposures)</label>
       <div id="wiseBox" hidden>
         <div class="row">
           <label id="wiseToggle" class="toggle" title="add the WISE image to the blink, next to the SPHEREx epochs"><input type="checkbox" id="wiseOn"> <span id="wiseLabel">WISE</span></label>
           <select id="wiseBand" title="WISE band"><option>W2</option><option>W1</option></select>
+          <span id="wiseShort" class="muted"></span>
         </div>
-        <div id="wiseShort" class="muted"></div>
-        <details id="wiseMore"><summary class="muted">About this image</summary><div id="wiseNote" class="muted"></div></details>
+        <details id="wiseMore"><summary class="muted">About the WISE image</summary><div id="wiseNote" class="muted"></div></details>
       </div>
-    </fieldset>
+    </div>
+    <div id="embedLine" class="muted"><a id="fullView" target="_blank" rel="noopener">open full view</a> · <span id="ackLine"></span></div>
+  </div>
 
+  <aside id="panel">
+    <div id="tabs" role="tablist" aria-label="tool sections">
+      <button type="button" role="tab" data-tab="band">Band</button>
+      <button type="button" role="tab" data-tab="view">View</button>
+      <button type="button" role="tab" data-tab="layers">Layers</button>
+      <button type="button" role="tab" data-tab="measure">Measure</button>
+      <button type="button" role="tab" data-tab="about">About</button>
+    </div>
+    <div class="tabpane" data-pane="band" role="tabpanel">
     <fieldset><legend>Band</legend><div id="bands"></div>
       <button id="swapBand" type="button" disabled title="switch back to the previous band (key t)">⇄ previous band (t)</button></fieldset>
-
-
+    </div>
+    <div class="tabpane" data-pane="view" role="tabpanel">
     <fieldset><legend>View</legend>
       <label>mode <select id="mode">
         <option value="blink">blink</option><option value="diff">difference (epoch − mean of others)</option>
@@ -93,20 +100,8 @@
       <div id="scaleSrc" class="muted"></div>
     </fieldset>
 
-    <fieldset id="measureBox"><legend>Measure</legend>
-      <button id="measureBtn" type="button" title="click an object in one frame, then the same object in another frame (key m)">Measure / mark (m)</button>
-      <button id="clearMarks" type="button">clear marks</button>
-      <div id="measureHelp" class="muted"></div>
-      <ol id="markList" class="mono"></ol>
-      <div id="measureResult" class="mono"></div>
-      <div class="row">
-        <button id="refineBtn" type="button" disabled>Refine on single exposures</button>
-        <button id="reportBtn" type="button" disabled>Download report…</button>
-      </div>
-      <div id="refineWhy" class="muted"></div>
-      <div id="refineResult"></div>
-    </fieldset>
-
+    </div>
+    <div class="tabpane" data-pane="layers" role="tabpanel">
     <fieldset id="overlayBox"><legend>Overlays</legend>
       <label><input type="checkbox" id="ovQuery" checked> query position (+)</label>
       <label><input type="checkbox" id="ovTrack" checked> target track</label>
@@ -127,26 +122,29 @@
         <details><summary class="muted">How candidates are found</summary><div id="candHow" class="mono"></div></details>
       </div>
     </fieldset>
+    </div>
+    <div class="tabpane" data-pane="measure" role="tabpanel">
+    <fieldset id="measureBox"><legend>Measure</legend>
+      <button id="measureBtn" type="button" title="click an object in one frame, then the same object in another frame (key m)">Measure / mark (m)</button>
+      <button id="clearMarks" type="button">clear marks</button>
+      <div id="measureHelp" class="muted"></div>
+      <ol id="markList" class="mono"></ol>
+      <div id="measureResult" class="mono"></div>
+      <div class="row">
+        <button id="refineBtn" type="button" disabled>Refine on single exposures</button>
+        <button id="reportBtn" type="button" disabled>Download report…</button>
+      </div>
+      <div id="refineWhy" class="muted"></div>
+      <div id="refineResult"></div>
+    </fieldset>
+
+    </div>
+    <div class="tabpane" data-pane="about" role="tabpanel">
+      <details id="notesBox" open hidden><summary id="notesSum">Notes on this target</summary><ul id="notes"></ul></details>
+      <details id="metaBox"><summary>About this field</summary><section id="meta"></section></details>
+    </div>
   </aside>
 </main>
-
-<details id="aladinBox">
-  <summary>More surveys (Aladin Lite) — other sky surveys at the same place</summary>
-  <div class="row">
-    <label>survey <select id="aladinSurvey">
-      <option value="CDS/P/allWISE/color">AllWISE color (W1, W2, W4)</option>
-      <option value="CDS/P/allWISE/W2">AllWISE W2 (4.6 µm)</option>
-      <option value="CDS/P/unWISE/color-W2-W1W2-W1">unWISE color (W1, W2)</option>
-      <option value="CDS/P/NEOWISER/Color">NEOWISER color (W1, W2)</option>
-      <option value="CDS/P/2MASS/color">2MASS color (J, H, K)</option>
-      <option value="CDS/P/DSS2/color">DSS2 color (optical)</option>
-      <option value="CDS/P/PanSTARRS/DR1/color-z-zg-g">Pan-STARRS DR1 color (g, z)</option>
-    </select></label>
-    <span class="muted">same centre and field as the player; red box = this grid, ring = target now</span>
-  </div>
-  <div id="aladinMsg" class="muted"></div>
-  <div id="aladinDiv"></div>
-</details>
 
 <section id="plots">
   <div><h3>Spectrum <span id="specWhere" class="muted"></span></h3><svg id="spec" viewBox="0 0 460 236"></svg>
@@ -175,7 +173,23 @@
 </section>
 <div id="specNote" class="muted"></div>
 
-<details id="metaBox"><summary>About this field</summary><section id="meta"></section></details>
+<details id="aladinBox">
+  <summary>More surveys (Aladin Lite) — other sky surveys at the same place</summary>
+  <div class="row">
+    <label>survey <select id="aladinSurvey">
+      <option value="CDS/P/allWISE/color">AllWISE color (W1, W2, W4)</option>
+      <option value="CDS/P/allWISE/W2">AllWISE W2 (4.6 µm)</option>
+      <option value="CDS/P/unWISE/color-W2-W1W2-W1">unWISE color (W1, W2)</option>
+      <option value="CDS/P/NEOWISER/Color">NEOWISER color (W1, W2)</option>
+      <option value="CDS/P/2MASS/color">2MASS color (J, H, K)</option>
+      <option value="CDS/P/DSS2/color">DSS2 color (optical)</option>
+      <option value="CDS/P/PanSTARRS/DR1/color-z-zg-g">Pan-STARRS DR1 color (g, z)</option>
+    </select></label>
+    <span class="muted">same centre and field as the player; red box = this grid, ring = target now</span>
+  </div>
+  <div id="aladinMsg" class="muted"></div>
+  <div id="aladinDiv"></div>
+</details>
 
 <details id="logBox"><summary>Request log</summary><ol id="log" class="mono"></ol></details>
 
