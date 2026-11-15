@@ -1,7 +1,9 @@
-"""Before/after measurement table: the v0 prototype co-add (handoff/code/spherex_explore.py) vs spx.coadd.
+"""Before/after measurement table: the first exploration prototype's co-add (v0) vs spx.coadd.
+
+The prototype is kept only as the baseline of this comparison: its method is re-implemented below as v0_coadd.
 
 Run:  python tests/test_coadd_metrics.py
-Result: coadd_metrics_v2.csv and spherex_coadd_v2.png (same asinh scale per row).
+Result: coadd_metrics_v2.csv (and a before/after figure, spherex_coadd_v2.png, same asinh scale per row).
 Default run writes to cache/test_results/; `--write` updates the tracked file (tests/resultio.py).
 
 Metrics, identical for both methods, on the same cutouts:
@@ -17,7 +19,7 @@ Metrics, identical for both methods, on the same cutouts:
   flagged_in    mean fraction of input cutout pixels with a bad FLAGS bit (what v0 averaged in)
   flag_frac     median fraction of exposures masked/clipped per output pixel (new only)
 v0 replica: first 14 exposures of the epoch whose DETECTOR em_min is in the window, global median,
-NaN->0, bilinear, plain mean, 6.15"/px grid centred on the target (as in coadd_figure).
+NaN->0, bilinear, plain mean, 6.15"/px grid centred on the target.
 """
 from __future__ import annotations
 

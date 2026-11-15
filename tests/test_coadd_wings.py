@@ -3,13 +3,13 @@
 Run:  python tests/test_coadd_wings.py
 Result: wing_validation_v2.json. Default run writes to cache/test_results/; `--write` updates the tracked file (tests/resultio.py).
 
-Condition (orchestrator, 14 Nov): on exposures where BOTH are valid, wing_flux must be proportional to the aperture
+Condition set before publishing (14 Nov): on exposures where BOTH are valid, wing_flux must be proportional to the aperture
 flux, i.e. the ratio wing/aperture must not change between epochs. Measured
   - on RW Aurigae D1 (clean or recovered-overflow apertures), and
   - on isolated, unsaturated Gaia stars (G 10-14) in the RW Aur and Eps Indi B fields, D1-D3,
 comparing like with like: ratio per (band, wavelength bin, epoch), then max/min over epochs per bin.
-Result (14 Nov): NOT proportional at the 10% level. Controls: median max/min 1.20, 90th percentile 1.47;
-RW Aur D1 1.26. The wing measurement therefore carries a ~20-50% epoch-to-epoch systematic; the test records the
+Result (14 Nov, re-run with masked pixels left out of the aperture): NOT proportional at the 10% level. Controls:
+median max/min 1.23, 90th percentile 1.51; RW Aur D1 1.27. The wing measurement therefore carries a ~20-50% epoch-to-epoch systematic; the test records the
 numbers and the significance threshold (controls p90) and checks that RW Aur D1 behaves like the controls.
 It also measures the wing variability of RW Aur and R Dra (binned_series + variability) against that threshold.
 spectrum_points(wings=...) stays False by default until publication is approved.

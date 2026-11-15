@@ -4,7 +4,7 @@
     compared with JPL Horizons as seen from the spacecraft position written in the same line -> the same draft
     through the IAU tools (psvtoxml + valsubmit).
 
-Uses the co-add session's helpers from tests/test_astrometry.py (IRSA MOST list, Horizons API, topocentric shift).
+Uses the helpers from tests/test_astrometry.py (IRSA MOST list, Horizons API, topocentric shift).
 Writes the numbers to cache/acceptance/track_e2e_eros.json.
 """
 from __future__ import annotations
@@ -91,7 +91,7 @@ def test_eros_track_to_ades_draft(tmp_path):
     rows = _psv_rows(psv)
     assert len(rows) >= mpc.MIN_DETECTIONS
     # logSNR = log10(snr_image), the S/N of the source in the image, row by row (matched on the obsID remark).
-    # This pass (2025W29-W30, D3) gave 2.11-2.19 on 14 Nov; the quality session's 2.06-2.09 is its 52-exposure
+    # This pass (2025W29-W30, D3) gave 2.11-2.19 on 14 Nov; tests/test_astrometry_e2e.py's 2.06-2.09 is its 52-exposure
     # 2025W28 pass. The old rule, min(snr_fit, snr_calibrated), is lower on every row (the fit S/N).
     assert all("snr_image" in m and "snr_variance" in m for m in tr["measurements"])
     by_id = {m["obs_id"]: m for m in tr["measurements"] if m.get("in_ades")}

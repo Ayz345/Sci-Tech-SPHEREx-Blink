@@ -513,7 +513,7 @@ def test_parse_window():
 def test_spectrum_passes_flag_names_through(client, monkeypatch):
     from spx import photometry as ph
     if not hasattr(ph, "flag_legend"):
-        pytest.skip("spx.photometry has no flag names yet (quality session, PLAN.md 17 F3)")
+        pytest.skip("spx.photometry has no flag names yet (spectrum point flags, spx.photometry.flag_names)")
     name = "TRANSIENT" if "TRANSIENT" in ph.FLAG_BITS else sorted(ph.FLAG_BITS, key=ph.FLAG_BITS.get)[0]
     bit = ph.FLAG_BITS[name]
     fake = access.fetch_cutouts
@@ -562,7 +562,7 @@ def test_rounding_boundary_reuses_the_open_field(client):
 # --------------------------------------------------------------------------- automatic candidates (F2)
 
 class _FakeDetect:
-    """Stands in for spx.detect (quality session): records what the server hands over."""
+    """Stands in for spx.detect: records what the server hands over."""
     def __init__(self, with_cands=False):
         self.seen = []
         self.with_cands = with_cands
