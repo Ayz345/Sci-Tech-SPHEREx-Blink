@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SPHEREx Blink</title>
 <link rel="icon" href="data:,">
+<!-- cross-document View Transitions with the start page: opted in before any external file, and the first frame waits
+     until the last named element (#plots) is parsed, so all six names are there when the page is revealed -->
+<style>@view-transition { navigation: auto; } @media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }</style>
+<link rel="expect" href="#plots" blocking="render">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=DM+Sans:opsz,wght@9..40,300..500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -16,6 +20,7 @@
 
 <main>
   <div id="view">
+    <div id="plateCap" class="mono" aria-hidden="true"></div>
     <canvas id="canvas" width="420" height="420" aria-label="SPHEREx image of the field; move the pointer to read positions"></canvas>
     <div id="underImage"><div id="layerLegend" class="mono" aria-label="what the marks on the image mean"></div><div id="readout" class="mono"></div></div>
     <div id="timeBox">
@@ -36,7 +41,7 @@
       <a id="home" class="ghost back" href="../" title="back to the SPHEREx Blink start page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5m6-6-6 6 6 6"/></svg>Sky</a>
       <div id="headRight">
         <form id="coordForm">
-        <label class="search"><span class="vh">Name or coordinates</span><input name="name" size="30" placeholder="Name, or RA Dec (e.g. RW Aur · 08:55:10.8 −07:14:43)" autocomplete="off"></label>
+        <label class="search"><span class="vh">Name or coordinates</span><input name="name" size="30" placeholder="Name or RA Dec" autocomplete="off"></label>
         <input type="hidden" name="ra"><input type="hidden" name="dec">
         <input type="hidden" name="fov" value="0.1">
         <button>Go</button>

@@ -146,3 +146,22 @@ body:not(.embed) #home { view-transition-name: vt-back; }
 @media (prefers-reduced-motion: reduce) {
   @view-transition { navigation: none; }
 }
+
+/* ---------------------------------------------------------------- web/tool, Designn's notes of 15 Nov (side by side with
+   the start page's plate screen, so the page change has no vertical jump) */
+:root {
+  --gap: clamp(32px, 4vw, 80px);
+  --P: min(calc(100vh - var(--gut) - 32px - 210px), 46vw, 760px) !important;   /* top margin, the line above, the strip */
+}
+body:not(.embed) { padding-top: var(--gut); }
+body:not(.embed) main { margin-top: 0; }
+/* the start page's row above the plate: one mono line, upper case (the unit kept as µm) */
+#plateCap { height: 32px; line-height: 20px; font: 400 13px var(--mono); letter-spacing: .1em; color: var(--fg-2); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+body.embed #plateCap { display: none; }
+body:not(.embed) .timeRow #epochLabel { display: none; }          /* its words are on the line above the plate now */
+#tname { font-size: clamp(42px, 4.6vw, 80px); }
+/* the plots sit on the page, as the start page draws its spectrum (no box) */
+#spec, #lc, #wing { background: none; border: 0; }
+.search input { min-width: 200px; }
+#fovButtons .lab { margin: 0 8px 0 0; }

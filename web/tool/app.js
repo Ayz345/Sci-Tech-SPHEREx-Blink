@@ -373,7 +373,7 @@ async function loadTarget() {
   const markCurrent = () => [...$("targets").children].forEach((b) => b.setAttribute("aria-current", String(b.dataset.key === S.key)));
   markCurrent(); setTimeout(markCurrent, 800);
   const qy = S.m.query || {};
-  $("tcoord").textContent = qy.ra != null ? `RA ${(+qy.ra).toFixed(5)}°  Dec ${(+qy.dec).toFixed(5)}°` : "";
+  $("tcoord").textContent = qy.ra != null ? fmtCoord(+qy.ra, +qy.dec) : "";
   renderMeta();
   const items = (S.m.notes || []).map((n) => Object.assign(document.createElement("li"), { textContent: n }));
   // the target's notes: one box that can be closed (closed in the embed, so the player fits the frame)
@@ -526,6 +526,8 @@ const isLow = (band, i) => bandEpoch(band, i)?.quality === "low";
 // the manifest's epoch values only stand in until the band file is loaded
 const frameDate = (band, i) => bandEpoch(band, i)?.date || S.m.epochs[i].date;
 const frameMjd = (band, i) => +(bandEpoch(band, i)?.mjd_mid ?? S.m.epochs[i].mjd_mid);
+// "RA 133.7839°  Dec −7.2443°", as on the start page (4 decimals, the true minus sign, two spaces)
+const fmtCoord = (ra, dec) => `RA ${ra.toFixed(4)}°  Dec ${dec < 0 ? "−" : ""}${Math.abs(dec).toFixed(4)}°`;
 // "12 Nov 2025", as on the start page
 const fmtDate = (iso) => { const d = new Date(String(iso).slice(0, 10) + "T00:00:00Z");
   return isNaN(d) ? String(iso || "") : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }); };
@@ -807,6 +809,7 @@ function draw() {
   if (S.onWise && wiseActive()) { // the WISE frame: its own image, overlays at the WISE date, no SPHEREx processing
     $("epoch").value = -1; renderEpochMarks();
     $("epochLabel").textContent = `WISE ${S.wiseBand} · ${fmtDate(S.wise.date) || "date not given"} · not SPHEREx (${S.wise.survey})`;
+    $("plateCap").textContent = `${(S.wise.date || "").slice(0, 4)} · WISE ${S.wiseBand} · NOT SPHEREX`;
     $("epochLabel").title = S.wise.mjd != null ? `MJD ${(+S.wise.mjd).toFixed(2)}` : "";
     drawWise(ctx, nx, ny, z);
     overlays(ctx, { id: "wise", mjd_mid: S.wise.mjd, date: S.wise.date });
@@ -824,6 +827,11 @@ function draw() {
     // when the server stacked only part of what was listed (it caps busy fields), both numbers are said
     (used != null ? (n != null && n > used ? `${used} of ${n} exposures stacked` : `${used} exposure${used === 1 ? "" : "s"} stacked`)
       : `${n ?? "?"} exposures listed`);
+  { const b = S.m.bands.find((x) => x.id === S.band), rng = String(b?.label || "").replace(/\s*µm$/, "");
+    const d = frameDate(S.band, S.epoch), dd = new Date(String(d).slice(0, 10) + "T00:00:00Z");
+    const day = isNaN(dd) ? String(d) : dd.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).toUpperCase();
+    $("plateCap").textContent = `PASS ${S.epoch + 1}/${S.m.epochs.length} · ${day} · ${S.band} ${rng} µm` +
+      (used != null ? ` · ${used} EXP. STACKED` : ""); }
   $("epochLabel").title = `${S.band} frame MJD ${frameMjd(S.band, S.epoch).toFixed(2)}; pass MJD ${(+ep.mjd_min).toFixed(2)}–${(+ep.mjd_max).toFixed(2)}` +
     `; ${n ?? "?"} exposures listed` + (used != null ? `, ${used} used` : "");
 
@@ -1160,9 +1168,9 @@ function overlays(ctx, ep) {
   }
   // scale bar (30″) and compass: north up, east left
   const len = (30 / pixArcsec()) * z, H = ctx.canvas.height;
-  ctx.font = "14px 'IBM Plex Mono', ui-monospace, monospace";
-  // dark outline so the labels stay readable on a white (difference) background
-  const label = (t, x, y) => { ctx.lineWidth = 3; ctx.strokeStyle = "#000"; ctx.strokeText(t, x, y); ctx.fillStyle = "#eee"; ctx.fillText(t, x, y); };
+  ctx.font = "400 13px 'IBM Plex Mono', ui-monospace, monospace";
+  // quiet, as on the start page; a thin dark outline keeps them readable on a white (difference) background
+  const label = (t, x, y) => { ctx.lineWidth = 2; ctx.strokeStyle = "rgba(0,0,0,.6)"; ctx.strokeText(t, x, y); ctx.fillStyle = "rgba(242,242,240,.7)"; ctx.fillText(t, x, y); };
   ctx.lineWidth = 4; ctx.strokeStyle = "#000"; ctx.beginPath(); ctx.moveTo(10, H - 12); ctx.lineTo(10 + len, H - 12); ctx.stroke();
   ctx.lineWidth = 1.5; ctx.strokeStyle = "#eee"; ctx.beginPath(); ctx.moveTo(10, H - 12); ctx.lineTo(10 + len, H - 12); ctx.stroke();
   label(`30″  (grid ${pixArcsec().toFixed(2)}″/px)`, 10, H - 18);
@@ -1890,7 +1898,7 @@ const FOVS = [[3, "3′"], [7, "7′"], [15, "15′"]];
 function renderFov() {
   // another field is always built by the live server, so its own limit wins over the one in a gallery manifest
   const cur = S.m?.query?.fov_deg, max = (API && S.health?.max_fov_deg) || S.m?.max_fov_deg;
-  $("fovButtons").replaceChildren(Object.assign(document.createElement("span"), { className: "muted", textContent: "field" }),
+  $("fovButtons").replaceChildren(Object.assign(document.createElement("span"), { className: "lab", textContent: "field" }),
     ...FOVS.map(([am, label]) => {
       const deg = am / 60, b = document.createElement("button");
       b.type = "button"; b.textContent = label;
@@ -2232,6 +2240,21 @@ serverReady.then((ok) => {
   if (FORCED && !ok) status(`Server ${API} is not reachable; without ?api= the page shows the five gallery targets.`, true);
 });
 wire();
+// the start page and the tool hand each other the target's name and position for the first frame of the page change
+$("home").addEventListener("click", () => {
+  try {
+    const q = S.m?.query || {};
+    sessionStorage.setItem("spx-vt", JSON.stringify({ to: "start", key: params.get("target") || params.get("key") || null, // a gallery key; null for a free field
+      ra: q.ra != null ? +q.ra : null, dec: q.dec != null ? +q.dec : null, name: $("tname").textContent, coord: $("tcoord").textContent, t: Date.now() }));
+  } catch { /* storage off: the start page uses the referrer */ }
+});
+try {
+  const h = JSON.parse(sessionStorage.getItem("spx-vt") || "null");
+  if (h?.to === "tool" && Date.now() - h.t < 15000 && !$("tname").textContent) {
+    if (h.name) $("tname").textContent = h.name;
+    if (h.coord) $("tcoord").textContent = h.coord;
+  }
+} catch { /* nothing to show early */ }
 // plots follow the page width (drawn in real pixels): redraw after a resize settles
 { let t = 0; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => {
     if (!S.m) return;
