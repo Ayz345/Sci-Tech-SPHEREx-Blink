@@ -112,6 +112,18 @@ fieldset label { font-size: 15px; }
   :root { --P: min(100vw - 2 * var(--gut), 640px) !important; }
   main { grid-template-columns: minmax(0, 1fr); }
   #plots { max-width: none; }
+  /* web/tool: one column in the start page's phone order: "← Sky" and the name first, then the image and the strip,
+     then bands, data and tools (the column's boxes open up into the page's flow) */
+  body:not(.embed) main { display: flex; flex-direction: column; gap: 0; }
+  body:not(.embed) #panel, body:not(.embed) #panelGrid { display: contents; }
+  body:not(.embed) #topRow { order: 0; }
+  body:not(.embed) #info { order: 1; margin-bottom: 16px; }
+  body:not(.embed) #view { order: 2; width: 100%; min-width: 0; }
+  body:not(.embed) main > *, body:not(.embed) #panelGrid > * { min-width: 0; max-width: 100%; }
+  body:not(.embed) #bandRow { order: 3; }
+  body:not(.embed) #plots { order: 4; }
+  body:not(.embed) #tabs { order: 5; }
+  body:not(.embed) .tabpane { order: 6; }
 }
 @media (max-width: 640px) {
   #topRow { margin-bottom: 14px; }
