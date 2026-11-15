@@ -929,3 +929,33 @@ def test_gallery_targets_open_from_the_seed_with_irsa_down(tmp_path, monkeypatch
             assert sum(b.json()["n_exposures"]) > 0
     finally:
         reg.close()
+
+
+# --------------------------------------------------------------------------- every error the server makes carries CORS
+
+def test_cors_on_every_error_status(client, monkeypatch):
+    from server import app as A
+    from server import pipeline as P
+    H = {"Origin": "https://sci-techspherex.com"}
+    seen = {}
+
+    def check(r):
+        seen[r.status_code] = r.headers.get("access-control-allow-origin")
+    check(client.get("/api/band", params={"key": "wise-0855", "band": "w1_2"}, headers=H))            # 400
+    check(client.get("/api/band", params={"key": "wise-0855", "band": "X9"}, headers=H))              # 404
+    check(client.post("/api/track", content=b"{" + b" " * (A.TRACK_MAX_BODY_BYTES + 1) + b"}", headers=H))  # 413
+    key = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "queue": 0}))["key"]
+    monkeypatch.setattr(A, "MAX_BAND_WAITERS", 0)
+    check(client.get("/api/band", params={"key": key, "band": "D2"}, headers=H))                      # 429
+    monkeypatch.setattr(A, "MAX_BAND_WAITERS", 64)
+    _wait_idle()
+    monkeypatch.setattr(A, "BAND_WAIT_S", 0.0)
+    monkeypatch.setattr(P, "build_band", lambda *a, **k: __import__("time").sleep(2) or (_ for _ in ()).throw(OSError("x")))
+    check(client.get("/api/band", params={"key": key, "band": "w4600_4800"}, headers=H))              # 504
+    _wait_idle()
+    check(client.get("/api/band", params={"key": key, "band": "w4600_4800"}, headers=H))              # 503
+    monkeypatch.setattr(A.Registry, "manifest", lambda *a, **k: 1 / 0)
+    with TestClient(A.app, raise_server_exceptions=False) as c:
+        check(c.get("/api/manifest", params={"ra": RA0, "dec": DEC0}, headers=H))                     # 500
+    assert set(seen) >= {400, 404, 413, 429, 500, 503, 504}, seen
+    assert all(v == "*" for v in seen.values()), seen
