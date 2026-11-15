@@ -10,7 +10,11 @@ python -m http.server 8765 --bind 127.0.0.1 -d web
 ```
 
 On start the page checks the live server named in `config.js` (`window.SPX_API`, one `/api/health` request with a
-1.5 s timeout; set it to the deployed server, or `""` for gallery only). Users never add parameters:
+1.5 s timeout; set it to the deployed server, or `""` for gallery only). With `""` (the public GitHub Pages site)
+the header says "gallery of five targets (no live server on this site)", and every server-only control (other
+fields, names, free positions, windows, clicked-point spectra, refine/report) stays clickable and says that it needs
+the live server, which is not part of the site, with a link to "Run it" in the repository README. An address that
+does not answer keeps the "not reachable right now" wording. Users never add parameters:
 
 - Gallery targets (`?target=`) always open from the static files under `web/data/`, at once, without waiting for
   the check, and keep working when the server is down.

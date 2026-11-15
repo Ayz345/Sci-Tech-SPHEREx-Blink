@@ -9,6 +9,19 @@ const params = new URLSearchParams(location.search);
 const API_PARAM = params.get("api");
 const FORCED = !!API_PARAM && API_PARAM !== "none";
 let API = FORCED ? API_PARAM.replace(/\/$/, "") : ""; // the live server in use ("" = none)
+// no server address at all (the public site writes SPX_API = ""): not a fault, the site simply has none
+const NO_SERVER = !FORCED && (API_PARAM === "none" || !String(window.SPX_API || "").trim());
+const README_RUN = "https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink#run-it";
+const NOSRV_TXT = "This needs the live server, which is not part of this site. The five gallery targets work here; " +
+  "run the server locally for any other position (see the README).";
+// the message for a server-only feature: "no server on this site" (with the README link) or "not reachable right now"
+function noServer(el, what, err = false) {
+  if (NO_SERVER) {
+    const a = Object.assign(document.createElement("a"), { href: README_RUN, target: "_blank", rel: "noopener", textContent: "README: run it" });
+    el.replaceChildren(NOSRV_TXT + " ", a);
+  } else el.textContent = `${what} needs the live server, which is not reachable right now.`;
+  if (el.id === "status") el.className = err && !NO_SERVER ? "err" : "";
+}
 let USE_API = FORCED; // whether the target on screen is read from the server (otherwise static files)
 function probeServer() {
   const url = (window.SPX_API || "").replace(/\/$/, "");
@@ -173,7 +186,11 @@ async function loadTarget() {
   if (!FORCED) {
     // gallery targets open from static files at once (no waiting for the probe); a free position needs the server
     USE_API = !gallery && await serverReady;
-    if (!gallery && !USE_API) { status("The live server is not reachable right now, so only the five gallery targets are available.", true); return; }
+    if (!gallery && !USE_API) {
+      if (NO_SERVER) noServer($("status"), "");
+      else status("The live server is not reachable right now, so only the five gallery targets are available.", true);
+      return;
+    }
   }
   let url = src.manifest(q);
   S.manifestUrl = url;
@@ -290,7 +307,7 @@ function loadBand(band) {
     // a user window needs the live server: when the page opens straight on band=w…, wait for the server check
     const ask = isCustom(band) && !API && !WINMOCK
       ? serverReady.then((ok) => (ok ? fetchLogged(src.band(S.key, band))
-        : Promise.reject(new Error("Your own wavelength window needs the live server, which is not reachable right now."))))
+        : Promise.reject(new Error(NO_SERVER ? NOSRV_TXT : "Your own wavelength window needs the live server, which is not reachable right now."))))
       : fetchLogged(src.band(S.key, band));
     const p = ask.then(
       (j) => { S.bandInfo.set(band, j); if (isCustom(band)) customBandLoaded(band, j); return j; },
@@ -683,9 +700,10 @@ S.track = null;
 const serverForTrack = () => !!(MOCK || API);
 function updateRefineButtons() {
   const srv = serverForTrack(), n = S.marks.length;
-  const why = !srv ? "Refining and reports need the live server, which is not reachable right now."
+  const why = !srv ? (NO_SERVER ? NOSRV_TXT : "Refining and reports need the live server, which is not reachable right now.")
     : n < 2 ? "Mark the object in at least two frames to refine it on single exposures." : "";
-  $("refineBtn").disabled = !!why; $("refineWhy").textContent = why;
+  $("refineBtn").disabled = !!why;
+  if (!srv) noServer($("refineWhy"), "Refining and reports"); else $("refineWhy").textContent = why;
   $("reportBtn").disabled = !srv || !S.track;
   $("reportBtn").title = !srv ? "needs the live server" : !S.track ? "refine on single exposures first" : "";
 }
@@ -1396,7 +1414,7 @@ function removeCustomBand(id) {
   if (S.band === id) { S.band = null; selectBand(S.m.default_band || S.m.bands[0].id); } else { renderBands(); syncUrl(); }
 }
 function blinkWindow(lo, hi) {
-  if (!API && !WINMOCK) { $("winNote").textContent = "Your own wavelength window needs the live server, which is not reachable right now."; return; }
+  if (!API && !WINMOCK) { noServer($("winNote"), "Your own wavelength window"); return; }
   if (!(lo >= 0.75 && hi <= 5.0 && lo < hi)) { $("winNote").textContent = "Choose a window between 0.75 and 5.00 µm, with the first number smaller."; return; }
   const id = addCustomBand(windowId(lo, hi));
   $("winNote").textContent = `Building ${id} on the server…`;
@@ -1443,11 +1461,12 @@ function renderFov() {
       b.type = "button"; b.textContent = label;
       b.className = cur && Math.abs(cur * 60 - am) < 0.6 ? "on" : "";
       let why = "";
-      if (!API) why = `the gallery is fixed at ${cur ? (cur * 60).toFixed(1) + "′" : "its field"}; another field needs the live server, which is not reachable right now`;
+      if (NO_SERVER) why = ""; // clickable: says why it needs the server instead of staying silent
+      else if (!API) why = `the gallery is fixed at ${cur ? (cur * 60).toFixed(1) + "′" : "its field"}; another field needs the live server, which is not reachable right now`;
       else if (max && deg > max + 1e-9) why = `this server allows at most ${(max * 60).toFixed(1)}′ (max_fov_deg ${(+max).toFixed(4)}°)`;
       b.disabled = !!why;
       b.title = why || `${label} field: larger fields catch faster movers but take longer to load`;
-      b.onclick = () => (am >= 15 ? askBigField(deg) : changeFov(deg));
+      b.onclick = () => (NO_SERVER ? noServer($("status"), "Another field") : am >= 15 ? askBigField(deg) : changeFov(deg));
       return b;
     }));
 }
@@ -1565,6 +1584,7 @@ function wire() {
       const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
       const hit = [...$("targets").children].find((b) => norm(b.dataset.key) === norm(name) || norm(b.textContent) === norm(name));
       if (hit) navigate({ target: hit.dataset.key });
+      else if (NO_SERVER) noServer($("status"), "");
       else status(`"${name}" is not one of the five gallery targets, and the live server is not reachable right now to look it up.`, true);
       return;
     }
@@ -1700,7 +1720,11 @@ function wire() {
     if (!S.m?.grid) return;
     if (S.measuring) { if (!dragged && !downOnMark) addMark(...pix2world(...gridAt(ev))); dragged = false; downOnMark = false; return; }
     const [ra, dec] = pix2world(...gridAt(ev));
-    if (!API) { status("A spectrum at a clicked point needs the live server, which is not reachable right now; the gallery has the target's spectrum."); return; }
+    if (!API) {
+      if (NO_SERVER) noServer($("status"), "");
+      else status("A spectrum at a clicked point needs the live server, which is not reachable right now; the gallery has the target's spectrum.");
+      return;
+    }
     S.specAt = [ra, dec]; draw();
     // the live server measures any point, also for a gallery target opened from static files (same key)
     fetchLogged(`${API}/api/spectrum?key=${enc(S.key)}&ra=${ra.toFixed(6)}&dec=${dec.toFixed(6)}`)
@@ -1728,6 +1752,7 @@ if (params.get("ra")) { const f = $("coordForm"); f.ra.value = params.get("ra");
 // header: which source the page uses (gallery files, live server or both)
 function renderSource(probing) {
   const h = S.health, srv = API ? `live server ${API}` + (h ? ` (${h.version ?? ""} ${h.commit ?? ""}, max field ${(+h.max_fov_deg * 60).toFixed(1)}′)` : "") : "";
+  if (NO_SERVER) { $("source").textContent = "source: gallery of five targets (no live server on this site)"; return; }
   $("source").textContent = "source: " + (FORCED ? `${srv} (all targets)`
     : [`static gallery ${DATA}/`, probing ? "looking for the live server…" : srv || "live server not reachable"].join(" · "));
 }
