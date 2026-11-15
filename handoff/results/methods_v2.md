@@ -136,4 +136,42 @@ Code: `spx/detect.py`; validation `tests/test_coadd_detect.py` → `handoff/resu
 - **Grades.** A = seen in two independent wavelength ranges (bands whose ranges overlap, such as W with D5/D6, count once), or a known Gaia mover, or "three passes on a line": a mover whose matched-filter S/N in each epoch's own frame, at its fitted track position, passes the detection threshold (6) in at least 3 epochs of one band. The linear motion is the fitted model, preferred over a fixed variable source. B = one band only. WISE 0855 is A by three passes (single-pass S/N 11.5 / 14.2 / 18.2 in W); the off-target mover in the Barnard field is B (−0.8 / 4.4 / −3.0). The difference-image S/N per epoch is not used here: when an object moves less than a PSF width between epochs the template contains it, so its middle epoch nearly vanishes from the difference (WISE 0855: 1.4 in W). Single-band changes were tested for the linear-variable-filter effect and it does not explain them: the epochs' mean wavelengths differ by 0.002–0.07 µm, which predicts ~0.2% against ~30% measured (correlation −0.05). Their cause is not established.
 - **Limit.** A mover must move at least about one PSF FWHM (3.4 px ≈ 10″) over the data span; smaller motions are largely removed by the template subtraction. WISE 0855 moved 8.6″ (2.9 px) over the 0.99 yr of data, just under that limit. It is still found because it is bright in every visit (single-pass S/N 11.5–18 in W, 15–21 in D5), in line with the injections: at S/N 12 per pass, 3 px of motion is recovered in 15 of 18 cases.
 
-Reproduce: `python tests/test_coadd_metrics.py`, `tests/test_coadd_wise0855.py`, `tests/test_coadd_saturation.py`, `tests/test_coadd_wings.py`, `tests/test_coadd_variability.py`, `tests/test_astrometry.py` (second object: `--object`), `tests/test_coadd_detect.py`, `tests/test_coadd_flags.py` (add `--write` to update the files here); figures with `python -m spx.display`.
+## Image lists: our own index of the bucket (15 Nov)
+
+The gallery's image lists come from IRSA's SIA2 service. On 15 Nov 2026, SIA2 and TAP answered 502 for hours while the public bucket stayed reachable. So the live server now finds a free field's images in its own index of the bucket (`server/s3index.py`, `server/index/spx_index.npz`). Every number below is in `s3index_check.json` (`scripts/check_s3index.py --write`).
+
+- **Method.**
+  - Scan: for every Level 2 file of the DR1 and QR3 prefixes (`*D[1-6]_spx_*.fits`), one HTTP range request reads bytes 12960–21599, the part of the IMAGE header that holds the WCS and time cards (bytes 2880–34559 if a card is missing there).
+  - Cards kept: `CRPIX1/2`, `PC1_1`…`PC2_2`, `CDELT1/2`, `CRVAL1/2`, `MJD-BEG`, `MJD-AVG`, `MJD-END`, `TELAPSE`. The SIP distortion terms are left out.
+  - Footprint test: a position is on an image when its TAN projection with the file's own `CRVAL`, `PC`, `CDELT` and `CRPIX` falls on the 2040 × 2040 detector or within a 40 px margin around it, after a coarse cut at 2.6° from `CRVAL`.
+  - When one exposure and detector exist in several processing versions, the newest wins (the date in the version name, then a retry).
+  - An image the position just misses is dropped later, when its pixels are read with the full WCS.
+- **Size and encoding.**
+  - The index holds 1,628,230 images (DR1 1,179,406, QR3 448,824) from 151 week plans and 127 processing versions, taken from 24 Apr 2025 to 5 Oct 2026 00:03:55 UTC. No row lacks a card, and every S3 key follows the naming pattern.
+  - The compact file is 22.5 MB. Its largest errors against the scanned values are 0.055″ in position, 0.05 s (start) and 0.005 s (end) in time, and 2.7 × 10⁻⁴ (relative) in the PC matrix.
+- **Scan and cost.**
+  - The scan ran as 20 parallel GitHub Actions jobs of 49–78 s each, 86 s for the whole run (run 43707513967).
+  - Loading takes 0.33 s and adds 159 MB to the process (the arrays themselves are 132 MB).
+  - A query takes 0.01 s, and 1.05 s at the north ecliptic pole (270.0 +66.5), where 30,512 images cover the position.
+- **Effect of leaving SIP out.** On WISE 0855's 258 images, the TAN position of the target differs from astropy's full TAN-SIP position (`all_world2pix`) by 2.19 px (median), 5.07 px (95th percentile) and 17.57 px at most, all within the 40 px margin.
+- **Against IRSA on the five gallery targets** (the SIA2 lists kept in `web/data/_sia/`):
+
+  | Target | IRSA SIA2 | Index | Missing | Extra on the detector | Extra in the margin only |
+  |---|---|---|---|---|---|
+  | Barnard's Star | 358 | 387 | 0 | 3 | 26 |
+  | Epsilon Indi B | 459 | 489 | 0 | 3 | 27 |
+  | WISE 0855 | 258 | 281 | 0 | 0 | 23 |
+  | RW Aurigae | 335 | 356 | 0 | 0 | 21 |
+  | R Draconis | 539 | 2614 | 0 | 1955 | 120 |
+
+  - The index found every image IRSA listed, with the same S3 key.
+  - Extras in the margin only lie 2–40 px off the detector by the TAN position; they are dropped when pixels are read.
+  - The 3 extras each at Barnard and Epsilon Indi B lie at most 6 px inside the edge by the TAN position. That is within the distortion left out, so they may fall just off the detector.
+  - R Draconis (8.6° from the north ecliptic pole, where SPHEREx revisits most) has 1,955 extras on the detector, a median 334 px (DR1) and 296 px (QR3) inside the edge. These are images that hold the target and were not in IRSA's answer; why IRSA left them out is not established.
+- **Limits.**
+  - The index ends with the last exposure in the bucket when it was scanned, 5 Oct 2026. Newer exposures come only from IRSA, asked once in the background (20 s).
+  - The footprint test uses TAN only (above).
+  - A new release needs a new scan.
+  - The gallery is still built from the SIA2 lists, so its frames and numbers above did not change. The index serves free fields, and any field whose list is not already cached.
+
+Reproduce: `python tests/test_coadd_metrics.py`, `tests/test_coadd_wise0855.py`, `tests/test_coadd_saturation.py`, `tests/test_coadd_wings.py`, `tests/test_coadd_variability.py`, `tests/test_astrometry.py` (second object: `--object`), `tests/test_coadd_detect.py`, `tests/test_coadd_flags.py` (add `--write` to update the files here); the image index with `python scripts/check_s3index.py --write`; figures with `python -m spx.display`.

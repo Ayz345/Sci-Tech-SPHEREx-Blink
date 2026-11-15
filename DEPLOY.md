@@ -5,7 +5,8 @@ The project has two parts:
 - **The site** (`web/`): static files, published by `.github/workflows/pages.yml` to GitHub Pages. With no server
   it still shows the five gallery targets from `web/data/`.
 - **The API server** (`server/`, `spx/`): a Python service in one Docker image (`Dockerfile`). It lists SPHEREx
-  images at IRSA (SIA2), reads only the needed pixel rows from the public S3 bucket, and builds frames, spectra,
+  images from its own index of the public S3 bucket (IRSA SIA2 for anything newer; see "Our image index" below),
+  reads only the needed pixel rows from that bucket, and builds frames, spectra,
   candidates and MPC drafts on request. `.github/workflows/docker.yml` builds the image and checks it on every
   push (health, gallery catalogue, a bad band id).
 
@@ -20,7 +21,7 @@ repository variable **`SPX_API_URL`**. After the server is up, set `SPX_API_URL`
 always-on instance near the data (S3 is in us-east-1, N. Virginia):
 
 ```sh
-git clone https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink && cd Sci-Tech-SPHEREx-Blink && gcloud run deploy spx-blink --source . --region us-east4 --memory 4Gi --cpu 1 --concurrency 250 --min-instances 1 --max-instances 1 --no-cpu-throttling --allow-unauthenticated --set-env-vars SPX_CACHE=/tmp/cache,SPX_CACHE_MAX_GB=1.5,SPX_MAX_FOV_DEG=0.11667,SPX_SIA_RETRY_BUDGET_S=60,SPX_SIA_MAX_ATTEMPTS=100,SPX_MAX_BAND_WAITERS=200,SPX_COMMIT=$(git rev-parse --short HEAD)
+git clone https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink && cd Sci-Tech-SPHEREx-Blink && gcloud run deploy spx-blink --source . --region us-east4 --memory 4Gi --cpu 2 --concurrency 250 --min-instances 1 --max-instances 1 --no-cpu-throttling --allow-unauthenticated --set-env-vars SPX_CACHE=/tmp/cache,SPX_CACHE_MAX_GB=1.5,SPX_MAX_FOV_DEG=0.11667,SPX_SIA_RETRY_BUDGET_S=60,SPX_SIA_MAX_ATTEMPTS=100,SPX_MAX_BAND_WAITERS=200,SPX_MAX_ACTIVE_FIELDS=8,SPX_NEW_FIELDS_PER_IP=40,SPX_PREBUILD_FIELDS=2,SPX_COMMIT=$(git rev-parse --short HEAD)
 ```
 
 `SPX_COMMIT` puts the deployed commit into `/api/health` (a build from source has no git folder in the image;
@@ -51,6 +52,8 @@ Why these settings:
 |---|---|
 | one instance (`--min-instances 1 --max-instances 1`) | the band queue and the open fields live in memory; a second instance would build the same field again |
 | CPU always on (`--no-cpu-throttling`) | bands are built by background threads after the request that queued them has returned |
+| `--cpu 2` | two threads build bands: one for bands a page asked for, one for bands built ahead. On one vCPU they share a core, so the band someone waits for slows down while another is built ahead (until 15 Nov the service ran with `--cpu 1`) |
+| `SPX_MAX_ACTIVE_FIELDS=8`, `SPX_NEW_FIELDS_PER_IP=40`, `SPX_PREBUILD_FIELDS=2` | a new field is refused (429) only when 8 fields have a band someone is waiting for. Bands built ahead do not count: until 15 Nov they did, and four opened fields kept every new one out for minutes while nothing was being built. Bands are built ahead for the 2 newest fields only. Visitors on one school or home network share an address, and moving around the sky opens a new field at every stop, so 40 new fields per address per 10 minutes, not 10 |
 | `--concurrency 250` | Cloud Run's default is 80 requests per vCPU; above it, with the one instance full, Cloud Run itself answers 429 without CORS (the page sees "Failed to fetch"). Opening a free field sends ~70 requests at once (bands, and frames waiting for their band) plus polling. Waiting requests hold no thread, so 250 is cheap |
 | `SPX_MAX_BAND_WAITERS=200` | the server's own limit on requests waiting for a band (frames count too); 64 would become the new bottleneck once Cloud Run allows 250 |
 | `--memory 4Gi` | Cloud Run's disk is memory. Process peak measured 689 MB with two 15′ fields open, plus the cache limit (1.5 GB) and headroom |
@@ -87,6 +90,52 @@ docker run -p 8000:8000 -v spx-data:/data spx-blink
 
 The image listens on `$PORT` (default 8000), runs as a non-root user, and keeps its cache in the volume `/data`.
 
+## Our image index (`server/index/`)
+
+**What it is.** `server/index/spx_index.npz` (22.5 MB) lists every Level 2 image of SPHEREx DR1 and QR3 in the
+public bucket: S3 key, detector, the TAN part of the file's WCS (`CRVAL`, `PC`, `CRPIX`, `CDELT`) and the exposure
+times. It holds 1,628,230 images taken from 24 April 2025 to 5 October 2026, read from the bucket on 15 November
+2026 while IRSA's SIA2 and TAP services answered 502. With it a free field's image list comes from the server
+itself. How it was made and checked: `handoff/results/methods_v2.md` ("Image lists: our own index of the bucket")
+and `handoff/results/s3index_check.json`.
+
+**In the image.** The Dockerfile copies `server/`, so the file is at `/app/server/index/spx_index.npz`; the
+Docker workflow checks that it is loaded and that a free field opens from it.
+
+**How the server uses it**, for each collection:
+
+1. A list still in the cache is kept: the gallery's seed (`web/data/_sia/`) or an earlier IRSA answer.
+2. Otherwise the index's list is written into the same cache file, and IRSA is not asked for it.
+3. In the background, IRSA SIA2 is asked once, for at most 20 s, for exposures after the index's last one
+   (5 October 2026). If it answers, they are added to the cached list; if not, nothing waits for it.
+4. A collection the index does not cover is asked of IRSA as before.
+
+The manifest field `image_list` says where the list came from (the tool's About tab shows it).
+
+**Setting.** `SPX_INDEX`: a `.npz` file, or a folder whose `.npz` files are all loaded (DR1 and QR3 may be
+separate files). Default `server/index`. `off` = no index: image lists come from IRSA SIA2 only, as before.
+
+**Health.** `/api/health` → `image_index`: `files`, `rows` (1628230), `built_utc`, `mjd_max`, `last_exposure`
+(`2026-10-05`); `null` when no index is loaded.
+
+**Cost.** The index is loaded at the first image list: 0.33 s, and the process grows by 159 MB (the arrays are
+132 MB). A position is answered in 0.01 s, and in 1.05 s at the north ecliptic pole (270.0 +66.5), where 30,512
+images cover it. Downloads stay capped per pass and band there, as for any field.
+
+**Rebuilding it** (a new release, or files added to the bucket):
+
+```sh
+gh workflow run s3index.yml                     # "Image index of the bucket": 20 parallel parts
+gh run download <run id> -D cache/s3index       # one folder per part; the merge reads them all
+python -m server.s3index cache/s3index server/index/spx_index.npz
+python scripts/check_s3index.py --write         # handoff/results/s3index_check.json
+```
+
+On 15 November 2026 the run took 86 s: 20 parts of 49–78 s each. The merge checks that every S3 key is rebuilt
+exactly and that the compact encoding stays within 0.2″ in position, 0.1 s in time and 1e-3 in the PC matrix.
+For a new release, add its bucket prefix to `RELEASES` in `scripts/build_s3_index.py` and its collection to
+`COLLECTIONS` in `server/s3index.py` first. Commit the new file and deploy.
+
 ## Settings (environment)
 
 | Variable | Default (image) | Meaning |
@@ -97,9 +146,11 @@ The image listens on `$PORT` (default 8000), runs as a non-root user, and keeps 
 | `SPX_MAX_FOV_DEG` | 0.11667 | largest field in degrees (0.25 = 15′) |
 | `SPX_LIVE_LAYERS` | `IMAGE,FLAGS` | layers read for live fields |
 | `SPX_COLLECTIONS` | `spherex_dr1,spherex_qr3` | SPHEREx collections searched (a new release is one more name) |
+| `SPX_INDEX` | `server/index` | our image index: a `.npz` file or a folder of them; `off` = image lists from IRSA SIA2 only |
 | `SPX_RATE_LIMIT` | 1 | 0 turns the request limits off |
-| `SPX_NEW_FIELDS_PER_IP` | 10 | new fields per client address per 10 minutes |
-| `SPX_MAX_ACTIVE_FIELDS` | 4 | fields building bands at once, server-wide |
+| `SPX_NEW_FIELDS_PER_IP` | 40 | new fields per client address per 10 minutes |
+| `SPX_MAX_ACTIVE_FIELDS` | 8 | fields with a band someone is waiting for (queued at a request in the last 3 minutes, or being built for one), server-wide; above it a new field gets 429. Bands built ahead do not count |
+| `SPX_PREBUILD_FIELDS` | 2 | bands nobody asked for yet are built ahead for this many of the newest fields; 0 = none (the candidates tab still asks for its field's bands) |
 | `SPX_MAX_BAND_WAITERS` | 64 | requests waiting for a band at once, frames included (the command above sets 200) |
 | `SPX_MAX_CUTOUT_SETS` | 2 | fields whose cutouts stay in memory |
 | `SPX_MAX_WINDOWS_PER_FIELD` | 12 | user wavelength windows kept per field |
@@ -128,3 +179,6 @@ limit the server answers 429 with `Retry-After`.
 | `scripts/fov_timing.py [--write]` | cold timing of 15′ fields on a server of its own |
 | `scripts/warm_demo.py --api <address>` | fills a server's cache with the demo fields before a presentation |
 | `scripts/make_submit_xsd.py` | builds the ADES submit schema used to check MPC drafts (the image runs it) |
+| `scripts/build_s3_index.py --out <folder> [--slice i/n]` | reads the pointing and time cards of every Level 2 file in the public bucket (one range request each); one chunk per week plan. The workflow "Image index of the bucket" runs it in 20 parts |
+| `python -m server.s3index [chunks] [out] [--split]` | merges the chunks into the index the server loads (`server/index/spx_index.npz`) and checks the encoding |
+| `scripts/check_s3index.py [--write]` | checks the index: size, load time, memory, encoding error, the effect of the left-out distortion, the gallery's image lists against IRSA's |

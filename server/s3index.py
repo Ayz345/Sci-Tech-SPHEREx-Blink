@@ -288,7 +288,8 @@ def main(argv=None) -> int:
     ap.add_argument("out", nargs="?", default=str(root / "server" / "index" / "spx_index.npz"))
     ap.add_argument("--split", action="store_true", help="one file per collection (spx_index_dr1.npz, ..._qr3.npz)")
     a = ap.parse_args(argv)
-    chunks = sorted(p for p in Path(a.chunks).glob("*.npz") if not p.name.endswith(".tmp.npz"))
+    chunks = sorted((p for p in Path(a.chunks).rglob("*.npz") if not p.name.endswith(".tmp.npz")),
+                    key=lambda p: p.name)          # gh run download puts each artifact in a folder of its own
     built = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     out = Path(a.out)
     groups = {rel: [c for c in chunks if c.name.startswith(rel + "__")] for rel in COLLECTIONS} if a.split \

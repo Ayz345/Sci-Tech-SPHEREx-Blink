@@ -7,12 +7,20 @@ it looked. This script reads those cards for every file and writes one chunk per
 
     <out>/<rel>__<plan>.npz   key (S3 keys), det (1..6), cols (card names), val (N x 14 float64)
 
-server/s3index.py merges the chunks into the compact file the server loads (build_compact).
+Only the cards are kept (no SIP terms): the server tests a position with the TAN part of the WCS and a 40 px
+margin (server/s3index.py). Files are `*D[1-6]_spx_*.fits` under dr1/level2/ and qr3/level2/; when a card is not
+in RANGE, the file is read again over WIDE.
 
-    python scripts/build_s3_index.py --out cache/s3index                 # everything (1.7 million files)
+    python scripts/build_s3_index.py --out cache/s3index                 # everything (1,628,230 files on 15 Nov 2026)
     python scripts/build_s3_index.py --out chunks --slice 3/20           # one of 20 equal parts (CI matrix)
 
-A plan whose chunk exists is skipped, so an interrupted run can simply be started again.
+A plan whose chunk exists is skipped, so an interrupted run can simply be started again. The workflow "Image
+index of the bucket" (.github/workflows/s3index.yml) runs 20 parts: 86 s for the run on 15 Nov 2026. Then
+
+    gh run download <run id> -D cache/s3index
+    python -m server.s3index cache/s3index server/index/spx_index.npz   # merge + encoding check
+    python scripts/check_s3index.py --write                              # handoff/results/s3index_check.json
+
 Needs numpy and requests.
 """
 from __future__ import annotations
