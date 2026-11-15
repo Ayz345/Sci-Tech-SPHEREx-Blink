@@ -37,9 +37,6 @@ jobs:
           v = h.get("astrometry_validation") or {}
           assert v.get("status") == "complete", f"validation file not complete in the image: {v}"
           assert v.get("same_frame_code") is True, f"validation made with other frame code: {v}"
-          ix = h.get("image_index") or {}
-          print("image index:", ix)
-          assert (ix.get("rows") or 0) >= 1_600_000, f"our image index is missing from the image: {ix}"
           PY
       - name: Gallery data and catalogue are served
         run: |
@@ -56,6 +53,14 @@ jobs:
           print(m.get("key"), m.get("n_images"), "images,", len(m.get("epochs", [])), "passes;", m.get("image_list"))
           assert (m.get("n_images") or 0) > 0, "no images for a free field"
           assert "our own index" in (m.get("image_list") or ""), "the list did not come from our index"
+          PY
+          # the index is loaded by the first request that needs it, so health is asked after the field above
+          curl -fsS http://127.0.0.1:8000/api/health > health2.json
+          python3 - <<'PY'
+          import json
+          ix = json.load(open("health2.json")).get("image_index") or {}
+          print("image index:", ix)
+          assert (ix.get("rows") or 0) >= 1_600_000, f"our image index is missing from the image: {ix}"
           PY
       - name: A field list from the archive (IRSA may be slow; reported, not required)
         continue-on-error: true
