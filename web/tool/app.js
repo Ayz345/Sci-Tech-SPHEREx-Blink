@@ -111,8 +111,17 @@ async function fetchLogged(url, as, init) {
       li.className = "bad";
       let msg = "";
       try { msg = (await r.json()).message || ""; } catch { /* not json */ }
+      // 429: how long the server asks us to wait (Retry-After, or "try again in N s" in its sentence)
+      const wait = r.status === 429 ? (+r.headers.get("Retry-After") || +(msg.match(/try again in (\d+)\s*s/i)?.[1] || 0)
+        || (/in a minute/i.test(msg) ? 60 : 0)) : 0;
+      // a short wait is not the visitor's business: wait it out once, quietly, and ask again
+      if (r.status === 429 && wait > 0 && wait <= 10 && !(init && init.__retried)) {
+        li.textContent += ` (waiting ${wait} s, then asking again)`;
+        await sleep(wait * 1000 + 300);
+        return fetchLogged(url, as, { ...(init || {}), __retried: true });
+      }
       const e = new Error(`${r.status} ${msg}`.trim());
-      e.status = r.status;
+      e.status = r.status; e.retryAfter = wait || null;
       throw e;
     }
     if (as === "f32") {
@@ -142,10 +151,20 @@ function friendly(e, what, archive = "the SPHEREx archive (IRSA)") {
   return `${what} failed: ${msg || e}`;
 }
 // the status line with a "Try again" button (for a field that could not be loaded)
-function statusRetry(text, again) {
+// with a wait from the server (429 Retry-After), the button counts down and can be used when the wait is over
+function statusRetry(text, again, waitS = 0) {
   const b = Object.assign(document.createElement("button"), { type: "button", textContent: "Try again" });
   b.onclick = () => { b.disabled = true; again(); };
   $("status").replaceChildren(text + " ", b); $("status").className = "err";
+  if (waitS > 0) {
+    let left = Math.ceil(waitS); b.disabled = true;
+    const tick = () => {
+      if (!b.isConnected) return;
+      if (left <= 0) { b.disabled = false; b.textContent = "Try again"; return; }
+      b.textContent = `Try again in ${left >= 90 ? `${Math.ceil(left / 60)} min` : `${left} s`}`; left--; setTimeout(tick, 1000);
+    };
+    tick();
+  }
 }
 // Gaia DR3 stars: never waited for (blink and spectrum go on); the line under the toggle says what happened
 function loadGaia() {
@@ -329,7 +348,7 @@ async function loadTarget() {
     }
     // a target that is not in the static gallery: ask the live server instead, if there is one
     if (!FORCED && gallery && !USE_API && await serverReady) { USE_API = true; return loadTarget(); }
-    statusRetry(friendly(e, "This field could not be loaded"), loadTarget); return;
+    statusRetry(friendly(e, "This field could not be loaded"), loadTarget, e.retryAfter || 0); return;
   }
   S.key = S.m.key;
   // fallback only: the server builds target_track when given pm (manifest ?pmra=&pmdec=&ref_epoch=);
@@ -433,15 +452,25 @@ function loadSpectrum(ra, dec, where) {
   // the target: no ra/dec, so the server follows it to each exposure with its proper motion
   // (a fixed point would miss a fast target in the earlier epochs); ra/dec only for other places
   if (where === "target") ra = dec = null;
-  return fetchLogged(src.spectrum(S.key, ra, dec)).then((s) => { S.spectrum = s; S.specAt = where; plots(); }).catch(() => plots());
+  return fetchLogged(src.spectrum(S.key, ra, dec)).then((s) => { S.spectrum = s; S.specAt = where; S.specErr = ""; plots(); })
+    .catch((e) => { // say so in the plot instead of keeping an older, emptier answer on screen
+      if (where !== "target") return;
+      const again = !S.specRetried; S.specRetried = true; // one quiet second try for the target's spectrum
+      S.specErr = friendly(e, "Spectrum") + (again ? " Asking again in 15 s." : "");
+      plots();
+      if (again) setTimeout(() => loadSpectrum(ra, dec, "target"), 15000);
+    });
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function pollManifest() {
   const busy = () => S.m.bands.some((b) => b.status === "pending");
   let hadPending = busy();
+  // ask again every 3 s at first, then less often (at most every 10 s): the public server allows 20 manifest requests
+  // a minute per address, shared by everyone behind it
+  let gap = 3000;
   while (busy() || offline) { // keep polling while the server is down, so the page recovers by itself
-    await sleep(3000);
+    await sleep(gap); gap = Math.min(10000, Math.round(gap * 1.5));
     let m;
     try { m = await fetchLogged(S.manifestUrl); } catch { continue; }
     for (const b of m.bands || []) {
@@ -792,7 +821,9 @@ function draw() {
   const used = bj?.epochs?.find((e) => e.id === ep.id)?.n_used;
   // "Pass 1 of 3 · 6 May 2025 · 5 exposures stacked"; the MJD details are in the tooltip
   $("epochLabel").textContent = `Pass ${S.epoch + 1} of ${S.m.epochs.length} · ${fmtDate(frameDate(S.band, S.epoch))} · ` +
-    (used != null ? `${used} exposure${used === 1 ? "" : "s"} stacked` : `${n ?? "?"} exposures listed`);
+    // when the server stacked only part of what was listed (it caps busy fields), both numbers are said
+    (used != null ? (n != null && n > used ? `${used} of ${n} exposures stacked` : `${used} exposure${used === 1 ? "" : "s"} stacked`)
+      : `${n ?? "?"} exposures listed`);
   $("epochLabel").title = `${S.band} frame MJD ${frameMjd(S.band, S.epoch).toFixed(2)}; pass MJD ${(+ep.mjd_min).toFixed(2)}–${(+ep.mjd_max).toFixed(2)}` +
     `; ${n ?? "?"} exposures listed` + (used != null ? `, ${used} used` : "");
 
@@ -1332,7 +1363,7 @@ function plots() {
   $("specCsv").disabled = !(Array.isArray(raw) ? raw : raw?.points || []).length;
   $("specWhere").textContent = S.specAt === "target" ? "(target position)" : S.specAt ? `(${S.specAt.map((v) => v.toFixed(5)).join(", ")})` : "";
   scatter($("spec"), pts, "wavelength_um", "flux", "µm", unit,
-    raw ? "This spectrum has no points with usable pixels." : "No spectrum is available for this field."); // flagged points open
+    S.specErr || (raw ? "This spectrum has no points with usable pixels." : "No spectrum is available for this field.")); // flagged points open
   renderFlagLegend(pts, meta);
   // light curve: selected band's wavelength range only (mixing wavelengths turns the spectrum into fake scatter)
   const w = S.m?.bands?.find((b) => b.id === S.band)?.wave_um;
