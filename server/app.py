@@ -1,4 +1,4 @@
-"""SPHEREx blink API (data contract v1, PLAN.md section 5).
+"""SPHEREx blink API (data contract v1: web/tool/README.md).
 
     uvicorn server.app:app --host 127.0.0.1 --port 8000          (from the repository root)
 
@@ -58,14 +58,14 @@ CODE_HASH = _code_hash()
 STARTED_COMMIT = P.spx_commit()  # git HEAD (and uncommitted code) when this process started
 FIELDS_DIR = access.CACHE_DIR / "fields" / f"v{spx.__version__}-{CODE_HASH}"
 MAX_FIELDS_IN_MEMORY = 32
-#: User wavelength windows kept per field (PLAN 17 F1); the oldest finished one is dropped (job and files).
+#: User wavelength windows kept per field; the oldest finished one is dropped (job and files).
 MAX_WINDOWS_PER_FIELD = int(os.environ.get("SPX_MAX_WINDOWS_PER_FIELD") or 12)
 #: Cutouts kept in memory for this many fields (least recently used dropped). They dominate the server's memory:
 #: two 15' fields peaked at 689 MB working set (14 Nov, fov_timing_v2.json). Field objects (image lists) are small.
 MAX_CUTOUT_SETS = int(os.environ.get("SPX_MAX_CUTOUT_SETS") or 2)
 
 
-# --------------------------------------------------------------------------- disk cache limit (public server, B4)
+# --------------------------------------------------------------------------- disk cache limit (public server)
 
 #: Size limit of the cache folder's cutouts and built fields (SPX_CACHE_MAX_GB; the Dockerfile sets 5; unset or 0 =
 #: no limit and no janitor, as on a development machine whose cache also holds the gallery's cutouts). When over,
@@ -182,7 +182,7 @@ def _cache_janitor():
         time.sleep(CACHE_CHECK_S)
 
 
-# --------------------------------------------------------------------------- request limits (public server, B1)
+# --------------------------------------------------------------------------- request limits (public server)
 
 #: Requests per client IP per minute on the expensive endpoints (a page opening one field asks the manifest a few
 #: times, 6-7 bands and polls candidates every 5 s). SPX_RATE_LIMIT=0 turns all limits off.
@@ -682,7 +682,7 @@ _janitor_started = False
 
 @app.middleware("http")
 async def _start_janitor(request: Request, call_next):
-    """The disk-cache janitor (B4) starts with the first request (not at import: tests import the app)."""
+    """The disk-cache janitor starts with the first request (not at import: tests import the app)."""
     global _janitor_started
     if not _janitor_started and CACHE_MAX_BYTES > 0:
         _janitor_started = True
@@ -778,11 +778,28 @@ async def api_manifest(request: Request, target: str | None = None, ra: str | No
     return jresp(registry().manifest(fs))
 
 
-#: Requests waiting for a band at once (B7). The wait itself holds no thread: the job is queued in a thread at once,
+#: Requests waiting for a band at once. The wait itself holds no thread: the job is queued in a thread at once,
 #: then polled from the event loop. (Holding a thread for up to 90 s each would starve the default pool, which has
 #: only CPU + 4 threads: 5 on a one-CPU Cloud Run instance, shared with field opening, spectra and names.)
 MAX_BAND_WAITERS = int(os.environ.get("SPX_MAX_BAND_WAITERS") or 64)
 _band_waiters = 0
+
+
+def check_band_id(band: str) -> None:
+    """Reject a band id that no field can have BEFORE the field is opened (opening it asks IRSA, and an IRSA outage
+    must not turn a bad id into a 503): a malformed window w<lo>_<hi> is 400; an id that is neither D1..D6, a
+    window, nor a gallery target's own band (e.g. W) is 404."""
+    if band.startswith("D") and band[1:].isdigit() and int(band[1:]) in access.DETECTOR_BANDS_UM:
+        return
+    try:
+        if P.parse_window(band) is not None:
+            return
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    known = {b["id"] for t in TARGETS.values() for b in t.get("extra_bands", [])}
+    if band not in known:
+        raise ApiError(404, f"no band {band!r}: bands are D1..D6, a window w<lo>_<hi> (nm), or a target's own band "
+                            f"({', '.join(sorted(known))})")
 
 
 async def wait_band_async(fs: FieldState, band: str, timeout: float) -> BandJob:
@@ -805,6 +822,7 @@ async def wait_band_async(fs: FieldState, band: str, timeout: float) -> BandJob:
 
 @app.get("/api/band")
 async def api_band(request: Request, key: str, band: str):
+    check_band_id(band)
     rate_limit(request, "band")
     fs = await _field(key)
     job = await wait_band_async(fs, band, BAND_WAIT_S)
@@ -822,6 +840,7 @@ async def api_band(request: Request, key: str, band: str):
 async def api_frame(key: str, epoch: int, band: str, kind: str | None = None):
     if kind not in (None, "", "weight", "flagfrac"):
         raise ApiError(400, "kind must be weight or flagfrac (omit it for the image)")
+    check_band_id(band)
     fs = await _field(key)
     job = await wait_band_async(fs, band, BAND_WAIT_S)
     if not job.event.is_set():
@@ -835,7 +854,7 @@ async def api_frame(key: str, epoch: int, band: str, kind: str | None = None):
 
 @app.get("/api/candidates")
 async def api_candidates(request: Request, key: str):
-    """Automatic candidates (spx.detect, PLAN 17 F2), made once all listed bands of the field are built.
+    """Automatic candidates (spx.detect), made once all listed bands of the field are built.
     202 {"status": "pending"} until then; 503 when the detector is missing or failed."""
     rate_limit(request, "candidates")
     fs = await _field(key)
@@ -918,7 +937,7 @@ async def api_spectrum(request: Request, key: str, ra: float | None = None, dec:
     return jresp(out)
 
 
-#: Name resolutions (B5): at most RESOLVE_MAX names, least recently used dropped; a name found is kept
+#: Name resolutions: at most RESOLVE_MAX names, least recently used dropped; a name found is kept
 #: RESOLVE_TTL_S, a name SIMBAD does not know RESOLVE_NEG_TTL_S; an outage (no answer, non-200) is never cached.
 _resolve_cache: OrderedDict = OrderedDict()     # normalized name -> (time, answer or None)
 RESOLVE_MAX = 2000
@@ -1067,7 +1086,7 @@ def _track_response(rid: str, rows: list, info: dict, band: str, n_refs: int) ->
             "mpc_test_forms": {"psv": mpc.MPC_PSV_TEST, "xml": mpc.MPC_XML_TEST}}
 
 
-#: /api/track limits for a public server (B3): marks, body size, SIA2 points along the path (cost), and the time
+#: /api/track limits for a public server: marks, body size, SIA2 points along the path (cost), and the time
 #: window of a within-visit (Solar System) track. Tracks across survey epochs (proper-motion stars, CSV only) span
 #: up to ~500 days by nature; their path is short, so the SIA2-point limit bounds them.
 TRACK_MAX_MARKS = 20

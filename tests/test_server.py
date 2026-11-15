@@ -84,7 +84,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(P, "gaia_sources", lambda f, **k: [{"ra": RA0, "dec": DEC0, "pmra": 0.0, "pmdec": 0.0,
                                                              "g_mag": 12.0, "ref_epoch": 2016.0}])
     monkeypatch.setattr(A, "_spec_cache", A.OrderedDict())
-    monkeypatch.setattr(A, "RATE_ON", False)            # request limits are tested on their own (B1)
+    monkeypatch.setattr(A, "RATE_ON", False)            # request limits are tested on their own
     monkeypatch.setattr(A, "_rate_hits", {})
     regs = []
 
@@ -661,7 +661,7 @@ def test_catwise_served_for_gallery_targets_only(client):
     assert r.status_code == 404 and "no WISE catalogue" in r.json()["message"]
 
 
-# --------------------------------------------------------------------------- public server: errors (B6)
+# --------------------------------------------------------------------------- public server: errors
 
 def test_unhandled_error_is_json_with_cors_and_no_detail(client, monkeypatch):
     from server import app as A
@@ -694,7 +694,7 @@ def test_track_body_must_be_an_object(track_client):
         assert r.status_code == 400 and r.json()["schema"] == 1, (body, r.text)
 
 
-# --------------------------------------------------------------------------- public server: /api/track limits (B3)
+# --------------------------------------------------------------------------- public server: /api/track limits
 
 def test_track_limits(track_client):
     from server import app as A
@@ -718,7 +718,7 @@ def test_track_cost_rule():
 
 
 
-# --------------------------------------------------------------------------- public server: request limits (B1)
+# --------------------------------------------------------------------------- public server: request limits
 
 def test_rate_limit_per_ip(client, monkeypatch):
     from server import app as A
@@ -754,7 +754,7 @@ def test_new_field_limits(client, monkeypatch):
         job.event.set()
 
 
-# --------------------------------------------------------------------------- public server: disk cache limit (B4)
+# --------------------------------------------------------------------------- public server: disk cache limit
 
 def test_cache_cleanup_order_and_protection(tmp_path):
     import os
@@ -786,7 +786,7 @@ def test_health_reports_cache(client):
     assert set(h["cache"]) == {"bytes", "max_bytes", "checked_utc", "last_cleanup"}
 
 
-# --------------------------------------------------------------------------- public server: name cache (B5)
+# --------------------------------------------------------------------------- public server: name cache
 
 class _Resp:
     def __init__(self, code, text):
@@ -856,7 +856,7 @@ def test_restart_mid_build_starts_clean(client):
     assert client.calls["fetch"] == n_fetch + 1    # only D3's detector downloaded again; D1, D2 ... from disk
 
 
-# --------------------------------------------------------------------------- public server: band waiters (B7)
+# --------------------------------------------------------------------------- public server: band waiters
 
 def test_band_waiters_capped_ready_bands_free(client, monkeypatch):
     from server import app as A
@@ -868,3 +868,19 @@ def test_band_waiters_capped_ready_bands_free(client, monkeypatch):
     assert client.get("/api/band", params={"key": m["key"], "band": "D1"}).status_code == 200   # ready: no wait
     h = _strict(client.get("/api/health"))
     assert h["band_waiters"] == {"now": 0, "max": 0}
+
+
+def test_bad_band_ids_rejected_before_the_field_opens(client, monkeypatch):
+    """A fresh server (the field not open) with IRSA down: a bad id is still 400/404, never 503."""
+    def down(*a, **k):
+        raise access.SiaError("SIA2 HTTP 502")
+    monkeypatch.setattr(access, "find_images", down)
+    for path in ("/api/band", "/api/frame"):
+        for band, code in (("w1_2", 400), ("w4300_4250", 400), ("wabc", 400), ("X9", 404)):
+            params = {"key": "wise-0855", "band": band}
+            if path == "/api/frame":
+                params["epoch"] = 0
+            r = client.get(path, params=params)
+            assert r.status_code == code and r.json()["schema"] == 1, (path, band, r.status_code, r.text)
+    r = client.get("/api/band", params={"key": "wise-0855", "band": "D1"})     # a good id: opening fails, 503
+    assert r.status_code == 503
