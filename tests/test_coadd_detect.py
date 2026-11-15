@@ -41,12 +41,6 @@ N_PER_RUN = 6
 REPEATS = 3
 
 
-def _sep_px(field, ra, dec, x, y, mjd):
-    w = D.grid_wcs(field["manifest"]["grid"])
-    tx, ty = w.wcs_world2pix([ra], [dec], 0)
-    return math.hypot(float(tx[0]) - x, float(ty[0]) - y)
-
-
 def target_part():
     out = {}
     for key in FIELDS:
