@@ -1103,9 +1103,37 @@ function niceTicks(a, b, n) {
   for (let v = Math.ceil(a / step) * step; v <= b + step * 1e-9; v += step) ticks.push(+v.toPrecision(12));
   return { ticks, step };
 }
-function scatter(svg, pts, xk, yk, xlabel, ylabel) {
-  const W = 460, H = 236, L = 58, B = 40, T = 24, R = 12; // T leaves a row above the plot for the epoch legend
-  if (!pts.length) { svg.innerHTML = `<text x="20" y="30" fill="${INK.fg4}" font-size="13">no data</text>`; return; }
+// a plot's legend under it, in HTML: the epochs (tone and marker) and only the kinds of point that are in the plot
+function plotLegend(svg, kinds) {
+  let el = document.getElementById(svg.id + "Legend");
+  if (!el) { el = Object.assign(document.createElement("div"), { id: svg.id + "Legend", className: "plotLegend mono" }); svg.after(el); }
+  const sw = (inner) => `<svg viewBox="0 0 14 14" aria-hidden="true">${inner}</svg>`;
+  const ep = (S.m?.epochs || []).map((e) => `<span>${sw(epochMarker(e.id, 7, 7, 3.6, false))}${escapeHtml(String(e.date))}</span>`);
+  const k = [
+    kinds.err && `<span>${sw(`<path d="M7 1v12M4 1h6M4 13h6" stroke="${INK.fg3}" stroke-width="1.2"/>`)}error bar (±1σ)</span>`,
+    kinds.flagged && `<span>${sw(`<circle cx="7" cy="7" r="3.6" fill="none" stroke="${INK.fg3}" stroke-width="1.2" opacity="0.6"/>`)}flagged (open)</span>`,
+    kinds.zero && `<span>${sw(`<circle cx="7" cy="7" r="3.6" fill="${INK.fg3}" opacity="0.3"/>`)}consistent with zero (faint)</span>`,
+    kinds.sat && `<span>${sw(`<circle cx="7" cy="10" r="2.6" fill="none" stroke="${INK.fg3}"/><path d="M7 7.4V1.5M4.8 3.7 7 1.5l2.2 2.2" fill="none" stroke="${INK.fg3}"/>`)}saturated: lower limit</span>`,
+    kinds.over && `<span>${sw(`<path d="M7 3l4 4-4 4-4-4z" fill="${INK.fg3}"/>`)}recovered from overflow</span>`,
+  ].filter(Boolean);
+  el.innerHTML = ep.join("") + (k.length ? `<span class="sep"></span>` + k.join("") : "");
+}
+// empty, waiting or failed: the same quiet box inside the plot frame
+// plots are drawn in the svg's own pixels, so text keeps its size at any width
+function plotSize(svg) {
+  const W = Math.max(300, Math.round(svg.getBoundingClientRect().width || 460)), H = W < 520 ? 240 : 300;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  return [W, H];
+}
+function plotMessage(svg, text) {
+  const [W, H] = plotSize(svg);
+  svg.innerHTML = `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" fill="none" stroke="${INK.rule}" stroke-dasharray="3 4"/>` +
+    `<text x="${W / 2}" y="${H / 2}" fill="${INK.fg3}" font-size="12.5" text-anchor="middle">${escapeHtml(text)}</text>`;
+  document.getElementById(svg.id + "Legend")?.replaceChildren();
+}
+function scatter(svg, pts, xk, yk, xlabel, ylabel, empty = "No points to show here.") {
+  const [W, H] = plotSize(svg), L = 62, B = 42, T = 10, R = 14;
+  if (!pts.length) { plotMessage(svg, empty); return; }
   const xs = pts.map((p) => p[xk]), good = pts.filter((p) => !p.flagged);
   const ys = (good.length ? good : pts).map((p) => p[yk]);
   const [x0, x1] = [Math.min(...xs), Math.max(...xs)], [y0, y1] = percentile([Float32Array.from(ys)], [1, 99]);
@@ -1130,27 +1158,40 @@ function scatter(svg, pts, xk, yk, xlabel, ylabel) {
   const yTitle = /^flux|brightness/i.test(String(ylabel)) ? String(ylabel) : `flux (${ylabel})`;
   h += `<text x="${((L + W - R) / 2).toFixed(0)}" y="${H - 6}" fill="${INK.fg2}" font-size="11.5" text-anchor="middle">${escapeHtml(xTitle)}</text>`;
   h += `<text transform="translate(13 ${((T + H - B) / 2).toFixed(0)}) rotate(-90)" fill="${INK.fg2}" font-size="11.5" text-anchor="middle">${escapeHtml(yTitle)}</text>`;
+  const kinds = {};
+  // error bars first, under the markers (not for lower limits)
+  if (yk === "flux") for (const p of pts) {
+    if (p.saturated || !(+p.err > 0)) continue;
+    const x = sx(p[xk]).toFixed(1), ya = Math.max(T, sy(p[yk] + +p.err)), yb = Math.min(H - B, sy(p[yk] - +p.err));
+    if (yb - ya < 1.5) continue;
+    kinds.err = true;
+    h += `<line x1="${x}" x2="${x}" y1="${ya.toFixed(1)}" y2="${yb.toFixed(1)}" stroke="${epochTone(p.epoch)}" stroke-width="0.8" opacity="${p.flagged ? 0.25 : 0.55}"/>`;
+  }
   for (const p of pts) {
     const c = epochTone(p.epoch);
-    // faint: flagged, or (psf_deblended) consistent with zero given the neighbour residual (|flux| < 0.15 × neighbor_flux)
-    const faint = (p.flagged && !p.overflow) || (p.neighbor_flux > 0 && Math.abs(p[yk]) < 0.15 * p.neighbor_flux);
+    // flagged: the open marker; consistent with zero given the removed neighbour (|flux| < 0.15 × neighbor_flux): faint
+    const flagged = p.flagged && !p.overflow, zero = !flagged && p.neighbor_flux > 0 && Math.abs(p[yk]) < 0.15 * p.neighbor_flux;
+    const faint = flagged || zero;
     const cx = sx(p[xk]).toFixed(1), cy = Math.max(T, Math.min(H - B, sy(p[yk])));
     // hover text: the point's values and the names of the FLAGS bits set in its aperture (F3)
     const tip = `<title>${escapeHtml(pointTip(p, yk))}</title>`;
     if (p.saturated && yk === "flux") { // lower limit: open marker with an upward tick
+      kinds.sat = true;
       h += `<g stroke="${c}" fill="none" opacity="0.7">${epochMarker(p.epoch, cx, cy, 2.6, true)}` +
         `<path d="M${cx} ${(cy - 2.6).toFixed(1)}v-7m-2.5 2.5l2.5-2.5 2.5 2.5"/>${tip}</g>`;
     } else if (p.overflow && yk === "flux") { // recovered from overflow: a valid measurement, filled diamond
-      h += `<path d="M${cx} ${(cy - 3.2).toFixed(1)}l3.2 3.2-3.2 3.2-3.2-3.2z" fill="${c}" opacity="${faint ? 0.2 : 1}">${tip}</path>`;
+      kinds.over = true;
+      h += `<path d="M${cx} ${(cy - 3.2).toFixed(1)}l3.2 3.2-3.2 3.2-3.2-3.2z" fill="${c}" opacity="${zero ? 0.3 : 1}">${tip}</path>`;
+    } else if (flagged) { // flagged: the epoch's marker, open
+      kinds.flagged = true;
+      h += `<g opacity="0.6">${epochMarker(p.epoch, cx, cy, 2.8, true)}${tip}</g>`;
     } else {
-      h += `<g opacity="${faint ? 0.2 : 1}">${epochMarker(p.epoch, cx, cy, 2.3, false)}${tip}</g>`;
+      if (zero) kinds.zero = true;
+      h += `<g opacity="${faint ? 0.3 : 1}">${epochMarker(p.epoch, cx, cy, 2.8, false)}${tip}</g>`;
     }
   }
-  // epoch legend in its own row above the plot, so it never covers data points
-  const step = Math.min(96, (W - L - R) / Math.max(1, S.m.epochs.length));
-  h += S.m.epochs.map((e, i) => epochMarker(e.id, L + i * step + 3, 8.5, 2.6, false) +
-    `<text x="${(L + i * step + 9).toFixed(0)}" y="12" fill="${INK.fg3}" font-size="10">${escapeHtml(String(e.date))}</text>`).join("");
   svg.innerHTML = h;
+  plotLegend(svg, kinds);
 }
 // the loaded spectrum as CSV, made in the browser: one column per point field, units and meta notes as # comments
 function spectrumCsv() {
@@ -1223,7 +1264,8 @@ function plots() {
   const meta = raw?.meta || {}, unit = meta.flux_unit || "flux";
   $("specCsv").disabled = !(Array.isArray(raw) ? raw : raw?.points || []).length;
   $("specWhere").textContent = S.specAt === "target" ? "(target position)" : S.specAt ? `(${S.specAt.map((v) => v.toFixed(5)).join(", ")})` : "";
-  scatter($("spec"), pts, "wavelength_um", "flux", "µm", unit); // flagged points drawn faint
+  scatter($("spec"), pts, "wavelength_um", "flux", "µm", unit,
+    raw ? "This spectrum has no points with usable pixels." : "No spectrum is available for this field."); // flagged points open
   renderFlagLegend(pts, meta);
   // light curve: selected band's wavelength range only (mixing wavelengths turns the spectrum into fake scatter)
   const w = S.m?.bands?.find((b) => b.id === S.band)?.wave_um;
@@ -1231,7 +1273,9 @@ function plots() {
   $("lcWhere").textContent = w ? `(${S.band}, ${w[0]}–${w[1]} µm)` : "";
   // light curve: valid points only — flagged and saturated out, recovered-from-overflow points in
   const usable = (p) => !p.saturated && (!p.flagged || p.overflow);
-  scatter($("lc"), pts.filter((p) => usable(p) && inBand(p)), "mjd", "flux", "MJD", unit);
+  const inb = pts.filter(inBand);
+  scatter($("lc"), inb.filter(usable), "mjd", "flux", "MJD", unit,
+    !inb.length ? `No spectrum points in ${S.band}.` : `All ${inb.length} points in ${S.band} are saturated or flagged, so there is no light curve here.`);
   // saturated stars: relative brightness from the PSF wings (MJy/sr) — its own plot, never on the mJy axis
   const wing = pts.filter((p) => Number.isFinite(p.wing_flux));
   $("wingBox").hidden = !wing.length;
@@ -2050,6 +2094,8 @@ serverReady.then((ok) => {
   if (FORCED && !ok) status(`Server ${API} is not reachable; without ?api= the page shows the five gallery targets.`, true);
 });
 wire();
+// plots follow the page width (drawn in real pixels): redraw after a resize settles
+{ let t = 0; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { if (S.m) plots(); }, 200); }); }
 if (EMBED) $("panel").prepend($("timeBox")); // the embed keeps its time controls beside the image, so it fits 560 px
 document.querySelectorAll("#tabs [data-tab]").forEach((b) => { b.onclick = () => setTab(b.dataset.tab); });
 $("tabs").onkeydown = (e) => { // arrow keys move between tabs
