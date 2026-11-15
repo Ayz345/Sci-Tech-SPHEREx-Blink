@@ -991,9 +991,15 @@ async def api_spectrum(request: Request, key: str, ra: float | None = None, dec:
         return jresp(_spec_cache[ck])
 
     def run():
+        t0 = time.monotonic()
         cuts = registry().cutouts_for(fs, dets)
+        t1 = time.monotonic()
         gaia = gaia_for(f)
+        t2 = time.monotonic()
         out = P.spectrum(f, cuts, ra, dec, gaia=gaia or [])
+        # where the time went (cutouts from memory, disk or S3; Gaia; photometry): seen on the live server
+        out["meta"]["seconds"] = {"cutouts": round(t1 - t0, 2), "gaia": round(t2 - t1, 2),
+                                  "photometry": round(time.monotonic() - t2, 2), "n_cutouts": len(cuts)}
         # say it when there was no Gaia list: the photometry then cannot remove neighbouring stars
         out["meta"]["gaia"] = ("Gaia DR3 stars within 25 arcsec are fitted and removed as neighbours" if gaia is not None
                                else "not available: the Gaia archive did not answer, so neighbouring stars were NOT "

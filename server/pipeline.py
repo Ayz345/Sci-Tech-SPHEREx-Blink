@@ -835,9 +835,33 @@ def track_detectors(band: str) -> list[int]:
     raise ValueError(f"band must be one of D1..D6 for a track, got {band!r}")
 
 
+_gallery_field_cache: dict = {}
+
+
+def gallery_images_at(ra: float, dec: float):
+    """The image list of a gallery target whose field contains (ra, dec), else None. The field's footprint is read
+    from web/data/<key>/manifest.json and its list from the cache (seeded from web/data/_sia), so a point inside a
+    gallery field needs no IRSA query. Every image of that list covers the field centre; a SPHEREx detector is
+    ~3.5 deg wide, so it covers a point a few arcminutes away as well."""
+    for key in TARGETS:
+        mp = GALLERY_DIR / key / "manifest.json"
+        if not mp.exists():
+            continue
+        g = json.loads(mp.read_text(encoding="utf-8"))["grid"]
+        half = max(g["shape"]) * abs(g["cdelt"][1]) / 2 * math.sqrt(2)
+        c0 = SkyCoord(g["crval"][0] * u.deg, g["crval"][1] * u.deg)
+        if c0.separation(SkyCoord(float(ra) * u.deg, float(dec) * u.deg)).deg > half:
+            continue
+        if key not in _gallery_field_cache:
+            _gallery_field_cache[key] = open_field(target=key).refs
+        return _gallery_field_cache[key]
+    return None
+
+
 def track_refs(marks, band: str):
     """Exposures of `band` inside the model's time window along the predicted path: SIA2 at points along the path
-    (a fast object leaves any fixed field), union of the lists, cut to the window. Returns (refs, position, info)."""
+    (a fast object leaves any fixed field), union of the lists, cut to the window. Points inside a gallery field use
+    that field's list (gallery_images_at), without IRSA. Returns (refs, position, info)."""
     from spx.astrometry import track_model
     position, info = track_model(marks)
     lo, hi = info["window_mjd"]
@@ -853,7 +877,8 @@ def track_refs(marks, band: str):
     refs, seen = [], set()
     for t in np.linspace(lo, hi, n):
         c = position(float(t))
-        for r in access.find_images(float(c.ra.deg), float(c.dec.deg)):
+        here = gallery_images_at(float(c.ra.deg), float(c.dec.deg))
+        for r in (here if here is not None else access.find_images(float(c.ra.deg), float(c.dec.deg))):
             k = (r.obs_id, r.detector)
             if k in seen or r.detector not in dets:
                 continue

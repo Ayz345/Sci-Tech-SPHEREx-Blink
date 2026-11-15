@@ -1035,3 +1035,40 @@ def test_gaia_query_budget():
     finally:
         requests.get = orig
     assert time.time() - t0 < 7
+
+
+def test_track_inside_a_gallery_field_needs_no_irsa(tmp_path, monkeypatch):
+    from pathlib import Path
+    from server import app as A
+    from server import pipeline as P
+    gallery = Path(__file__).resolve().parent.parent / "web" / "data"
+    if not (gallery / "_sia").is_dir():
+        pytest.skip("no web/data/_sia")
+    sia_calls = []
+
+    def down(*a, **k):
+        sia_calls.append(a)
+        raise access.SiaError("SIA2 HTTP 502")
+
+    def fake_fetch(refs, ra, dec, half_px=50, layers=("IMAGE", "FLAGS", "VARIANCE"), workers=32, progress=None,
+                   stats=None, box_deg=None):
+        rng = np.random.default_rng(len(refs))
+        return [_cutout(r, ra, dec, min(half_px, 20), layers, rng) for r in refs], 0
+    monkeypatch.setattr(access, "_sia_query", down)
+    monkeypatch.setattr(access, "fetch_cutouts", fake_fetch)
+    monkeypatch.setattr(access, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(A, "FIELDS_DIR", tmp_path / "fields")
+    monkeypatch.setattr(A, "RATE_ON", False)
+    monkeypatch.setattr(P, "gaia_path", lambda *a, **k: [])
+    monkeypatch.setattr(P, "_gallery_field_cache", {})
+    A.seed_sia_cache(gallery, tmp_path)
+    rows = [r for f in (gallery / "_sia").rglob("133.75978_-7.24233_*.json")
+            for r in json.loads(f.read_text(encoding="utf-8"))["rows"] if r["detector"] == 6]
+    t = sorted(r["t_min"] for r in rows)[len(rows) // 2]          # a real D6 exposure of the WISE 0855 field
+    marks = [{"ra": 133.7600, "dec": -7.2424, "mjd": t}, {"ra": 133.7601, "dec": -7.2424, "mjd": t + 0.05}]
+    with TestClient(A.app) as c:
+        r = c.post("/api/track", json={"band": "D6", "marks": marks})
+        assert r.status_code == 200, r.text
+        assert sia_calls == [] and r.json()["n_exposures_found"] > 0
+        far = [{"ra": 140.0, "dec": 10.0, "mjd": t}, {"ra": 140.0001, "dec": 10.0, "mjd": t + 0.05}]   # outside
+        assert c.post("/api/track", json={"band": "D6", "marks": far}).status_code == 503
