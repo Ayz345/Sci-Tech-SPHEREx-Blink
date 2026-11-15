@@ -1139,7 +1139,10 @@ function plotLegend(svg, kinds) {
   let el = document.getElementById(svg.id + "Legend");
   if (!el) { el = Object.assign(document.createElement("div"), { id: svg.id + "Legend", className: "plotLegend mono" }); svg.after(el); }
   const sw = (inner) => `<svg viewBox="0 0 14 14" aria-hidden="true">${inner}</svg>`;
-  const ep = (S.m?.epochs || []).map((e) => `<span>${sw(epochMarker(e.id, 7, 7, 3.6, false))}${escapeHtml(String(e.date))}</span>`);
+  // a plot mixes bands, so each pass is named by its number and month (the day differs from band to band)
+  const month = (iso) => { const d = new Date(String(iso).slice(0, 10) + "T00:00:00Z");
+    return isNaN(d) ? String(iso || "") : d.toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" }); };
+  const ep = (S.m?.epochs || []).map((e, i) => `<span>${sw(epochMarker(e.id, 7, 7, 3.6, false))}pass ${i + 1} · ${escapeHtml(month(e.date))}</span>`);
   const k = [
     kinds.err && `<span>${sw(`<path d="M7 1v12M4 1h6M4 13h6" stroke="${INK.fg3}" stroke-width="1.2"/>`)}error bar (±1σ)</span>`,
     kinds.flagged && `<span>${sw(`<circle cx="7" cy="7" r="3.6" fill="none" stroke="${INK.fg3}" stroke-width="1.2" opacity="0.6"/>`)}flagged (open)</span>`,

@@ -267,6 +267,12 @@ body.embed #measureHelp, body.embed #refineWhy, body.embed #measureBox .row, bod
   header strong { font-size: 24px; }
   main { gap: 14px; }
   aside { max-width: none; }
-  #epochMarks .stop { min-width: 0; flex: 1 1 30%; }
-  #tabs { overflow-x: auto; }
+  /* phone: the image fills the width (pixelated), the passes scroll sideways, the tabs stay on one line */
+  body:not(.embed) #view { width: 100%; }
+  body:not(.embed) canvas { width: 100%; height: auto; }
+  #epochMarks { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+  #epochMarks .stop { min-width: 112px; flex: 0 0 auto; }
+  #tabs { overflow-x: auto; scrollbar-width: none; }
+  #tabs button { padding: 8px 7px; letter-spacing: .08em; }
+  #stageHead { align-items: flex-start; }
 }
