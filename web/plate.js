@@ -193,9 +193,12 @@ export function createTool(c) {
     return { cx: (r.left + r.width / 2) / W(), cy: (r.top + r.height / 2) / H() };
   }
   // the archive behind the live server is sometimes down for a while: say so calmly and offer another try
-  const archiveDown = (err) => /^5[0-9][0-9]/.test(err.message) || err.name === "TypeError" || (err.message === "no-server" && !!window.SPX_API);
+  const archiveDown = (err) => /^(5[0-9][0-9]|429)/.test(err.message) || err.name === "TypeError" || (err.message === "no-server" && !!window.SPX_API);
   const askRetry = (err) => new Promise((resolve) => {
-    setStatus(`${err.message === "no-server" ? "The live server is not answering right now. Try again in a moment" : "The archive is not answering right now. Try again in a few minutes"}; the five targets work meanwhile. <button type="button" class="retry">Try again</button>`);
+    const lead = err.message === "no-server" ? "The live server is not answering right now. Try again in a moment"
+      : /^429/.test(err.message) ? "The server is busy right now. Try again in a minute"
+      : "The archive is not answering right now. Try again in a few minutes";
+    setStatus(`${lead}; the five targets work meanwhile. <button type="button" class="retry">Try again</button>`);
     $("status").querySelector(".retry").onclick = () => resolve();
   });
   // ------------------------------------------------ sky -> zoom -> plate
