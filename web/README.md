@@ -14,7 +14,12 @@ On start the page checks the live server named in `config.js` (`window.SPX_API`,
 the header says "gallery of five targets (no live server on this site)", and every server-only control (other
 fields, names, free positions, windows, clicked-point spectra, refine/report) stays clickable and says that it needs
 the live server, which is not part of the site, with a link to "Run it" in the repository README. An address that
-does not answer keeps the "not reachable right now" wording. Users never add parameters:
+does not answer keeps the "not reachable right now" wording. Users never add parameters. Developer parameters are checked: `?api=` must be an https address or a server
+on localhost/127.0.0.1, `?data=` a relative path on this site; anything else is ignored and the header says why.
+Text that comes from data files or the server is always written as text, never as HTML. One failed request does not
+switch the page to "not reachable": `/api/health` is asked first, and only if it does not answer either is the
+server treated as down (then it is asked every 3 s until it answers).
+Users never add parameters:
 
 - Gallery targets (`?target=`) always open from the static files under `web/data/`, at once, without waiting for
   the check, and keep working when the server is down.

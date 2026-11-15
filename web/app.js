@@ -6,7 +6,26 @@ const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 // ?api=<url> (developer): everything goes to that server, no probe. ?api=none: no server. No ?api=: the page
 // probes window.SPX_API (config.js) once on start; gallery targets stay static, the rest uses the server if found.
-const API_PARAM = params.get("api");
+// ?api= and ?data= come from a link anyone can make: only safe values are taken, the rest is ignored with a reason
+const PARAM_REJECTS = [];
+function safeApi(v) {
+  if (v == null || v === "" || v === "none") return v;
+  try {
+    const u = new URL(v);
+    const local = u.protocol === "http:" && ["localhost", "127.0.0.1"].includes(u.hostname);
+    if ((u.protocol === "https:" || local) && !u.username && !u.password) return u.origin + u.pathname.replace(/\/$/, "");
+  } catch { /* not a URL */ }
+  PARAM_REJECTS.push("?api= ignored: only an https address or a server on localhost/127.0.0.1 is accepted");
+  return null;
+}
+function safeData(v) {
+  if (v == null || v === "") return v;
+  // a relative path on this site: letters, digits, . _ - and /, no "..", no scheme, no leading slash
+  if (/^[A-Za-z0-9_\-][A-Za-z0-9._\-\/]*$/.test(v) && !v.split("/").includes("..")) return v;
+  PARAM_REJECTS.push("?data= ignored: only a relative path on this site is accepted");
+  return null;
+}
+const API_PARAM = safeApi(params.get("api"));
 const FORCED = !!API_PARAM && API_PARAM !== "none";
 let API = FORCED ? API_PARAM.replace(/\/$/, "") : ""; // the live server in use ("" = none)
 // no server address at all (the public site writes SPX_API = ""): not a fault, the site simply has none
@@ -36,7 +55,8 @@ function probeServer() {
     .finally(() => { clearTimeout(timer); $("log").prepend(li); });
 }
 const EMBED = params.get("embed") === "1";
-const DATA = (params.get("data") || "data").replace(/\/$/, "");
+const DATA_PARAM = safeData(params.get("data"));
+const DATA = (DATA_PARAM || "data").replace(/\/$/, "");
 const D2R = Math.PI / 180;
 
 // ---------- user wavelength windows (F1): band id w<lo>_<hi> in nm, built by the live server on request ----------
@@ -73,8 +93,16 @@ async function fetchLogged(url, as, init) {
   $("log").prepend(li);
   try {
     let r;
-    try { r = await fetch(url, init); } catch (netErr) { // network failure (server down), not an HTTP error
-      if (API && url.startsWith(API)) setOffline(true);
+    try { r = await fetch(url, init); } catch (netErr) { // no readable answer: server down, or an error without CORS headers
+      if (API && url.startsWith(API)) {
+        // one failed request is not "offline": ask /api/health; if the server answers, the error belongs to this request
+        if (await healthOk()) {
+          const e = new Error("the server could not answer this request (it is up; the error is for this request only)");
+          e.status = "ERR"; li.textContent = `ERR ${Math.round(performance.now() - t0)} ms ${url}: ${e.message}`;
+          throw e;
+        }
+        setOffline(true);
+      }
       throw netErr;
     }
     if (API && url.startsWith(API)) setOffline(false);
@@ -101,12 +129,27 @@ async function fetchLogged(url, as, init) {
   }
 }
 
+// one shared /api/health check (3 s) for failed requests that arrive together
+let healthCheck = null;
+function healthOk() {
+  if (!healthCheck) {
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 3000);
+    healthCheck = fetch(`${API}/api/health`, { signal: ctl.signal }).then((r) => r.ok).catch(() => false)
+      .finally(() => { clearTimeout(timer); setTimeout(() => { healthCheck = null; }, 2000); });
+  }
+  return healthCheck;
+}
 // server reachability: shown to the user while the API is down; on recovery the band on screen is asked for again
 let offline = false;
 function setOffline(on) {
   if (on === offline) return;
   offline = on;
-  if (on) status("The live server is not reachable right now; retrying every few seconds…", true);
+  if (on) {
+    status("The live server is not reachable right now; retrying every few seconds…", true);
+    // ask /api/health every 3 s until it answers (the manifest poll may have stopped already)
+    const retry = () => setTimeout(async () => { if (!offline) return; if (await healthOk()) setOffline(false); else retry(); }, 3000);
+    retry();
+  }
   else {
     status("Live server reachable again.");
     if (S.m?.bands && S.band) loadBand(S.band).then(draw);
@@ -172,7 +215,7 @@ async function loadIndex() {
 function navigate(q) {
   const p = new URLSearchParams();
   if (API_PARAM) p.set("api", API_PARAM); // only an explicit (developer) choice is carried; the probe runs again
-  if (params.get("data")) p.set("data", DATA);
+  if (DATA_PARAM) p.set("data", DATA); else p.delete("data");
   for (const [k, v] of Object.entries(q)) if (v != null && v !== "" && !(typeof v === "number" && !Number.isFinite(v))) p.set(k, v);
   location.search = p.toString();
 }
@@ -784,7 +827,7 @@ function openReport() {
   $("dlgValidation").textContent = [v.text, v.timing === "not verified" ? "Timing: not verified." : "",
     v.pixel_scale != null ? String(v.pixel_scale) : "", v.same_frame_code ? `Same-frame code: ${v.same_frame_code}.` : ""].filter(Boolean).join("\n");
   // the MPC's own test forms: links from the server if it gives them, else the fixed ones in the page
-  if (t.testForms.psv) $("reportDlg").querySelector('a[href*="submit_psv_test"]').href = t.testForms.psv;
+  if (/^https:\/\/(www\.)?minorplanetcenter\.net\//.test(String(t.testForms.psv || ""))) $("reportDlg").querySelector('a[href*="submit_psv_test"]').href = t.testForms.psv;
   $("dlgNights").replaceChildren(...t.nights.map((n) => {
     // n_in_draft from the server decides; older answers fall back to "3 accepted"
     const div = document.createElement("div"), inFile = n.nDraft != null ? n.nDraft > 0 : n.included !== false && n.nAcc >= 3;
@@ -912,9 +955,9 @@ function scatter(svg, pts, xk, yk, xlabel, ylabel) {
   Object.assign(svg.dataset, { x0, x1, L, R, W }); // for the wavelength-window drag on the spectrum
   const sy = (y) => H - B - ((y - y0) / (y1 - y0 || 1)) * (H - B - T);
   let h = `<line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="#555"/><line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" stroke="#555"/>`;
-  h += `<text x="${L}" y="${H - 8}" fill="#888" font-size="11">${x0.toFixed(2)}</text><text x="${W - R}" y="${H - 8}" fill="#888" font-size="11" text-anchor="end">${x1.toFixed(2)} ${xlabel}</text>`;
+  h += `<text x="${L}" y="${H - 8}" fill="#888" font-size="11">${x0.toFixed(2)}</text><text x="${W - R}" y="${H - 8}" fill="#888" font-size="11" text-anchor="end">${x1.toFixed(2)} ${escapeHtml(String(xlabel))}</text>`;
   h += `<text x="4" y="${T + 10}" fill="#888" font-size="11">${y1.toPrecision(3)}</text><text x="4" y="${H - B}" fill="#888" font-size="11">${y0.toPrecision(3)}</text>`;
-  h += `<text x="4" y="${H / 2}" fill="#888" font-size="11">${ylabel}</text>`;
+  h += `<text x="4" y="${H / 2}" fill="#888" font-size="11">${escapeHtml(String(ylabel))}</text>`;
   for (const p of pts) {
     const c = EPOCH_COLORS[(p.epoch ?? 0) % EPOCH_COLORS.length];
     // faint: flagged, or (psf_deblended) consistent with zero given the neighbour residual (|flux| < 0.15 × neighbor_flux)
@@ -933,7 +976,7 @@ function scatter(svg, pts, xk, yk, xlabel, ylabel) {
   }
   // epoch legend in its own row above the plot, so it never covers data points
   const step = Math.min(68, (W - L - R) / Math.max(1, S.m.epochs.length));
-  h += S.m.epochs.map((e, i) => `<text x="${(L + i * step).toFixed(0)}" y="12" fill="${EPOCH_COLORS[e.id % EPOCH_COLORS.length]}" font-size="10">${e.date}</text>`).join("");
+  h += S.m.epochs.map((e, i) => `<text x="${(L + i * step).toFixed(0)}" y="12" fill="${EPOCH_COLORS[e.id % EPOCH_COLORS.length]}" font-size="10">${escapeHtml(String(e.date))}</text>`).join("");
   svg.innerHTML = h;
 }
 function pointTip(p, yk) {
@@ -1060,7 +1103,8 @@ function renderBands() {
     const btn = document.createElement("button");
     const loaded = S.m.epochs.filter((e) => frameOf(b.id, e.id)).length;
     const pct = b.status === "pending" && b.progress != null ? ` ${Math.round(b.progress * 100)}%` : "";
-    btn.innerHTML = `${b.id}<small>${b.label || ""}</small><small>${b.status}${pct} · ${loaded}/${S.m.epochs.length}</small>`;
+    btn.innerHTML = `${escapeHtml(String(b.id))}<small>${escapeHtml(String(b.label || ""))}</small>` +
+      `<small>${escapeHtml(String(b.status))}${pct} · ${loaded}/${S.m.epochs.length}</small>`;
     btn.title = `exposures per epoch: ${(b.n_exposures || []).join(", ")}  (key ${i + 1})`;
     btn.className = b.id === S.band ? "on" : "";
     btn.disabled = b.status === "empty";
@@ -1728,7 +1772,7 @@ function wire() {
     S.specAt = [ra, dec]; draw();
     // the live server measures any point, also for a gallery target opened from static files (same key)
     fetchLogged(`${API}/api/spectrum?key=${enc(S.key)}&ra=${ra.toFixed(6)}&dec=${dec.toFixed(6)}`)
-      .then((s) => { S.spectrum = s; plots(); }).catch((e) => status(`Spectrum failed: ${e.message}`, true));
+      .then((s) => { S.spectrum = s; plots(); }).catch((e) => { if (!offline) status(`Spectrum failed: ${e.message}`, true); }); // offline: keep the "not reachable" line
   };
 
   document.addEventListener("keydown", (e) => {
@@ -1752,9 +1796,10 @@ if (params.get("ra")) { const f = $("coordForm"); f.ra.value = params.get("ra");
 // header: which source the page uses (gallery files, live server or both)
 function renderSource(probing) {
   const h = S.health, srv = API ? `live server ${API}` + (h ? ` (${h.version ?? ""} ${h.commit ?? ""}, max field ${(+h.max_fov_deg * 60).toFixed(1)}′)` : "") : "";
-  if (NO_SERVER) { $("source").textContent = "source: gallery of five targets (no live server on this site)"; return; }
+  const rej = PARAM_REJECTS.length ? " · " + PARAM_REJECTS.join(" · ") : "";
+  if (NO_SERVER) { $("source").textContent = "source: gallery of five targets (no live server on this site)" + rej; return; }
   $("source").textContent = "source: " + (FORCED ? `${srv} (all targets)`
-    : [`static gallery ${DATA}/`, probing ? "looking for the live server…" : srv || "live server not reachable"].join(" · "));
+    : [`static gallery ${DATA}/`, probing ? "looking for the live server…" : srv || "live server not reachable"].join(" · ")) + rej;
 }
 const serverReady = probeServer(); // one quick check; nothing below waits for it except free positions and names
 renderSource(true);
