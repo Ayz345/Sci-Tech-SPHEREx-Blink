@@ -13,7 +13,7 @@
   --bar: 64px;                                              /* top bar, first tier */
   --gap: clamp(32px, 3.6vw, 64px);                          /* between the image and the column */
   /* the image: as tall as the window allows under the bar and above the time strip, at most 46% of the width */
-  --P: min(calc(100vh - var(--bar) - 48px - 240px), 46vw, 760px) !important; /* web/tool: 240 (was 210) keeps the strip on a 1440x1000 screen */
+  --P: min(calc(100vh - 28px - 230px), 46vw, 760px) !important; /* web/tool: no top bar; 230 px leaves the time strip on screen */
 }
 
 /* ---------------------------------------------------------------- type: a floor of 13 px; mono labels 12.5 px caps */
@@ -23,30 +23,22 @@ body { font: 300 16px/1.55 var(--sans); }
 button, select, input { font-size: 13.5px; }
 label { font-size: 15px; }
 
-/* ---------------------------------------------------------------- top bar: two tiers
-   tier 1 (64 px): ← Sky pill · SPHEREx Blink (Fraunces 22) ............ live badge · More
-   tier 2 (48 px, under a hairline): the five targets as text tabs ...... the underlined search */
-header { display: grid; grid-template-columns: auto auto 1fr auto; grid-template-rows: var(--bar) 48px; align-items: center;
-  column-gap: 20px; min-height: 0; padding: 0; border-bottom: 1px solid var(--line); }
-header > #home { grid-column: 1; grid-row: 1; }
-header .brand { grid-column: 2; grid-row: 1; font: 350 22px/1 var(--display); letter-spacing: -.01em; }
-#headRight { grid-column: 4; grid-row: 1; margin: 0; gap: 10px; }
-#pick { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px 32px;
-  height: 48px; border-top: 1px solid var(--line); flex-wrap: nowrap; min-width: 0; }
-#targets { display: flex; gap: 0 28px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-#targets button { font: 400 15px var(--sans); color: var(--fg-2); padding: 12px 0 11px; border: 0; border-bottom: 1px solid transparent;
-  border-radius: 0; white-space: nowrap; }
-#targets button.on, #targets button[aria-current="true"] { color: var(--fg); background: none; border-bottom-color: var(--fg); }
-#coordForm { flex: 0 1 380px; min-width: 220px; border-bottom: 1px solid var(--line-2); }
+/* ---------------------------------------------------------------- no top bar, no footer (Casper): the page opens like the
+   start page's plate screen. The right column's first row: "← Sky" on the left; search, server badge and More small and
+   quiet on the right. */
+#topRow { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin: 0 0 22px; }
+#headRight { display: flex; align-items: center; gap: 10px; margin: 0; flex-wrap: nowrap; }
+#coordForm { flex: 0 1 260px; min-width: 160px; border-bottom: 1px solid var(--line); }
+#coordForm:focus-within { border-bottom-color: var(--fg-2); }
 .search { flex: 1 1 auto; display: block; }
-.search input { width: 100%; font: 400 14px var(--mono); padding: 9px 2px; color: var(--fg); }
+.search input { width: 100%; font: 400 13.5px var(--mono); padding: 7px 2px; color: var(--fg); }
 .search input::placeholder { color: var(--fg-3); }
-#coordForm button { font: 400 13.5px var(--mono); color: var(--fg-2); padding: 6px 4px 6px 12px; }
-.badge, #more > summary { font: 400 12.5px var(--mono); letter-spacing: .12em; padding: 6px 14px; }
+#coordForm button { font: 400 13.5px var(--mono); color: var(--fg-3); padding: 5px 2px 5px 10px; border: 0; }
+.badge, #more > summary { font: 400 12.5px var(--mono); letter-spacing: .12em; padding: 5px 12px; color: var(--fg-3); }
 #fovConfirm { margin: 16px 0 0; font-size: 15px; }
 
 /* ---------------------------------------------------------------- stage: image left, one column right, full width */
-main { grid-template-columns: var(--P) minmax(0, 1fr); gap: var(--gap); margin-top: 32px; }
+main { grid-template-columns: var(--P) minmax(0, 1fr); gap: var(--gap); margin-top: 28px; }
 body:not(.embed) canvas { width: var(--P); height: var(--P); }
 #underImage { margin-top: 10px; }
 #layerLegend, #readout { font-size: 13.5px; }
@@ -97,7 +89,6 @@ fieldset label { font-size: 15px; }
 /* sky context and foot: last, quiet */
 #aladinBox { margin-top: 40px; }
 #aladinBox > summary { font: 400 12.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fg-2); }
-footer { margin-top: 32px; padding: 16px 0 8px; font-size: 14px; color: var(--fg-3); }
 
 /* wide screens: the column splits in two, the name and the bands on the left, the plot beside them; the tools below
    span both. Nothing waits below the fold that fits next to the title. */
@@ -106,11 +97,12 @@ footer { margin-top: 32px; padding: 16px 0 8px; font-size: 14px; color: var(--fg
 #panel { container-type: inline-size; }
 @container (min-width: 900px) {
   #panelGrid { max-width: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 600px); column-gap: var(--gap); align-items: start; }
-  #info { grid-column: 1; grid-row: 1; }
-  #bandRow { grid-column: 1; grid-row: 2; }
-  #plots { grid-column: 2; grid-row: 1 / span 3; margin-top: 4px; max-width: none; }
-  #tabs, .tabpane { grid-column: 1 / -1; }
-  #tabs { grid-row: 4; }
+  #topRow { grid-column: 1 / -1; grid-row: 1; }
+  #info { grid-column: 1; grid-row: 2; }
+  #bandRow { grid-column: 1; grid-row: 3; }
+  #plots { grid-column: 2; grid-row: 2 / span 3; margin-top: 4px; max-width: none; }
+  #tabs, .tabpane, #creditsBox { grid-column: 1 / -1; }
+  #tabs { grid-row: 5; }
 }
 /* ---------------------------------------------------------------- narrower screens */
 @media (max-width: 1200px) {
@@ -122,16 +114,23 @@ footer { margin-top: 32px; padding: 16px 0 8px; font-size: 14px; color: var(--fg
   #plots { max-width: none; }
 }
 @media (max-width: 640px) {
-  header { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: 56px auto; column-gap: 12px; }
-  header > * { min-width: 0; }
-  header .brand { font-size: 19px; }
-  #headRight { grid-column: 3; }
-  #more > summary { padding: 5px 11px; }
+  #topRow { margin-bottom: 14px; }
+  #headRight { flex-wrap: wrap; justify-content: flex-end; }
+  #coordForm { flex: 1 1 100%; order: 3; }
   .badge { font-size: 0; gap: 0; padding: 9px; }              /* the live dot alone; its title still says it */
-  #pick { flex-direction: column; align-items: stretch; height: auto; padding: 4px 0 10px; gap: 4px; width: 100%; min-width: 0; overflow: hidden; }
-  #coordForm { min-width: 0; }
-  #targets { max-width: 100%; min-width: 0; }
-  #coordForm { flex-basis: auto; }
-  #targets { gap: 0 20px; }
   #epochMarks .stop { min-width: 120px; }
+}
+
+/* ---------------------------------------------------------------- continuous move between the start page and the tool:
+   cross-document View Transitions. The names match the start page's (design/release); timing and easing are set there.
+   Browsers without support, and reduced motion, get a plain page change. The embed takes no part. */
+@view-transition { navigation: auto; }
+body:not(.embed) canvas { view-transition-name: vt-plate; }
+body:not(.embed) #tname { view-transition-name: vt-title; }
+body:not(.embed) #tcoord { view-transition-name: vt-coords; }
+body:not(.embed) #epochMarks { view-transition-name: vt-ruler; }
+body:not(.embed) #plots { view-transition-name: vt-spectrum; }
+body:not(.embed) #home { view-transition-name: vt-back; }
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
 }

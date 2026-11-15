@@ -347,6 +347,9 @@ async function loadTarget() {
   document.title = `${S.m.name || S.key} · SPHEREx Blink`;
   // the stage heading: the target's name and where it is
   $("tname").textContent = S.m.name || S.key;
+  // "← Sky" goes back to the start page on the same place (a gallery target by key, a free field by position)
+  $("home").href = gallery ? `../?target=${enc(S.key)}`
+    : `../?ra=${enc(String(S.m.query?.ra ?? ""))}&dec=${enc(String(S.m.query?.dec ?? ""))}`;
   // the target in the top bar is marked as the current one (when the button list is there)
   const markCurrent = () => [...$("targets").children].forEach((b) => b.setAttribute("aria-current", String(b.dataset.key === S.key)));
   markCurrent(); setTimeout(markCurrent, 800);

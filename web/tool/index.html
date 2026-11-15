@@ -12,31 +12,6 @@
 <link rel="stylesheet" href="skin.css">
 </head>
 <body>
-<header>
-  <a id="home" class="ghost back" href="../" title="back to the SPHEREx Blink start page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5m6-6-6 6 6 6"/></svg>Sky</a>
-  <strong class="brand">SPHEREx Blink</strong>
-  <section id="pick">
-  <div id="targets"></div>
-  <form id="coordForm">
-    <label class="search"><span class="vh">Name or coordinates</span><input name="name" size="30" placeholder="Name, or RA Dec (e.g. RW Aur · 08:55:10.8 −07:14:43)" autocomplete="off"></label>
-    <input type="hidden" name="ra"><input type="hidden" name="dec">
-    <input type="hidden" name="fov" value="0.1">
-    <button>Go</button>
-  </form>
-  </section>
-  <div id="headRight">
-    <span id="source" class="badge"></span>
-    <details id="more"><summary>More</summary>
-      <div class="menu">
-        <span id="links"></span>
-        <button id="copyEmbed" type="button" disabled title="copy an iframe snippet for this view">copy embed code</button>
-        <a href="embed-example.html">Embed example</a>
-        <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink/blob/dev/handoff/results/methods_v2.md" target="_blank" rel="noopener">Methods</a>
-        <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink" target="_blank" rel="noopener">Source code</a>
-      </div>
-    </details>
-  </div>
-</header>
 <div id="fovConfirm" class="row" hidden></div>
 
 <main>
@@ -57,6 +32,28 @@
 
   <aside id="panel">
    <div id="panelGrid">
+    <div id="topRow">
+      <a id="home" class="ghost back" href="../" title="back to the SPHEREx Blink start page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5m6-6-6 6 6 6"/></svg>Sky</a>
+      <div id="headRight">
+        <form id="coordForm">
+        <label class="search"><span class="vh">Name or coordinates</span><input name="name" size="30" placeholder="Name, or RA Dec (e.g. RW Aur · 08:55:10.8 −07:14:43)" autocomplete="off"></label>
+        <input type="hidden" name="ra"><input type="hidden" name="dec">
+        <input type="hidden" name="fov" value="0.1">
+        <button>Go</button>
+      </form>
+      <span id="source" class="badge"></span>
+      <details id="more"><summary>More</summary>
+        <div class="menu">
+          <span id="links"></span>
+          <button id="copyEmbed" type="button" disabled title="copy an iframe snippet for this view">copy embed code</button>
+          <a href="embed-example.html">Embed example</a>
+          <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink/blob/dev/handoff/results/methods_v2.md" target="_blank" rel="noopener">Methods</a>
+          <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink" target="_blank" rel="noopener">Source code</a>
+        </div>
+      </details>
+    </div>
+    </div>
+    <div id="targets" hidden></div>
     <div id="info">
       <h1 id="tname"></h1>
       <p id="tcoord" class="mono"></p>
@@ -192,6 +189,13 @@
       <details id="notesBox" open hidden><summary id="notesSum">Notes on this target</summary><ul id="notes"></ul></details>
       <details id="metaBox"><summary>About this field</summary><section id="meta"></section></details>
       <details id="keysBox"><summary>Keyboard</summary><div class="muted">Keys: space play/pause · ←/→ epoch · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · m measure · +/− zoom. Pixel scale is read from the manifest grid; SPHEREx native pixel is 6.15″.</div></details>
+      <details id="creditsBox"><summary>Credits</summary>
+        <div id="credits">
+    <p id="creditWise" hidden>AllWISE makes use of data from WISE, which is a joint project of the University of California, Los Angeles, and the Jet Propulsion Laboratory/California Institute of Technology, and NEOWISE, which is a project of the Jet Propulsion Laboratory/California Institute of Technology. WISE and NEOWISE are funded by the National Aeronautics and Space Administration.</p>
+    <p id="creditCat" hidden>CatWISE2020: Eisenhardt et al. (2020), Marocco et al. (2021); IRSA DOIs 10.26131/IRSA126, IRSA133, IRSA551, IRSA552.</p>
+    <p id="creditGaia" hidden>This work has made use of data from the European Space Agency (ESA) mission Gaia (https://www.cosmos.esa.int/gaia), processed by the Gaia Data Processing and Analysis Consortium (DPAC, https://www.cosmos.esa.int/web/gaia/dpac/consortium). Funding for the DPAC has been provided by national institutions, in particular the institutions participating in the Gaia Multilateral Agreement.</p>
+  </div>
+      </details>
       <details id="logBox"><summary>Request log</summary><ol id="log" class="mono"></ol></details>
     </div>
    </div>
@@ -218,14 +222,6 @@
 </details>
 
 
-<footer class="muted">
-  <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink/blob/dev/handoff/results/methods_v2.md" target="_blank" rel="noopener">Methods</a>
-  <div id="credits">
-    <p id="creditWise" hidden>AllWISE makes use of data from WISE, which is a joint project of the University of California, Los Angeles, and the Jet Propulsion Laboratory/California Institute of Technology, and NEOWISE, which is a project of the Jet Propulsion Laboratory/California Institute of Technology. WISE and NEOWISE are funded by the National Aeronautics and Space Administration.</p>
-    <p id="creditCat" hidden>CatWISE2020: Eisenhardt et al. (2020), Marocco et al. (2021); IRSA DOIs 10.26131/IRSA126, IRSA133, IRSA551, IRSA552.</p>
-    <p id="creditGaia" hidden>This work has made use of data from the European Space Agency (ESA) mission Gaia (https://www.cosmos.esa.int/gaia), processed by the Gaia Data Processing and Analysis Consortium (DPAC, https://www.cosmos.esa.int/web/gaia/dpac/consortium). Funding for the DPAC has been provided by national institutions, in particular the institutions participating in the Gaia Multilateral Agreement.</p>
-  </div>
-</footer>
 
 <dialog id="reportDlg">
   <h3>Download measurements</h3>

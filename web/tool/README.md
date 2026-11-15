@@ -8,23 +8,21 @@ single Google Fonts request as the start page, so the browser contacts Google Fo
 
 ## Layout
 
-- Top row: the product name (back to the start page), the five gallery targets, one search box (a name, or RA Dec in
-  degrees or sexagesimal), the server badge (live server / gallery only / server offline; details in its tooltip)
-  and a "More" menu (WiseView, IRSA, embed code, embed example, Methods, source).
-- Stage: the target's name and position, the field buttons, the image (the largest whole zoom that fits beside the
-  panel and keeps the time strip on the first screen), the readout and a legend of the layers that are on.
-- Time strip: play, speed, "Pass 1 of 3 · 6 May 2025 · 5 exposures stacked" (MJD in the tooltip), the slider and
-  every pass as a dated stop. Dates are those of the selected band's own frame (as on the start page); marks carry
-  that frame's MJD. A WISE image is the first stop, labelled "different instrument".
-- Panel with tabs Band / View / Layers / Measure / About (arrow keys move between them; the tab is remembered in
-  this browser). Band cards show one dot per pass (filled = frame here). The target's notes and the field details
-  are in About; long technical texts sit in closed sections.
-- Plots under the stage: the spectrum wide, the light curve beside it, drawn in real pixels with round-value
-  grids, axis titles with units, error bars (±1σ), flagged points as open markers, and a legend of the passes and
-  the kinds of point present. An empty plot says why.
-- Candidates are a table (class and reason, what and where, bands, S/N, rate); a row loads it into Measure.
-- Phone: one column, the image fills the width, the passes scroll sideways. `embed=1`: no tabs, the time
-  controls beside the image, 560 px high.
+The tool opens like the start page's plate screen, across the whole window (shell: `skin.css` after `style.css`).
+No top bar and no footer: target changes go back to the start page with "← Sky" (`../?target=<key>`, or
+`../?ra=&dec=` for a free field). The gallery list is kept hidden for the name search and the gallery-field lookup.
+
+- Left: the image (its side `--P` follows the window), one line with the marks' legend and the readout, then the
+  time strip (play, speed, "Pass 1 of 3 · 6 May 2025 · 5 exposures stacked" and a card per pass; the 2010 WISE card
+  reads "not SPHEREx"). Dates are the selected band's own frames, as on the start page.
+- Right column: "← Sky" with a small search box (name, or RA Dec in any common form), the server badge and "More"
+  (WiseView, IRSA, embed code, embed example, Methods, source); the big target name, its position, the field pills;
+  one row of band pills (the selected band's range in the label); the data box (Spectrum / Light curve / PSF wings,
+  the selected pass bright); then View / Layers / Measure / About as tabs that start closed. When the column is at
+  least 900 px wide it splits: name and bands on the left, the plot beside them. Credits are under About.
+- Continuous page change: cross-document View Transitions with the start page's names (vt-plate, vt-title,
+  vt-coords, vt-ruler, vt-spectrum, vt-back); off with reduced motion, plain where unsupported, none in the embed.
+- Phone: one column. `embed=1`: player, bands and time controls only, 560 px high.
 
 ## Run
 
