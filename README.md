@@ -15,9 +15,12 @@ the spectrum. The tool does not claim any discovery. It makes looking easier.
 
 ## Status (15 November 2026, v1.2)
 
-- Works end to end on a local machine: page, API server, processing code, tests.
-- The five challenge targets are prebuilt under `web/data/` and open without a server.
-- Not deployed yet. `Dockerfile` is written but has not been built or run.
+- **Online:** <https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/> shows the page with the five challenge targets
+  (prebuilt under `web/data/`, no server needed). Try
+  [WISE 0855](https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/?target=wise-0855).
+- Free coordinates, name lookup, your own wavelength window, larger fields and the moving-object report need the
+  API server. It works end to end on a local machine (see "Run it") and is not deployed yet; `Dockerfile` is
+  written but has not been built or run.
 - The page in `web/` is a plain functional test page. The final visual design is being made separately and is
   not in this repository yet.
 
