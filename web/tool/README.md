@@ -6,6 +6,26 @@ with the start page. It reads data contract v1 (PLAN.md section 5). No build ste
 start page's design (space black, off-white text, Fraunces / DM Sans / IBM Plex Mono); the three fonts come from the same
 single Google Fonts request as the start page, so the browser contacts Google Fonts when the page opens.
 
+## Layout
+
+- Top row: the product name (back to the start page), the five gallery targets, one search box (a name, or RA Dec in
+  degrees or sexagesimal), the server badge (live server / gallery only / server offline; details in its tooltip)
+  and a "More" menu (WiseView, IRSA, embed code, embed example, Methods, source).
+- Stage: the target's name and position, the field buttons, the image (the largest whole zoom that fits beside the
+  panel and keeps the time strip on the first screen), the readout and a legend of the layers that are on.
+- Time strip: play, speed, "Pass 1 of 3 · 6 May 2025 · 5 exposures stacked" (MJD in the tooltip), the slider and
+  every pass as a dated stop. Dates are those of the selected band's own frame (as on the start page); marks carry
+  that frame's MJD. A WISE image is the first stop, labelled "different instrument".
+- Panel with tabs Band / View / Layers / Measure / About (arrow keys move between them; the tab is remembered in
+  this browser). Band cards show one dot per pass (filled = frame here). The target's notes and the field details
+  are in About; long technical texts sit in closed sections.
+- Plots under the stage: the spectrum wide, the light curve beside it, drawn in real pixels with round-value
+  grids, axis titles with units, error bars (±1σ), flagged points as open markers, and a legend of the passes and
+  the kinds of point present. An empty plot says why.
+- Candidates are a table (class and reason, what and where, bands, S/N, rate); a row loads it into Measure.
+- Phone: one column, the image fills the width, the passes scroll sideways. `embed=1`: no tabs, the time
+  controls beside the image, 560 px high.
+
 ## Run
 
 ```

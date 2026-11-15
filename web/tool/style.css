@@ -242,7 +242,8 @@ body.embed fieldset label { margin: 2px 0; }
 /* compact controls so the player fits a 560 px high frame */
 body.embed #bands button { padding: 2px 7px; }
 body.embed #bands button small { display: none; }
-body.embed label:has(#layer), body.embed #swapBand, body.embed #wiseBox, body.embed label:has(#showLow) { display: none; }
+body.embed label:has(#layer), body.embed #swapBand, body.embed #wiseBox, body.embed fieldset:has(#showLow) { display: none; }
+body.embed label:has(#zoom) .muted { display: none; }
 body.embed #notesBox { padding: 3px 8px; margin-bottom: 4px; }
 body.embed #notesBox > summary { color: var(--warm); font-size: 10px; }
 body.embed #notes li { border-left: 0; padding: 0; font-size: 12px; }
