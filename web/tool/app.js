@@ -1837,6 +1837,8 @@ function renderMeta() {
   const m = S.m, rows = [
     ["Name / key", `${m.name || ""} (${m.key})`],
     ["Query", m.query ? `RA ${m.query.ra}  Dec ${m.query.dec}  FOV ${(+m.query.fov_deg).toFixed(4)}°` : "—"],
+    // where the list of exposures came from (our own index of the public bucket, when the server used it); no row otherwise
+    ...(m.image_list ? [["Image list", m.image_list]] : []),
     ["Grid", m.grid ? `${m.grid.shape.join("×")} px, ${pixArcsec().toFixed(2)}″/px (SPHEREx native 6.15″/px)` : "—"],
     ["Collections", (m.collections || []).join(", ")],
     ["Data range", m.data_range ? `MJD ${m.data_range.mjd_min} – ${m.data_range.mjd_max}` : "—"],
