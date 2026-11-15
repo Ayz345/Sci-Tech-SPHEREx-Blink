@@ -15,14 +15,15 @@ the spectrum. The tool does not claim any discovery. It makes looking easier.
 
 ## Status (15 November 2026, v1.2)
 
-- **Online:** <https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/> shows the page with the five challenge targets
-  (prebuilt under `web/data/`, no server needed). Try
-  [WISE 0855](https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/?target=wise-0855).
+- **Online:** <https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/> opens the landing page; from its sky you reach the
+  five challenge targets and their real SPHEREx frames (prebuilt under `web/data/`, no server needed). Try
+  [WISE 0855](https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/?target=wise-0855). The full tool, with every view
+  and overlay, is at <https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/web/>.
 - Free coordinates, name lookup, your own wavelength window, larger fields and the moving-object report need the
   API server. It works end to end on a local machine (see "Run it") and is not deployed yet; `Dockerfile` is
   written but has not been built or run.
-- The page in `web/` is a plain functional test page. The final visual design is being made separately and is
-  not in this repository yet.
+- `design/v5/` is the landing page (the story of the project, a sky to click, the frames of the five targets);
+  `web/` is the full tool.
 
 ## What it does
 
@@ -113,7 +114,8 @@ Methods and measured numbers: [`handoff/results/methods_v2.md`](handoff/results/
 |---|---|
 | `spx/` | Processing: archive access, co-add, display scale, photometry, single-exposure astrometry, candidate finder, ADES writer, targets |
 | `server/` | FastAPI server and the build pipeline |
-| `web/` | Static page; `web/data/` is the prebuilt gallery |
+| `web/` | The full tool (static page); `web/data/` is the prebuilt gallery |
+| `design/` | The landing page (`design/v5/`) and its 3D model (`design/models/`) |
 | `scripts/` | Gallery build, acceptance checks, small tools |
 | `tests/` | Offline tests, and network tests that run with `SPX_NETWORK=1` |
 | `handoff/` | First exploration prototype and the result files and figures of the quality work |
@@ -221,8 +223,8 @@ Every source used is listed here, as the Space Apps rules ask.
 | Matplotlib, Pillow (optional, figures only) | Matplotlib licence, MIT-CMU |
 | Aladin Lite 3.8.2 (loaded on demand by the page) | LGPL v3 (see below) |
 
-The page itself contains no third-party JavaScript, fonts or images. One library is loaded from a CDN, and only
-when the "More surveys" panel is opened:
+The tool page (`web/`) itself contains no third-party JavaScript, fonts or images. One library is loaded from a
+CDN, and only when the "More surveys" panel is opened:
 
 - Aladin Lite 3.8.2 by the CDS, Strasbourg (<https://aladin.cds.unistra.fr/>,
   <https://github.com/cds-astro/aladin-lite>), from `cdn.jsdelivr.net/npm/aladin-lite@3.8.2`, not modified and not
@@ -230,6 +232,20 @@ when the "More surveys" panel is opened:
 - The panel offers other surveys through their public HiPS services (hosted by IRSA, ESA, MAST, China-VO or the
   CDS): AllWISE, unWISE, NEOWISE-R, 2MASS, DSS2 and Pan-STARRS DR1. On 14 and 15 November only AllWISE, 2MASS
   and DSS2 answered; the panel says which survey does not load. These images are not part of this repository.
+
+The landing page (`design/v5/`) uses:
+
+- three.js 0.160.0 (MIT), loaded from `cdn.jsdelivr.net/npm/three@0.160.0`, not modified and not stored here.
+- Fonts from Google Fonts: Fraunces, DM Sans and IBM Plex Mono (SIL Open Font License as published there);
+  Playfair Display, Cormorant and Noto Serif Display load only with the `?font=` switch.
+- Coastlines: Natural Earth 1:110m land (public domain), through the npm package world-atlas 2.0.2 (ISC);
+  stored as `design/v5/assets/land-110m.json`.
+- The simplex-noise function in its shaders follows the widely used "webgl-noise" code by Ashima Arts and
+  Stefan Gustavson (MIT). It was typed in, not copied from a file, so take this attribution as our best
+  knowledge.
+- The spacecraft model `design/models/jutsu-1/telescope.glb` was generated with an AI tool (3D Jutsu) by a team
+  member and recoloured. It is an illustration, not data, carries no logo or texture, and is labelled
+  "AI-generated" where it appears. We have not confirmed the licence terms of that tool's output.
 
 ## Use of AI tools
 
@@ -239,8 +255,9 @@ The Space Apps rules ask teams to say where and how AI tools were used (the rule
 - **Code, tests and documentation** in this repository were written with Claude Code (Anthropic), working under
   the team's direction. The team set the goals, made the product decisions and approved each release. Every
   commit carries a `Co-Authored-By: Claude` line in its message.
-- **Images.** No image in the tool or in this repository is AI-generated or AI-enhanced. Every sky image is
-  computed from SPHEREx data by the code in `spx/`.
+- **Images.** No sky image is AI-generated or AI-enhanced: every one is computed from SPHEREx and WISE data by
+  the code in this repository. One illustration is AI-generated: the 3D spacecraft model on the landing page
+  (made with 3D Jutsu), which is labelled as such where it appears.
 - **Data.** No data is AI-generated. Every number on the page is measured or computed from the archive data;
   the result files under `handoff/results/` are written by the tests and scripts in this repository.
 
