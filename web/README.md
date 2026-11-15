@@ -1,7 +1,9 @@
-# web/ — placeholder test page
+# web/ — the full tool
 
-A plain test page for checking the data pipeline and the server against data contract v1 (PLAN.md section 5).
-This is **not the final design**. No build step, no dependencies.
+The full SPHEREx Blink tool (published at `/web/`; the start page is `design/v5/`, linked from the product name in
+the header). It reads data contract v1 (PLAN.md section 5). No build step, no dependencies. `style.css` follows the
+design/v5 family (space black, off-white text, Fraunces / DM Sans / IBM Plex Mono); the three fonts come from the same
+single Google Fonts request as design/v5/index.html, so the browser contacts Google Fonts when the page opens.
 
 ## Run
 

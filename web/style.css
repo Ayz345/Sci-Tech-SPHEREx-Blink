@@ -1,92 +1,138 @@
-/* Placeholder styling for the test harness. The real design comes later. */
-:root { color-scheme: dark; --bg: #121214; --fg: #e6e6e6; --muted: #8a8a90; --line: #2c2c31; --accent: #e89a3c; }
+/* The full tool, dressed in the design/v5 family: the dark "plate" side of the landing page
+   (space black, off-white text, thin rules, mono pill buttons, Fraunces for names, one ember accent). */
+:root {
+  color-scheme: dark;
+  --bg: #060607; --panel: #0d0d0f; --raise: #141416;
+  --fg: #f2f2f0; --fg-2: #a3a3a0; --fg-3: #5f5f5c; --muted: var(--fg-2);
+  --line: rgba(242, 242, 240, .16); --line-2: rgba(242, 242, 240, .32);
+  --accent: #e0482a; --warm: #d8c48a; --bad: #ff6b5b;
+  --display: "Fraunces", Georgia, serif;
+  --sans: "DM Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --gut: clamp(16px, 3.2vw, 48px);
+}
 * { box-sizing: border-box; }
-body { margin: 0; padding: 12px 16px 40px; background: var(--bg); color: var(--fg);
-  font: 14px/1.4 system-ui, sans-serif; }
-.mono, code, #log { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+html { background: var(--bg); }
+body { margin: 0; padding: 18px var(--gut) 48px; background: var(--bg); color: var(--fg);
+  font: 300 14.5px/1.5 var(--sans); -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+a { color: var(--fg); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+a:hover { text-decoration-color: var(--fg); }
+.mono, code, #log { font-family: var(--mono); font-size: 12px; letter-spacing: .02em; }
 .muted { color: var(--muted); }
-.tag { font-size: 12px; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); }
-header { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; margin-bottom: 10px; }
-#pick { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+.tag { font: 400 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 2px 8px;
+  border: 1px solid var(--line); border-radius: 999px; color: var(--fg-3); }
+
+header { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+header strong { font: 350 30px/1 var(--display); letter-spacing: -.01em; }
+#home { color: var(--fg); text-decoration: none; }
+#home:hover { text-decoration: underline; text-decoration-color: var(--line-2); }
+#source { font: 400 11.5px var(--mono); letter-spacing: .02em; }
+#pick { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
 #targets { display: flex; gap: 6px; flex-wrap: wrap; }
-button, select, input { background: #1d1d21; color: var(--fg); border: 1px solid var(--line); border-radius: 4px;
-  padding: 3px 7px; font: inherit; }
-button { cursor: pointer; }
-button.on { border-color: var(--accent); color: var(--accent); }
-button:disabled { opacity: .45; cursor: default; }
-#status { min-height: 1.4em; color: var(--accent); }
-#status.err { color: #ff6b5b; }
-#notes { margin: 4px 0 8px; padding-left: 18px; color: #d8c48a; }
-main { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+
+/* controls: mono pills, as the landing page's ghost buttons */
+button, select, input { background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 999px;
+  padding: 4px 11px; font: 400 12.5px var(--mono); letter-spacing: .02em; }
+input, select { border-radius: 6px; background: var(--panel); }
+input[type=checkbox], input[type=range] { accent-color: var(--fg); padding: 0; }
+button { cursor: pointer; color: var(--fg-2); transition: color .15s, border-color .15s; }
+button:hover:not(:disabled) { color: var(--fg); border-color: var(--line-2); }
+button.on { color: #000; background: var(--fg); border-color: var(--fg); }
+button:disabled { opacity: .35; cursor: default; }
+label { color: var(--fg-2); }
+#status { min-height: 1.5em; color: #cfcfcb; font-size: 15px; }
+#status.err { color: var(--bad); }
+#status a { color: var(--fg); }
+#notes { margin: 6px 0 12px; padding-left: 0; list-style: none; color: #c9c9c5; }
+#notes li { padding: .3rem 0 .3rem .9rem; border-left: 1px solid var(--line-2); margin-bottom: .35rem; font-size: 13.5px; }
+
+main { display: flex; gap: clamp(24px, 5vw, 96px) clamp(24px, 3vw, 48px); flex-wrap: wrap; align-items: flex-start; }
 #view { max-width: 100%; }
 canvas { display: block; background: #000; max-width: 100%; image-rendering: pixelated; cursor: crosshair; }
-#readout { margin-top: 4px; min-height: 2.8em; white-space: pre; }
-aside { flex: 1 1 260px; max-width: 380px; }
-fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0 0 10px; padding: 6px 10px 10px; }
-fieldset label { display: block; margin: 4px 0; }
-#bands { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+#readout { margin-top: 6px; min-height: 2.8em; white-space: pre; color: var(--fg-2); }
+aside { flex: 1 1 260px; max-width: 390px; }
+fieldset { border: 0; border-top: 1px solid var(--line); border-radius: 0; margin: 0 0 12px; padding: 8px 0 10px; }
+legend { padding: 0 8px 0 0; font: 400 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fg-3); }
+fieldset label { display: block; margin: 5px 0; }
+#bands { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
 [hidden] { display: none !important; }
-#bands button small { display: block; font-size: 10px; color: var(--muted); }
+#bands button { border-radius: 8px; text-align: left; }
+#bands button small { display: block; font-size: 10px; color: var(--fg-3); }
+#bands button.on small { color: #333; }
 .row { display: flex; gap: 10px; align-items: center; }
-#epoch { width: 100%; margin-top: 8px; }
-#epochMarks { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin: -2px 2px 4px; }
+#epoch { width: 100%; margin-top: 10px; }
+#epochMarks { display: flex; justify-content: space-between; font-size: 10px; color: var(--fg-3); margin: -2px 2px 4px; }
 #epochMarks .low { opacity: .35; text-decoration: line-through; }
-#epochMarks .empty { opacity: .6; border: 1px dashed var(--muted); border-radius: 3px; padding: 0 2px; }
-#epochMarks .cur { color: var(--accent); }
-#epochMarks .wise { color: #79c0ff; }
+#epochMarks .empty { opacity: .6; border: 1px dashed var(--fg-3); border-radius: 3px; padding: 0 2px; }
+#epochMarks .cur { color: var(--fg); }
+#epochMarks .wise { color: var(--warm); font-style: italic; }
 #epochMarks .wise.cur { text-decoration: underline; }
+#epochLabel { color: var(--fg-2); }
 #wiseBox { margin-top: 4px; }
 #wiseBox label { display: inline; }
-#plots { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+#wiseNote, #scaleSrc, #measureHelp, #refineWhy, #winNote, #specNote { font-size: 12px; line-height: 1.5; color: var(--fg-3); }
+#plots { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 #plots > div { flex: 1 1 360px; max-width: 560px; }
-#plots h3 { margin: 4px 0; font-size: 14px; }
-svg { width: 100%; background: #0b0b0d; border: 1px solid var(--line); }
-#meta { margin-top: 12px; font-size: 13px; }
-#meta dt { color: var(--muted); }
-#meta dd { margin: 0 0 6px 0; }
-#log { max-height: 220px; overflow: auto; padding-left: 24px; }
-#log .bad { color: #ff6b5b; }
-footer { margin-top: 16px; font-size: 12px; }
-#links a, #embedLine a { color: var(--accent); margin-right: 8px; }
-#measureBtn.on { border-color: #ff4fd8; color: #ff4fd8; }
-#bands button .rm { margin-left: 4px; color: var(--muted); }
-#bands button .rm:hover { color: #ff6b5b; }
-#winBox { gap: 6px; margin-top: 4px; }
-#winBox input { width: 64px; }
+#plots h3 { margin: 4px 0 8px; font: 350 22px/1.1 var(--display); letter-spacing: -.01em; }
+#plots h3 .muted { font: 400 11px var(--mono); letter-spacing: .02em; }
+svg { width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; }
+svg text { font-family: var(--mono); }
+#meta { margin-top: 18px; font-size: 13px; }
+#meta dt { font: 400 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--fg-3); margin-top: 6px; }
+#meta dd { margin: 0 0 6px 0; color: #c9c9c5; }
+#log { max-height: 220px; overflow: auto; padding-left: 24px; color: var(--fg-2); }
+#log .bad { color: var(--bad); }
+details > summary { cursor: pointer; }
+#logBox { margin-top: 14px; }
+#logBox > summary, #aladinBox > summary { font: 400 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fg-3); }
+footer { margin-top: 22px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.6; }
+footer a { color: var(--fg-2); }
+#credits p { margin: 6px 0; color: var(--fg-3); }
+#links a, #embedLine a { color: var(--fg-2); margin-right: 10px; font-size: 12.5px; }
+#links a:hover, #embedLine a:hover { color: var(--fg); }
+#measureBtn.on { color: #000; background: #ff4fd8; border-color: #ff4fd8; }
+#bands button .rm { margin-left: 4px; color: var(--fg-3); }
+#bands button .rm:hover { color: var(--bad); }
+#winBox { gap: 6px; margin-top: 6px; }
+#winBox input { width: 72px; }
+#specCsv { margin-top: 6px; }
 #spec { cursor: col-resize; }
 body.embed #winBox, body.embed #winNote, body.embed #aladinBox { display: none; }
-#aladinBox { margin-top: 12px; }
-#flagBox { font-size: 12px; margin-top: 4px; }
+#aladinBox { margin-top: 18px; }
+#flagBox { font-size: 12px; margin-top: 6px; }
 #candList { padding-left: 0; list-style: none; margin: 4px 0; }
 #candBox.pending label { opacity: .5; }
 #candList button.gradeB { opacity: .55; }
-#candList button { font-size: 11px; padding: 1px 5px; margin: 1px 0; text-align: left; }
-#candHow { white-space: pre-wrap; font-size: 11px; }
-#flagList dt { margin-top: 3px; font-family: ui-monospace, Consolas, monospace; }
+#candList button { font-size: 11px; padding: 2px 9px; margin: 2px 0; text-align: left; border-radius: 6px; }
+#candHow { white-space: pre-wrap; font-size: 11px; color: var(--fg-2); }
+#candLimits, #catCount, #catNote, #candPending { font-size: 12.5px; }
+#flagList dt { margin-top: 3px; font-family: var(--mono); }
 #flagList dd { margin: 0 0 0 12px; }
-#aladinBox summary { cursor: pointer; }
 #aladinDiv { width: min(420px, 100%); height: 420px; margin-top: 6px; }
 #aladinDiv:empty { height: 0; }
 #markList { padding-left: 20px; margin: 6px 0; }
-#markList li button { padding: 0 5px; margin-left: 6px; font-size: 11px; }
+#markList li button { padding: 0 6px; margin-left: 6px; font-size: 11px; }
 #measureResult { white-space: pre-wrap; }
 canvas.measuring { cursor: cell; }
-#refineResult table { border-collapse: collapse; font: 11px ui-monospace, Consolas, monospace; margin-top: 6px; }
-#refineResult td, #refineResult th { border-bottom: 1px solid var(--line); padding: 1px 4px; text-align: right; }
+#refineResult table { border-collapse: collapse; font: 11px var(--mono); margin-top: 6px; }
+#refineResult td, #refineResult th { border-bottom: 1px solid var(--line); padding: 2px 5px; text-align: right; }
+#refineResult th { font-weight: 400; color: var(--fg-3); }
 #refineResult tr.rejected, #dlgNights .excluded { opacity: .45; }
-dialog { background: #18181c; color: var(--fg); border: 1px solid var(--line); border-radius: 8px; max-width: 640px; }
-dialog::backdrop { background: rgba(0,0,0,.6); }
-dialog .warn { padding-left: 18px; font-size: 13px; }
-dialog .warn a { color: var(--accent); }
-dialog label { display: block; margin: 6px 0; }
-#dlgStatus.err { color: #ff6b5b; }
+dialog { background: var(--raise); color: var(--fg); border: 1px solid var(--line-2); border-radius: 14px; max-width: 640px; padding: 22px 24px; }
+dialog h3 { margin: 0 0 8px; font: 350 26px/1.1 var(--display); }
+dialog::backdrop { background: rgba(0, 0, 0, .7); }
+dialog .warn { padding-left: 18px; font-size: 13px; color: #c9c9c5; }
+dialog .warn a { color: var(--fg); }
+dialog label { display: block; margin: 8px 0; }
+#dlgStatus.err { color: var(--bad); }
 #dlgValidation { white-space: pre-line; display: block; margin-top: 4px; }
 #wingMissing { margin: 8px 0; }
-#wingMissing a { color: var(--accent); }
+#wingMissing a { color: var(--fg); }
 #wingMethod { margin-top: 6px; font-size: 12px; }
-#fovButtons { gap: 4px; }
-#fovConfirm { gap: 6px; flex-wrap: wrap; max-width: 720px; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 6px; font-size: 13px; }
-#embedLine { display: none; font-size: 11px; max-width: 520px; }
+#fovButtons { gap: 5px; }
+#fovConfirm { gap: 8px; flex-wrap: wrap; max-width: 760px; padding: 8px 12px; border: 1px solid var(--accent); border-radius: 10px; font-size: 13px; }
+#embedLine { display: none; font-size: 11px; max-width: 520px; color: var(--fg-3); }
 /* ?embed=1: player and essential controls only; the acknowledgement stays as one small line */
 body.embed { padding: 6px; }
 body.embed header, body.embed #pick, body.embed footer, body.embed #logBox, body.embed #meta,
@@ -97,14 +143,15 @@ body.embed aside select { max-width: 150px; }
 body.embed main { flex-wrap: nowrap; gap: 8px; }
 body.embed #view { flex: 0 1 auto; min-width: 0; }
 body.embed aside { flex: 0 0 210px; max-width: 210px; font-size: 13px; }
-body.embed fieldset { padding: 2px 6px 4px; margin-bottom: 4px; }
+body.embed fieldset { padding: 2px 0 4px; margin-bottom: 4px; }
 body.embed fieldset label { margin: 2px 0; }
 /* compact controls so the player fits a 560 px high frame */
-body.embed #bands button { padding: 2px 6px; }
+body.embed #bands button { padding: 2px 7px; }
 body.embed #bands button small { display: none; }
 body.embed label:has(#layer), body.embed #swapBand, body.embed #wiseBox, body.embed label:has(#showLow) { display: none; }
 body.embed #notes { margin: 0 0 4px; padding-left: 0; list-style: none; font-size: 12px; }
-body.embed #notes summary { cursor: pointer; color: #d8c48a; }
+body.embed #notes li { border-left: 0; padding: 0; }
+body.embed #notes summary { cursor: pointer; color: var(--warm); }
 body.embed #notes ul { padding-left: 18px; margin: 4px 0; }
 body.embed #status { min-height: 0; font-size: 12px; }
 body.embed #epochLabel, body.embed #readout { font-size: 11px; }
@@ -112,3 +159,8 @@ body.embed #readout { min-height: 0; margin-top: 2px; }
 body.embed #embedLine { font-size: 10px; line-height: 1.25; }
 /* measuring stays in the embed; help text, refine and report are in the full view */
 body.embed #measureHelp, body.embed #refineWhy, body.embed #measureBox .row, body.embed #refineResult { display: none; }
+@media (max-width: 640px) {
+  header strong { font-size: 24px; }
+  main { gap: 14px; }
+  aside { max-width: none; }
+}
