@@ -1571,8 +1571,11 @@ async function loadCatwise() {
   const moved = S.catwise.some((s) => s.pmra != null && s.pmdec != null && s.reliable), fast = S.catwise.filter((s) => !s.reliable).length;
   note.textContent = [`${S.catwise.length} sources; ` + (moved ? "moved to each epoch with their proper motion"
     : `positions at the catalogue epoch (${CAT_EPOCH}), not moved`),
-    fast && `${fast} with an unreliable catalogue motion are drawn dashed at the catalogue position, not moved`,
-    m.pm_convention, m.fast_note].filter(Boolean).map((t) => String(t).trim().replace(/([^.])$/, "$1.")).join(" ");
+    fast && `${fast} with an unreliable catalogue motion are drawn dashed at the catalogue position, not moved`]
+    .filter(Boolean).map((t) => String(t).trim().replace(/([^.])$/, "$1.")).join(" ");
+  // the catalogue's conventions and caveats: in "About this catalogue"
+  const more = [m.pm_convention, m.fast_note].filter(Boolean).map((t) => String(t).trim().replace(/([^.])$/, "$1.")).join(" ");
+  $("catMore").hidden = !more; $("catMoreText").textContent = more;
 }
 // which rows are drawn: by default the 150 brightest in W2, plus rows with a pm_check and rows within 30″ of the
 // target (at this epoch); "show all" draws every row. Duplicate rows (same_object_as) are never drawn.
@@ -1655,29 +1658,48 @@ async function loadCandidates() {
   const cs = S.cands.candidates || [];
   $("candBox").hidden = false; $("candBox").classList.remove("pending");
   $("ovCand").disabled = false; $("candPending").textContent = "";
-  $("candList").replaceChildren(...cs.map((c) => {
-    const li = document.createElement("li"), b = document.createElement("button");
-    const rate = c.rate_arcsec_per_year ? ` · ${Math.hypot(...c.rate_arcsec_per_year).toFixed(1)}″/yr` : "";
-    // grade A/B from the detector (B drawn faint); n_bands = in how many bands it was found
-    b.textContent = `${c.id}${c.grade ? ` [${c.grade}${c.grade_reason ? `: ${c.grade_reason}` : ""}]` : ""} ${candLabel(c)} · ${(c.bands || []).join(", ")}` +
-      `${c.n_bands != null ? ` · ${rangesTxt(c.n_bands)}` : ""} · S/N ${(+c.snr).toFixed(1)}${rate}`;
-    if (c.grade === "B") b.classList.add("gradeB");
-    const ng = c.near_gaia ? `\nnear Gaia DR3 ${c.near_gaia.source_id} (${(+c.near_gaia.sep_arcsec).toFixed(1)}″, G ${(+c.near_gaia.g_mag).toFixed(1)})` : "";
-    b.title = `${c.notes || ""}${ng}\nclick: load its ${c.positions?.length || 0} positions as marks in the measure tool`;
-    b.onclick = () => candidateToMarks(c);
-    li.append(b); return li;
-  }));
+  // a table: class (A/B and why), what and where, bands, S/N, rate; a row (or "Go") loads it into the measure tool
+  const tbl = document.createElement("table");
+  tbl.innerHTML = `<thead><tr><th>#</th><th>class</th><th>what · where</th><th>bands</th><th>S/N</th><th>″/yr</th><th></th></tr></thead>`;
+  const tb = document.createElement("tbody");
+  for (const c of cs) {
+    const tr = document.createElement("tr"), p0 = (c.positions || [])[0];
+    const rate = c.rate_arcsec_per_year ? Math.hypot(...c.rate_arcsec_per_year).toFixed(1) : "—";
+    const where = p0 ? `RA ${(+p0.ra).toFixed(4)} Dec ${(+p0.dec).toFixed(4)}` : "";
+    const cell = (t, cls = "") => Object.assign(document.createElement("td"), { textContent: t, className: cls });
+    const cls = cell(c.grade || "—", "grade");
+    if (c.grade_reason) cls.append(Object.assign(document.createElement("small"), { textContent: c.grade_reason }));
+    const what = cell(candLabel(c), "what");
+    what.append(Object.assign(document.createElement("small"), { textContent: where }));
+    const go = Object.assign(document.createElement("button"), { type: "button", textContent: "Go",
+      title: `load its ${c.positions?.length || 0} positions as marks in the measure tool` });
+    const goTd = document.createElement("td"); goTd.append(go);
+    tr.append(cell(String(c.id)), cls, what,
+      cell(`${(c.bands || []).join(", ")}${c.n_bands != null ? ` (${rangesTxt(c.n_bands)})` : ""}`, "bands"),
+      cell((+c.snr).toFixed(1), "num"), cell(rate, "num"), goTd);
+    if (c.grade === "B") tr.classList.add("gradeB");
+    const ng = c.near_gaia ? `
+near Gaia DR3 ${c.near_gaia.source_id} (${(+c.near_gaia.sep_arcsec).toFixed(1)}″, G ${(+c.near_gaia.g_mag).toFixed(1)})` : "";
+    tr.title = `${c.notes || ""}${ng}`.trim();
+    const open = () => { candidateToMarks(c); setTab("measure"); };
+    tr.onclick = (e) => { if (e.target !== go) open(); };
+    go.onclick = open;
+    tb.append(tr);
+  }
+  tbl.append(tb);
+  $("candList").replaceChildren(...(cs.length ? [tbl] : []));
   const rej = Object.entries(S.cands.rejected || {}).map(([k, v]) => `  ${v} × ${k}`).join("\n");
   // the first three validation lines are user-facing (limit, injection result, what the grades mean): always
   // shown under the toggle; the rest stays in the closed "How candidates are found" section
+  // visible: what it can find and what the classes mean; the injection result goes with the method
   const val = [].concat(S.cands.validation || []), NV = 3;
-  $("candLimits").textContent = val.slice(0, NV).join(" ");
+  $("candLimits").textContent = [val[0], val[2]].filter(Boolean).join(" ");
   $("candHow").textContent = [
     S.cands.method && `method: ${S.cands.method}`,
     S.cands.params && `parameters: ${Object.entries(S.cands.params).map(([k, v]) => `${k} ${v}`).join(", ")}`,
     S.cands.bands_searched && `bands searched: ${S.cands.bands_searched.join(", ")}`,
     `${cs.length} candidates shown`, rej && `rejected:\n${rej}`,
-    ...val.slice(NV),
+    val[1], ...val.slice(NV),
   ].filter(Boolean).join("\n");
 }
 // a candidate's positions become marks in the measure tool (then refine/report as usual)

@@ -101,6 +101,8 @@ body:not(.embed) #view { width: max(var(--stage-w, 560px), 460px); }
   color: var(--fg-3); border-bottom: 2px solid transparent; margin-bottom: -1px; }
 #tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--fg); }
 .tabpane fieldset:first-child { border-top: 0; padding-top: 0; }
+.tabpane label { font-size: 13.5px; }
+.tabpane .muted, #candLimits, #catNote, #catCount { font-size: 12.5px; line-height: 1.5; }
 #view { max-width: 100%; min-width: 0; }
 canvas { display: block; background: #000; max-width: 100%; image-rendering: pixelated; cursor: crosshair; }
 #readout { margin-top: 6px; min-height: 2.8em; white-space: pre; color: var(--fg-2); }
@@ -180,10 +182,21 @@ footer a { color: var(--fg-2); }
 body.embed #winBox, body.embed #winNote, body.embed #aladinBox { display: none; }
 #aladinBox { margin-top: 18px; }
 #flagBox { font-size: 12px; margin-top: 6px; }
-#candList { padding-left: 0; list-style: none; margin: 4px 0; }
+/* automatic candidates: a table; a row (or Go) loads it into the measure tool */
+#candList { margin: 8px 0; overflow-x: auto; }
+#candList table { border-collapse: collapse; width: 100%; font: 400 11.5px var(--mono); }
+#candList th { font-weight: 400; color: var(--fg-3); text-align: left; padding: 4px 5px; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+#candList td { padding: 6px 5px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--fg); }
+#candList td small { display: block; color: var(--fg-3); font-size: 10.5px; margin-top: 2px; }
+#candList td.grade { font-weight: 500; }
+#candList td.num { text-align: right; white-space: nowrap; }
+#candList td.bands { color: var(--fg-2); }
+#candList tbody tr { cursor: pointer; }
+#candList tbody tr:hover td { background: rgba(242, 242, 240, .05); }
+#candList tr.gradeB td { color: var(--fg-2); }
+#candList td button { padding: 2px 9px; font-size: 11px; }
 #candBox.pending label { opacity: .5; }
-#candList button.gradeB { opacity: .55; }
-#candList button { font-size: 11px; padding: 2px 9px; margin: 2px 0; text-align: left; border-radius: 6px; }
+
 #candHow { white-space: pre-wrap; font-size: 11px; color: var(--fg-2); }
 #candLimits, #catCount, #catNote, #candPending { font-size: 12.5px; }
 #flagList dt { margin-top: 3px; font-family: var(--mono); }

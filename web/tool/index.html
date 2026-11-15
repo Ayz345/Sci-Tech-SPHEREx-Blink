@@ -121,13 +121,14 @@
         <label class="muted"><input type="checkbox" id="catAll"> show all</label>
         <div id="catCount" class="muted"></div>
         <div id="catNote" class="muted"></div>
+        <details id="catMore" hidden><summary class="muted">About this catalogue</summary><div id="catMoreText" class="muted"></div></details>
       </div>
       <div id="candBox" hidden>
         <label><input type="checkbox" id="ovCand"> Automatic candidates</label>
         <div id="candPending" class="muted"></div>
         <div class="muted">Automatic candidates are places to look at, not detection claims.</div>
         <div id="candLimits" class="muted"></div>
-        <ul id="candList" class="mono"></ul>
+        <div id="candList"></div>
         <details><summary class="muted">How candidates are found</summary><div id="candHow" class="mono"></div></details>
       </div>
     </fieldset>
