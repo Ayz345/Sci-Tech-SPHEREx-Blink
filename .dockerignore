@@ -1,0 +1,14 @@
+# Keep the build context small: the image needs spx/, server/, scripts/make_submit_xsd.py, requirements.txt,
+# handoff/results/*.json and web/data/ (see Dockerfile). cache/ alone holds gigabytes locally.
+cache/
+design/
+docs/
+probes/
+tests/
+.taste-skill/
+.pytest_cache/
+**/__pycache__/
+*.glb
+*.png
+*.pdf
+*.gif
