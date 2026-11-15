@@ -877,7 +877,12 @@ async def api_spectrum(request: Request, key: str, ra: float | None = None, dec:
     return jresp(out)
 
 
-_resolve_cache: dict = {}
+#: Name resolutions (B5): at most RESOLVE_MAX names, least recently used dropped; a name found is kept
+#: RESOLVE_TTL_S, a name SIMBAD does not know RESOLVE_NEG_TTL_S; an outage (no answer, non-200) is never cached.
+_resolve_cache: OrderedDict = OrderedDict()     # normalized name -> (time, answer or None)
+RESOLVE_MAX = 2000
+RESOLVE_TTL_S = 7 * 86400.0
+RESOLVE_NEG_TTL_S = 600.0
 
 
 def _norm(s: str) -> str:
@@ -891,11 +896,16 @@ async def api_resolve(name: str = Query(..., min_length=1, max_length=200)):
         if n in (_norm(key), _norm(t["name"])):
             return jresp({"name": t["name"], "ra": t["ra"], "dec": t["dec"], "pmra": t["pmra"], "pmdec": t["pmdec"],
                           "ref_epoch": t["ref_epoch"], "source": t["source"], "target": key})
-    if n in _resolve_cache:
-        r = _resolve_cache[n]
+    hit = _resolve_cache.get(n)
+    if hit is not None and time.time() - hit[0] <= (RESOLVE_TTL_S if hit[1] is not None else RESOLVE_NEG_TTL_S):
+        _resolve_cache.move_to_end(n)
+        r = hit[1]
     else:
-        r = await asyncio.to_thread(_sesame, name)
-        _resolve_cache[n] = r
+        r = await asyncio.to_thread(_sesame, name)      # raises 503 on an outage: nothing cached
+        _resolve_cache[n] = (time.time(), r)
+        _resolve_cache.move_to_end(n)
+        while len(_resolve_cache) > RESOLVE_MAX:
+            _resolve_cache.popitem(last=False)
     if r is None:
         raise ApiError(404, f"name {name!r} not found (SIMBAD via CDS Sesame)")
     return jresp(r)
@@ -907,13 +917,15 @@ def _sesame(name: str) -> dict | None:
         resp = requests.get("https://cds.unistra.fr/cgi-bin/nph-sesame/-oxp/SNV?" + quote(name), timeout=5)
     except (requests.ConnectionError, requests.Timeout) as e:
         raise ApiError(503, f"name resolver not answering (error id {error_id('resolve', e)})")
+    if resp.status_code != 200:   # an outage, not an answer (CDS showed "Page unavailable" on 14 Nov)
+        raise ApiError(503, f"name resolver not answering (HTTP {resp.status_code}); try again later")
     txt = resp.text
 
     def g(tag, s=txt):
         m = re.search(f"<{tag}>([^<]*)</{tag}>", s)
         return m.group(1).strip() if m else None
     ra, dec = g("jradeg"), g("jdedeg")
-    if resp.status_code != 200 or ra is None or dec is None:
+    if ra is None or dec is None:
         return None
     pm = re.search(r"<pm>(.*?)</pm>", txt, re.S)
     pmra = float(g("pmRA", pm.group(1))) if pm and g("pmRA", pm.group(1)) else 0.0

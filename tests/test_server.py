@@ -784,3 +784,43 @@ def test_cache_cleanup_order_and_protection(tmp_path):
 def test_health_reports_cache(client):
     h = _strict(client.get("/api/health"))
     assert set(h["cache"]) == {"bytes", "max_bytes", "checked_utc", "last_cleanup"}
+
+
+# --------------------------------------------------------------------------- public server: name cache (B5)
+
+class _Resp:
+    def __init__(self, code, text):
+        self.status_code, self.text = code, text
+
+
+def test_resolve_outage_not_cached_and_cache_bounded(client, monkeypatch):
+    import requests
+    from server import app as A
+    monkeypatch.setattr(A, "_resolve_cache", A.OrderedDict())
+    calls = []
+    answers = []
+
+    def get(url, timeout=None):
+        calls.append(url)
+        return answers.pop(0)
+    monkeypatch.setattr(requests, "get", get)
+    answers[:] = [_Resp(502, "<html>Page unavailable</html>")]
+    r = client.get("/api/resolve", params={"name": "Some Star"})
+    assert r.status_code == 503 and "not answering" in r.json()["message"] and not A._resolve_cache
+    found = _Resp(200, "<Resolver><jradeg>10.5</jradeg><jdedeg>-20.25</jdedeg><oname>Some Star</oname></Resolver>")
+    answers[:] = [found]
+    assert _strict(client.get("/api/resolve", params={"name": "Some Star"}))["ra"] == 10.5
+    assert _strict(client.get("/api/resolve", params={"name": "Some Star"}))["dec"] == -20.25 and len(calls) == 2
+    answers[:] = [_Resp(200, "<Resolver><INFO>nothing found</INFO></Resolver>")]
+    assert client.get("/api/resolve", params={"name": "No Such Thing"}).status_code == 404
+    assert client.get("/api/resolve", params={"name": "No Such Thing"}).status_code == 404 and len(calls) == 3
+    n = A._norm("No Such Thing")
+    t, v = A._resolve_cache[n]
+    A._resolve_cache[n] = (t - A.RESOLVE_NEG_TTL_S - 1, v)          # a "not found" expires
+    answers[:] = [found]
+    assert client.get("/api/resolve", params={"name": "No Such Thing"}).status_code == 200 and len(calls) == 4
+    monkeypatch.setattr(A, "RESOLVE_MAX", 2)
+    answers[:] = [found, found]
+    for nm in ("A1", "A2"):
+        client.get("/api/resolve", params={"name": nm})
+    assert len(A._resolve_cache) == 2 and list(A._resolve_cache) == [A._norm("A1"), A._norm("A2")]
