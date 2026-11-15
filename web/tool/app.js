@@ -1127,7 +1127,7 @@ function overlays(ctx, ep) {
   ctx.lineWidth = 4; ctx.strokeStyle = "#000"; ctx.beginPath(); ctx.moveTo(10, H - 12); ctx.lineTo(10 + len, H - 12); ctx.stroke();
   ctx.lineWidth = 1.5; ctx.strokeStyle = "#eee"; ctx.beginPath(); ctx.moveTo(10, H - 12); ctx.lineTo(10 + len, H - 12); ctx.stroke();
   label(`30″  (grid ${pixArcsec().toFixed(2)}″/px)`, 10, H - 18);
-  label("N ↑  E ←", ctx.canvas.width - 64, 16);
+  label("N ↑  E ←", ctx.canvas.width - ctx.measureText("N ↑  E ←").width - 10, 20); // placed by its own width
   drawCatwise(ctx, ep.mjd_mid);
   drawCandidates(ctx, ep);
   drawMarks(ctx);
