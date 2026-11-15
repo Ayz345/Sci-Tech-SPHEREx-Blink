@@ -310,6 +310,32 @@ input[type=range] { accent-color: #fff; width: 96px; }
 #timecol.on { opacity: 1; }
 #foot { grid-column: 1; grid-row: 4; margin: 0; padding: 0 0 12px; color: var(--fg-3); font-size: 11.5px; line-height: 1.5; }
 
+/* ------------------------------------------------------------ plate screen <-> full tool (tool/): one continuous move
+   Cross-document View Transitions (same origin, full-page navigation). Both pages opt in and name the same parts;
+   the browser slides and resizes each part from its place on one page to its place on the other, the rest cross-fades.
+   Names shared with web/tool (skin.css): vt-back, vt-plate, vt-title, vt-coords, vt-ruler, vt-spectrum.
+   Browsers without it simply load the page. Reduced motion: no transition at all. */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+}
+#tback { view-transition-name: vt-back; }
+#plate { view-transition-name: vt-plate; }
+#tname { view-transition-name: vt-title; width: fit-content; max-width: 100%; }    /* the box hugs the words, so they scale, not stretch */
+#tcoord { view-transition-name: vt-coords; width: fit-content; max-width: 100%; }
+#timecol { view-transition-name: vt-ruler; }
+#spec { view-transition-name: vt-spectrum; }
+::view-transition-group(*) { animation-duration: .54s; animation-timing-function: cubic-bezier(.2, .7, .2, 1); }
+::view-transition-old(*), ::view-transition-new(*) { animation-duration: .38s; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .32s; }
+/* back from the tool (index.html sets html.arrive before the first frame): the plate screen is already in place,
+   dark, with no start page behind it, until plate.js takes it over */
+html.arrive, html.arrive body { background: #060607; }
+html.arrive #pages, html.arrive #credit, html.arrive #aimark, html.arrive #more, html.arrive .about-link,
+html.arrive #veil, html.arrive #fade { visibility: hidden; }
+html.arrive #sky, html.arrive #hud, html.arrive #frame { visibility: hidden !important; }   /* the sky's words do not show through while it settles */
+html.arrive #tool { visibility: visible; }
+html.arrive #plate, html.arrive #controls, html.arrive #spec, html.arrive #timecol { opacity: 1; }
+
 @keyframes develop { from { opacity: 0; filter: blur(8px) brightness(2.2); } to { opacity: 1; filter: none; } }
 .developing { animation: develop 1s cubic-bezier(.2,.7,.2,1) forwards; }
 @keyframes draw { to { stroke-dashoffset: 0; } }

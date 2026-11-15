@@ -1015,7 +1015,9 @@ function enterSky() {
   if (S.live) return;
   S.live = true; S.mode = "sky"; document.body.classList.add("sky");
   const t = S.pending; S.pending = null;
-  if (t) requestAnimationFrame(() => tool.open(t, { fast: FAST }));
+  // back from the full tool (index.html set html.arrive): open in place, without the zoom
+  const keep = document.documentElement.classList.contains("arrive");
+  if (t) requestAnimationFrame(() => tool.open(t, { fast: FAST || keep, keep }));
 }
 const tool = createTool({ $, S, view, radec, toRaDec, slerpV, tween, E, lerp, clamp, W, H, portrait, REDUCED });
 {

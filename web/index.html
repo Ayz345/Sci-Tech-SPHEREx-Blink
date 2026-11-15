@@ -9,6 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=DM+Sans:opsz,wght@9..40,300..500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<!-- the first frame waits until the plate screen is parsed (a page transition captures the first frame) -->
+<link rel="expect" href="#vt-ready" blocking="render">
 <!--
   SPHEREx Blink: the animated front page.
   Nine pages, paper and black space in turn, each saying what we built. Each page is pinned to the screen: its words
@@ -323,6 +325,27 @@
   <a id="tfull" class="mono" href="#">Open the full tool: difference, sum, false colour, measure, report, candidates &rarr;</a>
   <p id="foot" class="mono">Real SPHEREx data (DR1, QR3) &middot; NASA/IPAC Infrared Science Archive &middot; 6.15&Prime; pixels on a 3&Prime; grid, zoom is cosmetic &middot; north up, east left</p>
 </section>
+<script>
+/* Back from the full tool ("← Sky" there): show the plate screen on the very first frame, so its parts can slide back
+   into place (view transition, style.css); plate.js then opens the field without the sky zoom (?target / ?ra keep it).
+   Recognised by the referrer (tool/) or a note in sessionStorage "spx-vt" = {to: "start", key | ra, name, coord, t}. */
+(function () {
+  var P = new URLSearchParams(location.search), key = P.get("target"), ra = parseFloat(P.get("ra")), v = null;
+  if (!key && !isFinite(ra)) return;
+  try { v = JSON.parse(sessionStorage.getItem("spx-vt") || "null"); sessionStorage.removeItem("spx-vt"); } catch (e) {}
+  var note = !!v && v.to === "start" && Date.now() - v.t < 120000 && (key ? v.key === key : Math.abs(v.ra - ra) < 1e-3);
+  var tool = false;
+  try { tool = /\/tool\/(index\.html)?$/.test(new URL(document.referrer).pathname); } catch (e) {}
+  if (!note && !tool) return;
+  document.documentElement.classList.add("arrive");
+  document.getElementById("tool").hidden = false;
+  if (note) {
+    document.getElementById("tname").textContent = v.name || "";
+    document.getElementById("tcoord").textContent = v.coord || "";
+  }
+})();
+</script>
+<div id="vt-ready" hidden></div>
 
 <!-- About: who made it, what it is, links, credits, the use of AI. No personal names (the team is entered as
      "Team Sci-Tech" only) and no agency logos. -->

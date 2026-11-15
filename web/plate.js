@@ -249,7 +249,8 @@ export function createTool(c) {
   });
   // ------------------------------------------------ sky -> zoom -> plate
   // t: { id, name } for a gallery target, or { ra, dec, free: true } for any other position
-  async function open(t, { fast = false } = {}) {
+  // keep: back from the full tool, the plate screen is already on screen (index.html, html.arrive): no zoom, nothing cleared
+  async function open(t, { fast = false, keep = false } = {}) {
     if (Q.open || !S.live) return;
     if (t.free) t = { ...t, ra: round4(t.ra), dec: round4(t.dec) };
     Q.open = true; Q.t = t; Q.e = null; Q.field = FIELD_DEG;
@@ -258,8 +259,8 @@ export function createTool(c) {
     document.body.classList.add("tool");
     history.replaceState({}, "", t.free ? `?ra=${t.ra.toFixed(4)}&dec=${t.dec.toFixed(4)}` : `?target=${enc(t.id)}`);
     const tool = $("tool");
-    tool.hidden = false; tool.style.visibility = "hidden"; tool.scrollTop = 0;
-    reset();
+    tool.hidden = false; tool.style.visibility = keep ? "" : "hidden"; tool.scrollTop = 0;
+    reset(keep);
     const pc = measurePlate();
     let goal;
     // the request for the field's list of exposures runs while we fly there
@@ -272,9 +273,10 @@ export function createTool(c) {
       Q.e = got.e; Q.field = Q.e.m.grid.shape[0] * Math.abs(Q.e.m.grid.cdelt[1]);
       goal = radec(Q.e.m.grid.crval[0], Q.e.m.grid.crval[1]);
     }
-    await zoomTo(goal, pc, run, fast);
+    await zoomTo(goal, pc, run, fast || keep);
     if (run !== Q.run) return;
-    tool.style.visibility = "";
+    tool.style.visibility = ""; Q.keep = keep;
+    if (keep) setTimeout(() => document.documentElement.classList.remove("arrive"), 1200);   // after the sky's own fades
     if (t.free) {
       $("tname").textContent = t.name || sexa(t.ra, t.dec); $("tcoord").textContent = coords(t.ra, t.dec);
       setStatus("Asking the archive which SPHEREx exposures cover this field.");
@@ -405,15 +407,16 @@ export function createTool(c) {
   }
 
   // ------------------------------------------------ the plate
-  function reset() {
+  function reset(keep = false) {
     clearInterval(Q.timer); Q.playing = false; Q.ready = false; Q.epoch = 0; Q.wiseOn = false; Q.onWise = false;
     $("wise").hidden = true; $("wise").setAttribute("aria-pressed", "false"); $("foot").innerHTML = foot0;
     $("pframe").getAnimations().forEach((a) => a.cancel()); $("low").setAttribute("aria-pressed", "false");
-    $("plate").style.opacity = 0; $("cv").classList.remove("developing");
+    $("plate").style.opacity = keep ? 1 : 0; $("cv").classList.remove("developing");
     $("ov").replaceChildren(); $("envelope").textContent = ""; $("tnotes").replaceChildren();
     for (const id of ["spec", "timecol", "controls"]) $(id).classList.remove("on");
     $("play").disabled = true; setStatus(""); $("time").replaceChildren(); $("wave").replaceChildren();
-    $("tname").textContent = ""; $("tcoord").textContent = ""; $("specnote").textContent = "";
+    if (!keep) { $("tname").textContent = ""; $("tcoord").textContent = ""; }
+    $("specnote").textContent = "";
   }
   async function reveal(run, fast) {
     const alive = () => run === Q.run, m = Q.e.m, live = Q.e.live, wait = (ms) => sleep(fast || REDUCED ? 0 : ms);
@@ -421,7 +424,9 @@ export function createTool(c) {
     $("tcoord").textContent = coords(m.query.ra, m.query.dec);
     $("tfull").href = live ? `${FULL_TOOL}?ra=${m.query.ra}&dec=${m.query.dec}&fov=${FIELD_DEG}` : `${FULL_TOOL}?target=${enc(Q.e.key)}`;
     $("tnotes").replaceChildren(...(m.notes || []).map((n) => Object.assign(document.createElement("li"), { textContent: n })));
-    for (const x of [$("tback"), $("tname"), $("tcoord"), $("status")]) x.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: REDUCED ? 1 : 700, easing: "cubic-bezier(.2,.7,.2,1)", fill: "backwards" });
+    // the way to the full tool leaves a note, so the tool can put the name in place on its first frame
+    $("tfull").onclick = () => { try { sessionStorage.setItem("spx-vt", JSON.stringify({ to: "tool", key: live ? null : Q.e.key, ra: m.query.ra, dec: m.query.dec, name: $("tname").textContent, coord: coords(m.query.ra, m.query.dec), t: Date.now() })); } catch {} };
+    if (!Q.keep) for (const x of [$("tback"), $("tname"), $("tcoord"), $("status")]) x.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: REDUCED ? 1 : 700, easing: "cubic-bezier(.2,.7,.2,1)", fill: "backwards" });
     if (!live) { await loadWise(Q.e); if (!alive()) return; }   // before the ruler is first drawn: it keeps its layout
     drawTime(0); drawWave(0);
     // A. what there is: the passes drop onto the ruler at their real dates
