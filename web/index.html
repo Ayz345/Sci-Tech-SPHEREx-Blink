@@ -48,6 +48,7 @@
     <!-- AI-generated imagery carries a visible mark; shown while the model is on screen -->
     <p id="aimark">Spacecraft model: AI-generated (3D Jutsu), an illustration, not data</p>
     <p id="more" aria-hidden="true">Scroll</p>
+    <button id="aboutBtn" class="about-link" type="button" data-about aria-haspopup="dialog">About</button>
   </section>
 
   <!-- 1 · space: why we built it (the form becomes the Earth: anyone, anywhere, can help discover) -->
@@ -226,6 +227,7 @@
         <li>The spacecraft model is AI-generated (3D Jutsu); it and the shapes on this page are illustrations, not data.</li>
       </ul>
       <button class="pill" type="button" data-top>Back to the top &uarr;</button>
+      <button class="pill alt" type="button" data-about aria-haspopup="dialog">About this project</button>
       <p class="ack">This publication makes use of data products from the Spectro-Photometer for the History of the
         Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion
         Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space
@@ -322,6 +324,31 @@
   <p id="foot" class="mono">Real SPHEREx data (DR1, QR3) &middot; NASA/IPAC Infrared Science Archive &middot; 6.15&Prime; pixels on a 3&Prime; grid, zoom is cosmetic &middot; north up, east left</p>
 </section>
 
+<!-- About: who made it, what it is, links, credits, the use of AI. No personal names (the team is entered as
+     "Team Sci-Tech" only) and no agency logos. -->
+<dialog id="about" aria-labelledby="about-h">
+  <button id="aboutClose" class="about-close" type="button" aria-label="Close">Close &times;</button>
+  <p class="k">Team Sci-Tech &middot; NASA Space Apps Challenge 2026 &middot; Challenge: Planet X and SPHEREx</p>
+  <h2 id="about-h">About SPHEREx <em>Blink</em></h2>
+  <p>We built a blink comparator for SPHEREx: it finds every SPHEREx exposure of a spot in the sky, builds one clean
+    frame per pass on a fixed grid and plays them, so what moved or changed stands out. The five challenge targets open
+    at once from stored frames; any other position is built on request by our server from the public archive.</p>
+  <h3>Links</h3>
+  <ul class="about-links">
+    <li><a href="tool/">The full tool</a></li>
+    <li><a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink" target="_blank" rel="noopener">Source code</a></li>
+    <li><a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink/blob/dev/handoff/results/methods_v2.md" target="_blank" rel="noopener">Methods</a></li>
+  </ul>
+  <h3>Data and tools</h3>
+  <p class="fine">SPHEREx images and spectra: NASA/IPAC Infrared Science Archive (IRSA), releases DR1 and QR3. WISE:
+    the AllWISE Atlas image of 2010 and the CatWISE2020 catalogue (IRSA). Star positions and motions: ESA Gaia DR3.
+    Names: CDS, Strasbourg (SIMBAD, Sesame). Built with three.js (MIT); fonts Fraunces, DM Sans and IBM Plex Mono
+    (SIL OFL); coastlines from Natural Earth. The full acknowledgements are on the last page.</p>
+  <h3>Use of AI</h3>
+  <p class="fine">The code was written with Claude Code (Anthropic). The spacecraft model was generated with 3D Jutsu
+    (AI) and is labelled wherever it appears. No sky image, frame, spectrum or number on this site is AI-generated:
+    they all come from the archives above.</p>
+</dialog>
 <script type="module" src="app.js"></script>
 </body>
 </html>

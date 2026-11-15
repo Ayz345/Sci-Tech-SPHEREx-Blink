@@ -831,7 +831,15 @@ for (const b of document.querySelectorAll("[data-top]")) b.addEventListener("cli
 for (const b of document.querySelectorAll("[data-begin]")) b.addEventListener("click", () => S.mode === "home" && through(false, begin));
 for (const b of document.querySelectorAll("[data-open]")) b.addEventListener("click", () => openDirect(b.dataset.open));
 $("back").addEventListener("click", backToStart);
+// About: a sheet over the page; Esc, the Close button or a click outside it closes it
+{
+  const about = $("about");
+  for (const b of document.querySelectorAll("[data-about]")) b.addEventListener("click", () => { if (!about.open) about.showModal(); });
+  $("aboutClose").addEventListener("click", () => about.close());
+  about.addEventListener("click", (e) => { const r = about.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) about.close(); });
+}
 addEventListener("keydown", (e) => {
+  if ($("about").open) return;
   if (tool.onKey(e)) return;
   if (e.key === "Escape" && S.mode !== "home" && document.activeElement?.id !== "q") backToStart();
 });
