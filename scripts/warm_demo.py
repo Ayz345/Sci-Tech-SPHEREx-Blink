@@ -4,7 +4,7 @@
     python scripts/warm_demo.py --api http://host:8000 --only eros
 
 Run it only after the code is frozen and the gallery rebuilt (--final): the server's cache folder is named after
-the code hash, so a run before that is thrown away by the next code change. The orchestrator says when.
+the code hash, so a run before that is thrown away by the next code change.
 
 For each field: manifest (retried while IRSA answers 503), every listed band, candidates (waits for 202 -> 200),
 the spectrum at the target; for the Eros pass also /api/track and the CSV and ADES drafts. Writes

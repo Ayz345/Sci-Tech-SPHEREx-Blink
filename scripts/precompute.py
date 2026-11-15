@@ -1,11 +1,11 @@
-"""Precompute the static gallery: web/data/{key}/ for the named targets (data contract v1, PLAN.md 5).
+"""Precompute the static gallery: web/data/{key}/ for the named targets (data contract v1: web/tool/README.md).
 
     python scripts/precompute.py                      # all five targets
     python scripts/precompute.py wise-0855 barnard    # some
     python scripts/precompute.py --out web/data --bands D6 W
     python scripts/precompute.py --final              # release build: only from committed code
 
-Regenerated web/data is NOT committed except the single --final build (PLAN.md 14.6).
+Regenerated web/data is committed only from a --final build.
 
 Per target it writes manifest.json, {band}.json, {epoch}_{band}.f32 (+ _weight, _flagfrac), gaia.json,
 spectrum.json and provenance.json into a temporary folder and swaps it in when complete, so the page never

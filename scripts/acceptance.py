@@ -1,4 +1,4 @@
-"""Acceptance checks, data side (PLAN.md section 9). One command, item by item PASS / FAIL with the measured number.
+"""Acceptance checks of the gallery and the server. One command, item by item PASS / FAIL with the measured number.
 
     python scripts/acceptance.py                        # static gallery + running API at http://127.0.0.1:8000
     python scripts/acceptance.py --static-only          # web/data only (no network)
@@ -287,10 +287,10 @@ def check_core(rep: Report, s: Static, key: str):
         rep.check(sec, "saturated core is +Inf (pixels near the track, all frames)", n_inf > 0, measured=n_inf,
                   threshold="> 0")
     elif want == "finite":
-        # The +Inf rule is per GRID pixel (> 15 % truly saturated, or no usable sample). The co-add session's check
+        # The +Inf rule is per GRID pixel (> 15 % truly saturated, or no usable sample). The saturation check
         # applies it to every pixel of every frame: rule_violations and nan_covered must both be 0.
         if not SATURATION_CHECK.exists():
-            rep.add(sec, "saturation rule per grid pixel (co-add session's check)", FAIL,
+            rep.add(sec, "saturation rule per grid pixel (saturation check)", FAIL,
                     detail=f"missing {SATURATION_CHECK}")
             return
         sc = strict_json(SATURATION_CHECK)
@@ -350,7 +350,7 @@ def check_empty_sky_inf(rep: Report, s: Static, key: str):
     """+Inf (saturated) only on stars. +Inf pixels are grouped into 8-connected components; a component is a
     star core when one of its pixels lies within CORE_LINK_ARCSEC of the track or of a Gaia source brighter than
     G = CORE_LINK_GMAX (propagated to the epoch); otherwise it is empty sky. Item: empty-sky pixels = 0, all
-    frames (low quality counted apart as INFO). Same definition as the co-add session's test."""
+    frames (low quality counted apart as INFO). Same definition as tests/test_coadd_saturation.py."""
     from astropy.time import Time
     from scipy.ndimage import binary_dilation, label
     sec = f"target:{key}"
@@ -513,7 +513,7 @@ WISE_DETECTION = ROOT / "handoff" / "results" / "wise0855_detection_v2.json"
 
 def check_wise(rep: Report, s: Static):
     """In W the moving object and a fixed Gaia star (11" -> 4") blend within one PSF, so a plain centroid
-    moves slower than the object. The motion item uses the image-quality session's two-PSF positions;
+    moves slower than the object. The motion item uses the two-PSF positions of handoff/results/wise0855_detection_v2.json;
     the plain centroid is kept as information next to its expected diluted value."""
     sec = "target:wise-0855"
     t = TARGETS["wise-0855"]
@@ -798,7 +798,7 @@ def _check_server(rep: Report, api: str, prof: dict, seed: int):
 
 def check_15arcmin(rep: Report, sess, api: str, rnd):
     """15' field (fov 0.25), cold, opened like the page: first band, all six bands, S3 MB. INFO only: the time
-    thresholds are for the default 7' view (PLAN.md 17 F4; the page says what a 15' field costs)."""
+    thresholds are for the default 7' view (the page says what a 15' field costs)."""
     sec = "server:15arcmin"
     h = strict_json(sess.get(f"{api}/api/health", timeout=10).content)
     if (h.get("max_fov_deg") or 0) < 0.25 - 1e-6:

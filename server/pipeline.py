@@ -1,4 +1,4 @@
-"""Field pipeline shared by the API server and scripts/precompute.py (data contract v1, PLAN.md section 5).
+"""Field pipeline shared by the API server and scripts/precompute.py (data contract v1: web/tool/README.md).
 
     field = open_field(target="wise-0855")            # or open_field(ra=..., dec=..., fov_deg=...): SIA2 only
     man   = manifest(field)                             # dict, JSON-ready
@@ -56,7 +56,7 @@ ACKNOWLEDGEMENT = ("This publication makes use of data products from the Spectro
 DETECTOR_BANDS = [{"id": f"D{d}", "label": f"{lo:.2f}–{hi:.2f} µm", "wave_um": [lo, hi]}
                   for d, (lo, hi) in sorted(access.DETECTOR_BANDS_UM.items())]
 
-# --------------------------------------------------------------------------- user wavelength windows (PLAN 17 F1)
+# --------------------------------------------------------------------------- user wavelength windows
 #: Band id w<lo>_<hi> in whole nanometres, e.g. w4300_5000. Built on request by the live server only.
 WINDOW_PREFIX = "w"
 WINDOW_NM_RANGE = (750, 5000)
@@ -184,7 +184,7 @@ def free_key(ra: float, dec: float, fov_deg: float, pm: tuple | None = None) -> 
 
 
 def spx_commit() -> dict:
-    """Commit of the code that produced the data (git dir outside the work tree, see PLAN.md 14), and the
+    """Commit of the code that produced the data (the git dir may be outside the work tree), and the
     code files under spx/, server/, scripts/ that differ from it (empty list = clean)."""
     root = Path(__file__).resolve().parent.parent
     for gd in (os.environ.get("SPX_GIT_DIR"), str(root.parent / (root.name + ".git")), str(root / ".git")):
@@ -527,10 +527,10 @@ def build_band(f: Field, band_id: str, out_dir: Path, layers=("IMAGE", "FLAGS", 
     return bj, cuts, frames
 
 
-# --------------------------------------------------------------------------- automatic candidates (PLAN 17 F2)
+# --------------------------------------------------------------------------- automatic candidates
 
 def detect_module():
-    """spx.detect (quality session), or None while it is not there."""
+    """spx.detect, or None when it is not installed."""
     try:
         from spx import detect
     except ImportError:
@@ -660,7 +660,7 @@ def gaia_neighbors(coord: SkyCoord, gaia: list[dict] | None, self_match_arcsec: 
     return c[keep], [r for r, k in zip(rows, keep) if k]
 
 
-#: The co-add session's wing validation: summary.controls_p90 = 90th percentile of the wing-series epoch ratio on
+#: The wing validation (handoff/results/wing_validation_v2.json): summary.controls_p90 = 90th percentile of the wing-series epoch ratio on
 #: unsaturated control stars; a target ratio above it is significant. Read from the file, never typed in here.
 WING_VALIDATION = Path(__file__).resolve().parent.parent / "handoff" / "results" / "wing_validation_v2.json"
 GALLERY_DIR = Path(os.environ.get("SPX_GALLERY") or Path(__file__).resolve().parent.parent / "web" / "data")
@@ -685,7 +685,7 @@ def wing_bands(points) -> dict | None:
 
 
 def variability_report(f: Field, cuts, points, gaia, kind: str = "flux") -> dict:
-    """The co-add session's variability metric on the PUBLISHED spectrum points, with control stars measured the
+    """The variability metric (spx.photometry) on the PUBLISHED spectrum points, with control stars measured the
     same way in the same cutouts (spx.photometry select_controls / binned_series / variability / is_variable).
     Single source for the page notes and scripts/acceptance.py."""
     from astropy.time import Time
@@ -816,7 +816,7 @@ def spectrum(f: Field, cuts, ra: float | None = None, dec: float | None = None, 
 
 # --------------------------------------------------------------------------- single-exposure track (MPC drafts)
 
-TRACK_HALF_PX = 20          # co-add session: >= 15 px; 20 leaves room for its calibration positions
+TRACK_HALF_PX = 20          # spx.astrometry needs >= 15 px; 20 leaves room for its calibration positions
 TRACK_SIA_STEP_DEG = 0.5    # SIA2 sample spacing along the predicted path (a detector is ~3.5 deg wide)
 
 

@@ -6,8 +6,7 @@
 
 Same call as the live server (server.pipeline.make_candidates -> spx.detect.find_candidates(load_field(dir))),
 so a gallery file and a live answer for the same frames are the same. Each target folder must hold manifest.json,
-the band files and gaia.json (precompute.py writes them). PLAN.md 17 F2; these small JSON files may be committed
-(exception to 14.6).
+the band files and gaia.json (precompute.py writes them). These small JSON files are committed with the gallery.
 """
 from __future__ import annotations
 
@@ -30,7 +29,7 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     data = Path(a.data)
     if P.detect_module() is None:
-        print("spx.detect.find_candidates is not available (quality session, PLAN.md 17 F2)", file=sys.stderr)
+        print("spx.detect.find_candidates is not available (spx/detect.py)", file=sys.stderr)
         return 2
     keys = a.keys or [t["key"] for t in json.loads((data / "index.json").read_text(encoding="utf-8"))["targets"]]
     bad = 0

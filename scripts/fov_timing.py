@@ -5,7 +5,7 @@ and S3 MB, six-band time, server memory (peak working set, sampled every second;
     python scripts/fov_timing.py --write             # also handoff/results/fov_timing_v2.json (tracked)
     python scripts/fov_timing.py --from cache/f4_15arcmin.json --write   # convert an earlier run, no download
 
-PLAN.md 17 F4. Field 1 asks its bands one by one (queue=0: clean per-band numbers); field 2 opens like the page
+Field 1 asks its bands one by one (queue=0: clean per-band numbers); field 2 opens like the page
 (queue=1: first band while the rest fill in the background).
 """
 import argparse, datetime as dt, json, os, shutil, subprocess, sys, threading, time

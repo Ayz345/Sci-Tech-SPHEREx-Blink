@@ -1,5 +1,5 @@
 """CatWISE2020 sources for the gallery targets: web/data/<key>/catwise.json (static, so the WISE overlay needs no live
-service during a demo). PLAN.md 17 F5; these small JSON files may be committed (exception to 14.6).
+service during a demo). These small JSON files are committed with the gallery.
 
     python scripts/make_catwise.py --fetch            # download the raw answers (IRSA SCS) into cache/catwise/
     python scripts/make_catwise.py                    # write catwise.json from the cached answers

@@ -11,7 +11,7 @@ which answered 502 on 14 Nov 2026). Each sub-point is read from the nearest tile
 Resampling: each 3 arcsec grid pixel is split into 6 x 6 sub-points (0.5 arcsec apart, finer than the 1.375 arcsec
 Atlas pixel); each sub-point takes the Atlas pixel it falls in (tile WCS), and the grid pixel is their mean. That is
 an area average of the surface brightness: unit DN per Atlas pixel (MAGZP 20.5 in the header), not summed.
-NaN where the Atlas pixel is NaN or outside the tile. Static files only (PLAN.md 17 F5); they may be committed.
+NaN where the Atlas pixel is NaN or outside the tile. Static files only; they are committed with the gallery.
 """
 from __future__ import annotations
 
