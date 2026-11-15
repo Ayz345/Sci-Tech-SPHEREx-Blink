@@ -12,7 +12,8 @@
 </head>
 <body>
 <header>
-  <strong><a id="home" href="../" title="back to the SPHEREx Blink start page">SPHEREx Blink</a></strong>
+  <a id="home" class="ghost back" href="../" title="back to the SPHEREx Blink start page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5m6-6-6 6 6 6"/></svg>Sky</a>
+  <strong class="brand">SPHEREx Blink</strong>
   <section id="pick">
   <div id="targets"></div>
   <form id="coordForm">
@@ -36,14 +37,11 @@
   </div>
 </header>
 <div id="fovConfirm" class="row" hidden></div>
-<div id="status" role="status" aria-live="polite"></div>
 
 <main>
   <div id="view">
-    <div id="stageHead"><div><h1 id="tname"></h1><span id="tcoord" class="mono"></span></div><div id="fovButtons" class="row"><span class="muted">field</span></div></div>
     <canvas id="canvas" width="420" height="420" aria-label="SPHEREx image of the field; move the pointer to read positions"></canvas>
-    <div id="readout" class="mono">move the mouse over the image</div>
-    <div id="layerLegend" class="mono" aria-label="what the marks on the image mean"></div>
+    <div id="underImage"><div id="layerLegend" class="mono" aria-label="what the marks on the image mean"></div><div id="readout" class="mono"></div></div>
     <div id="timeBox">
       <div class="row timeRow">
         <button id="play" type="button">Play</button>
@@ -57,16 +55,55 @@
   </div>
 
   <aside id="panel">
-    <div id="tabs" role="tablist" aria-label="tool sections">
-      <button type="button" role="tab" data-tab="band">Band</button>
+    <div id="info">
+      <h1 id="tname"></h1>
+      <p id="tcoord" class="mono"></p>
+      <p id="status" role="status" aria-live="polite"></p>
+      <div id="fovButtons" class="row"><span class="lab mono">field</span></div>
+    </div>
+    <div id="bandRow">
+      <p id="bandLab" class="lab mono">wavelength · band</p>
+      <div id="bands"></div>
+      <button id="swapBand" type="button" disabled title="switch back to the previous band (key t)">⇄ previous band (t)</button>
+    </div>
+  <section id="plots">
+        <div id="plotTabs" role="tablist" aria-label="data">
+          <button type="button" role="tab" data-plot="specBox">Spectrum</button>
+          <button type="button" role="tab" data-plot="lcBox">Light curve</button>
+          <button type="button" role="tab" data-plot="wingBox" id="wingTab" hidden>PSF wings</button>
+        </div>
+      <div id="specBox" class="plotPane"><h3>Spectrum <span id="specWhere" class="muted"></span></h3><svg id="spec" viewBox="0 0 460 236"></svg>
+        <details id="specMore"><summary>Spectrum details and tools</summary>
+          <div id="specNote" class="muted"></div>
+          <div id="winBox" class="row">
+          <span class="muted">window</span>
+          <input id="winLo" type="number" step="0.01" min="0.75" max="5" size="5" placeholder="µm"> –
+          <input id="winHi" type="number" step="0.01" min="0.75" max="5" size="5" placeholder="µm"> µm
+          <button id="winGo" type="button" title="drag across the spectrum or type two wavelengths">Blink this window</button>
+        </div>
+        <div id="winNote" class="muted"></div>
+        <div class="row"><button id="specCsv" type="button" disabled title="the spectrum on screen as a CSV file, made in your browser">Download spectrum (CSV)</button></div>
+        <details id="flagBox" hidden><summary id="flagSummary" class="muted">Flags</summary>
+          <div class="muted">Point at a spectrum point to see the FLAGS bits set in its aperture. Meanings as given by the data.</div>
+          <div id="flagSource" class="muted"></div>
+          <dl id="flagList"></dl></details>
+        </details></div>
+      <div id="lcBox" class="plotPane"><h3>Light curve <span id="lcWhere" class="muted"></span></h3><svg id="lc" viewBox="0 0 460 236"></svg></div>
+      <div id="wingBox" class="plotPane" hidden><h3>Relative brightness from PSF wings <span id="wingWhere" class="muted"></span></h3>
+        <div class="muted">Indicative only, not a formal detection of variability.</div>
+        <div id="wingMissing" hidden></div>
+        <div id="wingPlot">
+          <svg id="wing" viewBox="0 0 460 236"></svg>
+          <div class="muted">Saturated exposures only. MJy/sr, relative; not comparable with the mJy axes.</div>
+        </div>
+        <div id="wingNote" class="muted"></div>
+        <details id="wingMethod" hidden><summary class="muted">Method details</summary><div id="wingMethodText" class="muted"></div></details></div>
+    </section>
+    <div id="tabs" role="tablist" aria-label="more tools">
       <button type="button" role="tab" data-tab="view">View</button>
       <button type="button" role="tab" data-tab="layers">Layers</button>
       <button type="button" role="tab" data-tab="measure">Measure</button>
       <button type="button" role="tab" data-tab="about">About</button>
-    </div>
-    <div class="tabpane" data-pane="band" role="tabpanel">
-    <fieldset><legend>Band</legend><div id="bands"></div>
-      <button id="swapBand" type="button" disabled title="switch back to the previous band (key t)">⇄ previous band (t)</button></fieldset>
     </div>
     <div class="tabpane" data-pane="view" role="tabpanel">
     <fieldset><legend>View</legend>
@@ -155,37 +192,6 @@
       <details id="keysBox"><summary>Keyboard</summary><div class="muted">Keys: space play/pause · ←/→ epoch · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · m measure · +/− zoom. Pixel scale is read from the manifest grid; SPHEREx native pixel is 6.15″.</div></details>
       <details id="logBox"><summary>Request log</summary><ol id="log" class="mono"></ol></details>
     </div>
-  <section id="plots">
-      <div id="plotTabs" role="tablist" aria-label="data">
-        <button type="button" role="tab" data-plot="specBox">Spectrum</button>
-        <button type="button" role="tab" data-plot="lcBox">Light curve</button>
-        <button type="button" role="tab" data-plot="wingBox" id="wingTab" hidden>PSF wings</button>
-      </div>
-    <div id="specBox" class="plotPane"><h3>Spectrum <span id="specWhere" class="muted"></span></h3><svg id="spec" viewBox="0 0 460 236"></svg>
-      <div id="winBox" class="row">
-        <span class="muted">window</span>
-        <input id="winLo" type="number" step="0.01" min="0.75" max="5" size="5" placeholder="µm"> –
-        <input id="winHi" type="number" step="0.01" min="0.75" max="5" size="5" placeholder="µm"> µm
-        <button id="winGo" type="button" title="drag across the spectrum or type two wavelengths">Blink this window</button>
-      </div>
-      <div id="winNote" class="muted"></div>
-      <div class="row"><button id="specCsv" type="button" disabled title="the spectrum on screen as a CSV file, made in your browser">Download spectrum (CSV)</button></div>
-      <details id="flagBox" hidden><summary id="flagSummary" class="muted">Flags</summary>
-        <div class="muted">Point at a spectrum point to see the FLAGS bits set in its aperture. Meanings as given by the data.</div>
-        <div id="flagSource" class="muted"></div>
-        <dl id="flagList"></dl></details>
-      <div id="specNote" class="muted"></div></div>
-    <div id="lcBox" class="plotPane"><h3>Light curve <span id="lcWhere" class="muted"></span></h3><svg id="lc" viewBox="0 0 460 236"></svg></div>
-    <div id="wingBox" class="plotPane" hidden><h3>Relative brightness from PSF wings <span id="wingWhere" class="muted"></span></h3>
-      <div class="muted">Indicative only, not a formal detection of variability.</div>
-      <div id="wingMissing" hidden></div>
-      <div id="wingPlot">
-        <svg id="wing" viewBox="0 0 460 236"></svg>
-        <div class="muted">Saturated exposures only. MJy/sr, relative; not comparable with the mJy axes.</div>
-      </div>
-      <div id="wingNote" class="muted"></div>
-      <details id="wingMethod" hidden><summary class="muted">Method details</summary><div id="wingMethodText" class="muted"></div></details></div>
-  </section>
   </aside>
 </main>
 

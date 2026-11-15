@@ -347,6 +347,9 @@ async function loadTarget() {
   document.title = `${S.m.name || S.key} · SPHEREx Blink`;
   // the stage heading: the target's name and where it is
   $("tname").textContent = S.m.name || S.key;
+  // the target in the top bar is marked as the current one (when the button list is there)
+  const markCurrent = () => [...$("targets").children].forEach((b) => b.setAttribute("aria-current", String(b.dataset.key === S.key)));
+  markCurrent(); setTimeout(markCurrent, 800);
   const qy = S.m.query || {};
   $("tcoord").textContent = qy.ra != null ? `RA ${(+qy.ra).toFixed(5)}°  Dec ${(+qy.dec).toFixed(5)}°` : "";
   renderMeta();
@@ -382,9 +385,8 @@ async function loadTarget() {
   if (S.mode === "rgb") loadRGB();
   if (!params.get("zoom")) { // big image on the left: the largest whole zoom that fits (the embed keeps its compact size)
     // wide enough for the panel beside it, and low enough that the time strip stays on the first screen
-    const nx = S.m.grid.shape[1], room = EMBED ? 420
-      : Math.min(760, Math.max(280, innerWidth < 1000 ? innerWidth - 40 : innerWidth - 2 * 40 - 520), Math.max(280, innerHeight - 380));
-    S.zoom = Math.max(1, Math.min(6, Math.floor(room / nx))); $("zoom").value = String(S.zoom);
+    const nx = S.m.grid.shape[1], room = EMBED ? 420 : stageSize();
+    S.zoom = Math.max(1, Math.min(6, EMBED ? Math.floor(room / nx) : Math.ceil(room / nx))); $("zoom").value = String(S.zoom);
   }
   const bigField = USE_API && (+S.m.query?.fov_deg || 0) > 0.2;
   status(bigField
@@ -509,6 +511,13 @@ function fixEpoch() {
     S.epoch = ok.find((i) => i > S.epoch) ?? ok[0] ?? S.epoch;
   }
 }
+// the stage's image size: as tall as the window allows above the time strip, leaving the right column ≥ 440 px
+function stageSize() {
+  if (innerWidth < 1000) return Math.max(280, innerWidth - 32);
+  const gut = Math.min(48, Math.max(16, innerWidth * 0.032));
+  // top bar ~72, gaps ~48, legend line ~30, time strip ~190
+  return Math.round(Math.max(360, Math.min(innerHeight - 340, innerWidth - 2 * gut - 64 - 440)));
+}
 // the time strip: every pass over the field is a dated stop (low coverage faint, no data dashed); the WISE image,
 // when the field has one, is the first stop and is labelled as a different instrument
 function renderEpochMarks() {
@@ -519,7 +528,7 @@ function renderEpochMarks() {
     const w = document.createElement("button");
     w.type = "button"; w.className = "stop wise" + (S.onWise ? " cur" : "");
     w.setAttribute("aria-pressed", String(!!S.onWise));
-    w.innerHTML = `<b>${escapeHtml(yr)}</b><span>WISE ${escapeHtml(S.wiseBand)}</span><small>different instrument</small>`;
+    w.innerHTML = `<b>${escapeHtml(yr)} · WISE ${escapeHtml(S.wiseBand)}</b><small>not SPHEREx</small>`;
     w.title = `WISE ${S.wiseBand}, AllWISE tile middle ${S.wise.date ? fmtDate(S.wise.date) : "(date not given)"}: not SPHEREx; click to blink it with the SPHEREx passes`;
     w.onclick = () => {
       if (!S.wiseOn) { S.wiseOn = true; $("wiseOn").checked = true; wiseSlider(); }
@@ -558,10 +567,11 @@ function renderLegend() {
   ].join("");
 }
 // the side panel: one section at a time (the embed shows its few controls without tabs)
+// the extra tools under the data: closed at first; a tab opens its section, the same tab closes it again
 function setTab(name) {
-  document.querySelectorAll("#tabs [data-tab]").forEach((b) => { const on = b.dataset.tab === name; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
+  document.querySelectorAll("#tabs [data-tab]").forEach((b) => { const on = b.dataset.tab === name; b.setAttribute("aria-selected", String(on)); b.setAttribute("aria-expanded", String(on)); });
   document.querySelectorAll(".tabpane").forEach((p) => { p.hidden = !EMBED && p.dataset.pane !== name; });
-  try { localStorage.setItem("spx-tab", name); } catch { /* storage off */ }
+  S.tab = name || null;
 }
 // no data for this band/epoch: listed with 0 exposures, or the band file says n_used 0
 function emptyEpoch(band, i) {
@@ -705,7 +715,7 @@ function drawRGB(ctx, ep, nx, ny, z) {
   const fr = ids.map((b, k) => { const f = frameOf(b, ep.id, "image"); return applySat(f, satMask(b), Infinity, f, sc[k].vmax); });
   $("scaleSrc").textContent = `false colour: R ${ch.r} · G ${ch.g} · B ${ch.b}, each with its band's own scale`;
   if (!fr.some(Boolean)) {
-    ctx.fillStyle = INK.fg4; ctx.font = "14px system-ui";
+    ctx.fillStyle = INK.fg4; ctx.font = "15px 'IBM Plex Mono', ui-monospace, monospace";
     ctx.fillText(ids.some((b) => S.frames.get(`${b}|${ep.id}|image`) instanceof Promise) ? "loading…" : "no data for these bands/epoch", 12, 24);
     return;
   }
@@ -755,7 +765,7 @@ function draw() {
   updateCredits();
   const [ny, nx] = S.m.grid.shape, z = S.zoom, cv = $("canvas"), ctx = cv.getContext("2d");
   cv.width = nx * z; cv.height = ny * z;
-  $("view").style.setProperty("--stage-w", `${cv.width}px`);
+  if (!EMBED) document.documentElement.style.setProperty("--P", `${stageSize()}px`);
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, cv.width, cv.height);
   if (S.onWise && wiseActive()) { // the WISE frame: its own image, overlays at the WISE date, no SPHEREx processing
     $("epoch").value = -1; renderEpochMarks();
@@ -802,7 +812,7 @@ function draw() {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, nx * z, ny * z);
   } else {
-    ctx.fillStyle = INK.fg4; ctx.font = "14px system-ui";
+    ctx.fillStyle = INK.fg4; ctx.font = "15px 'IBM Plex Mono', ui-monospace, monospace";
     const pending = S.frames.get(`${S.band}|${ep.id}|${S.layer}`) instanceof Promise;
     const bad = S.badFrames?.has(`${S.band}|${S.m.epochs[S.epoch].id}|${S.layer}`);
     ctx.fillText(pending ? "loading…" : offline ? "server not reachable, retrying…"
@@ -897,7 +907,7 @@ function drawMarks(ctx) {
     const here = S.onWise ? m.epoch === -1 : m.epoch === S.epoch, r = Math.max(5, 2 * z);
     ctx.lineWidth = here ? 2 : 1; ctx.globalAlpha = here ? 1 : 0.6;
     ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 2 * Math.PI); ctx.stroke();
-    ctx.font = "bold 12px system-ui"; ctx.lineWidth = 3; ctx.strokeStyle = "#000"; ctx.strokeText(String(m.n), p[0] + r + 2, p[1] - r);
+    ctx.font = "bold 14px 'IBM Plex Mono', ui-monospace, monospace"; ctx.lineWidth = 3; ctx.strokeStyle = "#000"; ctx.strokeText(String(m.n), p[0] + r + 2, p[1] - r);
     ctx.fillStyle = MARK_COLOR; ctx.fillText(String(m.n), p[0] + r + 2, p[1] - r); ctx.strokeStyle = MARK_COLOR;
   }
   ctx.restore();
@@ -1061,7 +1071,7 @@ function lowLabel(ctx) {
   const low = bands.filter((b) => isLow(b, S.epoch));
   if (!low.length) return;
   const txt = `low coverage: ${low.map((b) => `${bandEpoch(b, S.epoch)?.n_used ?? "?"} exposures` + (bands.length > 1 ? ` (${b})` : "")).join(", ")}`;
-  ctx.font = "bold 13px system-ui";
+  ctx.font = "500 14px 'IBM Plex Mono', ui-monospace, monospace";
   const w = ctx.measureText(txt).width + 12, x = (ctx.canvas.width - w) / 2;
   ctx.fillStyle = "rgba(0,0,0,0.75)"; ctx.fillRect(x, 6, w, 22);
   ctx.fillStyle = INK.fg; ctx.fillText(txt, x + 6, 22);
@@ -1111,7 +1121,7 @@ function overlays(ctx, ep) {
   }
   // scale bar (30″) and compass: north up, east left
   const len = (30 / pixArcsec()) * z, H = ctx.canvas.height;
-  ctx.font = "12px system-ui";
+  ctx.font = "14px 'IBM Plex Mono', ui-monospace, monospace";
   // dark outline so the labels stay readable on a white (difference) background
   const label = (t, x, y) => { ctx.lineWidth = 3; ctx.strokeStyle = "#000"; ctx.strokeText(t, x, y); ctx.fillStyle = "#eee"; ctx.fillText(t, x, y); };
   ctx.lineWidth = 4; ctx.strokeStyle = "#000"; ctx.beginPath(); ctx.moveTo(10, H - 12); ctx.lineTo(10 + len, H - 12); ctx.stroke();
@@ -1403,6 +1413,9 @@ function plots() {
 function status(t, err = false) { $("status").textContent = t; $("status").className = err ? "err" : ""; }
 
 function renderBands() {
+  const sel = S.m.bands.find((b) => b.id === S.band);
+  // the unit stays out of the label's upper-case style ("µm" would turn into "MM")
+  $("bandLab").replaceChildren("wavelength · band ", Object.assign(document.createElement("span"), { className: "nt", textContent: sel ? `${sel.id} · ${sel.label || ""}` : "" }));
   $("bands").replaceChildren(...S.m.bands.map((b, i) => {
     const btn = document.createElement("button");
     const loaded = S.m.epochs.filter((e) => frameOf(b.id, e.id)).length;
@@ -1410,9 +1423,11 @@ function renderBands() {
     // one dot per pass: filled = its frame is here; a band still being built says so
     const dots = S.m.epochs.map((e) => `<i class="${frameOf(b.id, e.id) ? "has" : ""}"></i>`).join("");
     const state = b.status === "pending" ? `building${pct}` : b.status === "empty" ? "no data" : "";
-    btn.innerHTML = `<b>${escapeHtml(String(b.id))}</b><small>${escapeHtml(String(b.label || ""))}</small>` +
-      `<span class="dots" aria-label="${loaded} of ${S.m.epochs.length} passes loaded">${dots}${state ? ` <em>${escapeHtml(state)}</em>` : ""}</span>`;
-    btn.title = `exposures per epoch: ${(b.n_exposures || []).join(", ")}  (key ${i + 1})`;
+    // one short pill per band; its range is in the label above (selected band) and in the tooltip
+    btn.innerHTML = `<b>${escapeHtml(String(b.id))}</b>${state ? `<small>${escapeHtml(state)}</small>` : ""}`;
+    btn.setAttribute("aria-label", `${b.id}, ${b.label || ""}, ${loaded} of ${S.m.epochs.length} passes loaded`);
+    void dots;
+    btn.title = `${b.id}: ${b.label || ""}; exposures per pass: ${(b.n_exposures || []).join(", ")}  (key ${i + 1})`;
     btn.className = b.id === S.band ? "on" : "";
     btn.disabled = b.status === "empty";
     btn.onclick = () => selectBand(b.id);
@@ -1549,7 +1564,7 @@ function drawWise(ctx, nx, ny, z) {
 }
 function wiseBanner(ctx) {
   const t = `WISE ${S.wiseBand} · ${S.wise.date || "date not given"} · not SPHEREx`;
-  ctx.font = "bold 13px system-ui";
+  ctx.font = "500 14px 'IBM Plex Mono', ui-monospace, monospace";
   const w = ctx.measureText(t).width + 12, x = (ctx.canvas.width - w) / 2;
   ctx.fillStyle = "rgba(0,0,0,0.8)"; ctx.fillRect(x, 6, w, 22);
   ctx.fillStyle = INK.fg; ctx.fillText(t, x + 6, 22);
@@ -1795,7 +1810,7 @@ function blinkWindow(lo, hi) {
   if (!API) { noServer($("winNote"), "Your own wavelength window"); return; }
   if (!(lo >= 0.75 && hi <= 5.0 && lo < hi)) { $("winNote").textContent = "Choose a window between 0.75 and 5.00 µm, with the first number smaller."; return; }
   const id = addCustomBand(windowId(lo, hi));
-  $("winNote").textContent = `Building ${id} on the server…`;
+  $("winNote").textContent = `Building ${id} on the server…`; $("specMore").open = true;
   renderBands(); selectBand(id);
 }
 
@@ -2083,7 +2098,7 @@ function wire() {
     if (selFrom == null) return;
     const to = umAt(ev) ?? selFrom, lo = Math.min(selFrom, to), hi = Math.max(selFrom, to); selFrom = null;
     if (hi - lo < 0.01) return; // a click, not a drag
-    $("winLo").value = lo.toFixed(2); $("winHi").value = hi.toFixed(2);
+    $("winLo").value = lo.toFixed(2); $("winHi").value = hi.toFixed(2); $("specMore").open = true;
     $("winNote").textContent = `${lo.toFixed(2)}–${hi.toFixed(2)} µm selected: press "Blink this window".`;
   });
   $("winGo").onclick = () => blinkWindow(+$("winLo").value, +$("winHi").value);
@@ -2177,9 +2192,9 @@ serverReady.then((ok) => {
 });
 wire();
 // plots follow the page width (drawn in real pixels): redraw after a resize settles
-{ let t = 0; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { if (S.m) plots(); }, 200); }); }
+{ let t = 0; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { if (S.m) { draw(); plots(); } }, 200); }); }
 if (EMBED) $("panel").prepend($("timeBox")); // the embed keeps its time controls beside the image, so it fits 560 px
-document.querySelectorAll("#tabs [data-tab]").forEach((b) => { b.onclick = () => setTab(b.dataset.tab); });
+document.querySelectorAll("#tabs [data-tab]").forEach((b) => { b.onclick = () => setTab(S.tab === b.dataset.tab ? null : b.dataset.tab); });
 $("tabs").onkeydown = (e) => { // arrow keys move between tabs
   if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
   const bs = [...document.querySelectorAll("#tabs [data-tab]")], i = bs.findIndex((b) => b.getAttribute("aria-selected") === "true");
@@ -2196,8 +2211,7 @@ function setPlot(name) {
 }
 document.querySelectorAll("#plotTabs [data-plot]").forEach((b) => { b.onclick = () => setPlot(b.dataset.plot); });
 setPlot("specBox");
-{ let t = null; try { t = localStorage.getItem("spx-tab"); } catch { /* storage off */ }
-  setTab(["band", "view", "layers", "measure", "about"].includes(t) ? t : "band"); }
+setTab(null);
 loadIndex();
 loadTarget();
 // developer hook (?debug=1): place marks at exact positions/times, e.g. to replay a known asteroid passage
