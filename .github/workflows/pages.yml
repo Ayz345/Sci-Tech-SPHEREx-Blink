@@ -6,10 +6,9 @@
 # set the repository variable SPX_API_URL to its https address and run this workflow again.
 name: Publish the static page
 
+# Published by hand (Actions > Publish the static page > Run workflow, or `gh workflow run pages.yml`):
+# a push does not change the public site, so work in progress on web/ can be committed safely.
 on:
-  push:
-    branches: [dev]
-    paths: ["web/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
