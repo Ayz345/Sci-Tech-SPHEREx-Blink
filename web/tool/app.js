@@ -386,13 +386,15 @@ async function loadTarget() {
   setupRGB();
   renderBands(); renderFov(); updateLinks();
   if (S.mode === "rgb") loadRGB();
-  if (!params.get("zoom")) { // big image on the left: the largest whole zoom that fits (the embed keeps its compact size)
-    // wide enough for the panel beside it, and low enough that the time strip stays on the first screen
-    // the stage's size comes from the skin (CSS --P); the drawing takes the whole zoom that covers it
+  {
+    // the stage's size comes from the skin (CSS --P): the drawing takes the largest whole zoom that the stage covers,
+    // rounded down so the image is scaled up a little, never down (that would break the thin marks and text).
+    // A zoom in the address can raise it but not lower it in the full view: the image is shown at the stage's size
+    // anyway, and a low zoom (an old link, or a page first opened while hidden) would only make it blurred.
     const cssW = parseFloat(getComputedStyle($("canvas")).width) || 0;
     const nx = S.m.grid.shape[1], room = EMBED ? 420 : cssW > 100 ? cssW : stageSize();
-    // round down: the drawing is scaled up a little to the stage (scaling down would break the thin marks and text)
-    S.zoom = Math.max(1, Math.min(6, Math.floor(room / nx))); $("zoom").value = String(S.zoom);
+    const fit = Math.max(1, Math.min(6, Math.floor(room / nx))), asked = +params.get("zoom") || 0;
+    S.zoom = EMBED ? (asked || fit) : Math.max(fit, Math.min(6, asked)); $("zoom").value = String(S.zoom);
   }
   const bigField = USE_API && (+S.m.query?.fov_deg || 0) > 0.2;
   status(bigField
@@ -2198,7 +2200,14 @@ serverReady.then((ok) => {
 });
 wire();
 // plots follow the page width (drawn in real pixels): redraw after a resize settles
-{ let t = 0; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { if (S.m) { draw(); plots(); } }, 200); }); }
+{ let t = 0; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => {
+    if (!S.m) return;
+    if (!EMBED) { // a larger stage (or a page first opened while hidden) gets a sharper drawing
+      const cssW = parseFloat(getComputedStyle($("canvas")).width) || 0, fit = Math.min(6, Math.floor(cssW / S.m.grid.shape[1]));
+      if (fit > S.zoom) { S.zoom = fit; $("zoom").value = String(fit); syncUrl(); }
+    }
+    draw(); plots();
+  }, 200); }); }
 if (EMBED) $("panel").prepend($("timeBox")); // the embed keeps its time controls beside the image, so it fits 560 px
 document.querySelectorAll("#tabs [data-tab]").forEach((b) => { b.onclick = () => setTab(S.tab === b.dataset.tab ? null : b.dataset.tab); });
 $("tabs").onkeydown = (e) => { // arrow keys move between tabs
