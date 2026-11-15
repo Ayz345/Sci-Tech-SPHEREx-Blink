@@ -13,7 +13,7 @@ the spectrum. The tool does not claim any discovery. It makes looking easier.
 
 ![Five challenge targets, one frame per visit](handoff/results/five_targets_v2.png)
 
-## Status (15 November 2026, v1.2)
+## Status (15 November 2026)
 
 - **Online:** <https://sci-techspherex.com/> opens the landing page; from its sky you reach the
   five challenge targets and their real SPHEREx frames (prebuilt under `web/data/`, no server needed). Try
@@ -29,7 +29,8 @@ the spectrum. The tool does not claim any discovery. It makes looking easier.
   file in that bucket, 1,628,230 files, and the server now carries that as its own index
   (`server/index/spx_index.npz`, 22.5 MB). It answers a position in a few hundredths of a second and says in the
   page where the list came from. See [How it works](#how-it-works) and [Limits](#limits).
-- `web/` is the site exactly as it is served: the landing page at its root (the story of the project, a sky to
+- `web/` is the site as it is served (only `config.js` is written at publish time and the developer fixtures
+  are left out): the landing page at its root (the story of the project, a sky to
   click, the frames of the five targets), the full tool under `web/tool/`, the gallery under `web/data/`.
 
 ## What it does
@@ -43,7 +44,7 @@ the spectrum. The tool does not claim any discovery. It makes looking easier.
 | Co-add per detector | One frame per visit and detector band (D1 to D6) |
 | Use the 102 bands | Your own wavelength window: drag a range on the spectrum and blink only the exposures taken at those wavelengths (50 nm or wider, live server) |
 | Add or subtract images from different times | Blink, difference (one visit minus the mean of the others) and sum; an automatic finder that compares the visits and rings what moved or changed |
-| Field of view | 3′, 7′ and 15′ on the live server. The page states the cost of the large field before opening it: about 120 to 190 MB per band, 30 to 70 s per band from a home connection (`handoff/results/fov_timing_v2.json`, and the acceptance report) |
+| Field of view | 3′ and 7′ on the published server; 15′ when you run the server yourself. The page states the cost of the large field before opening it: about 120 to 190 MB per band, 30 to 70 s per band from a home connection (`handoff/results/fov_timing_v2.json`, and the acceptance report) |
 | Other telescopes | Gaia DR3 stars moved to each visit's date with their proper motion. For the five gallery targets, stored with the page: the WISE image (AllWISE W1 and W2, about 2010) on the same grid, which can be added to the blink as its first frame, and the CatWISE2020 catalogue as an overlay. A "More surveys" panel (Aladin Lite) shows AllWISE, 2MASS or DSS2 at the same place; link to WiseView |
 | Metadata, contamination flags | Exposure count and dates per frame, coverage map, map of the masked fraction; for a clicked point, the names of the FLAGS bits set in each exposure, with their meaning from the SPHEREx Explanatory Supplement |
 | Spectrum | Click a point: flux against wavelength from the single exposures, and against time |
@@ -114,7 +115,7 @@ browser (web/, static)                      server (server/, Python)
    bucket. The index holds, for each of the 1,628,230 Level 2 files of releases DR1 and QR3, the S3 key, the
    detector, the pointing (the TAN part of the file's own WCS) and the exposure times. It was made by reading
    8.6 kB of each file's header with one range request (`scripts/build_s3_index.py`; the whole bucket takes about
-   a minute on 20 parallel CI jobs, `.github/workflows/s3index.yml`) and merged by `python -m server.s3index`.
+   a minute and a half on 20 parallel CI jobs, `.github/workflows/s3index.yml`) and merged by `python -m server.s3index`.
    A list that IRSA's SIA2 service gave earlier is used while it is still cached; exposures newer than the
    index are asked from IRSA in the background and added if it answers. The manifest field `image_list` and
    the tool's About tab say which source a field's list came from. Without the index file the server asks
@@ -152,7 +153,8 @@ The acceptance report for the released gallery is `docs/acceptance/acceptance_20
 passed and 6 failed. All six are cold-cache timings measured from a home connection far from the data (image
 list 5.2 to 6.2 s against a limit of 5 s; first band 31.5 s and 46.1 s against 30 s). No gallery, target or
 correctness item failed. On the evening of 14 November the IRSA image-list service answered HTTP 502 to about two
-of three queries; the server retries within a 25 s budget and says so when the archive does not answer.
+of three queries. This run predates our own image index (15 November): the image-list timings were IRSA's
+answer times and no longer apply to a new position, which now gets its list from the index.
 
 ## Limits
 
@@ -183,10 +185,10 @@ of three queries; the server retries within a 25 s budget and says so when the a
 - Frames built from fewer than 5 exposures are marked low coverage and skipped by default.
 - The automatic finder needs an object to move about 10″ (the width of a star image) over the time covered;
   slower motion is mostly missed. WISE 0855 moved 8.6″ in the year of data, just under that limit, and is found
-  because it is bright enough in each visit. In an injection test an object at S/N 12 per visit moving 15″ was
+  because its signal is strong enough in each visit (S/N 11 to 20). In an injection test an object at S/N 12 per visit moving 15″ was
   recovered 18 times out of 18 in a sparse field and 8 out of 18 in a crowded one. Most single-band candidates
   are probably false alarms; their cause is not established.
-- The errors listed for spectrum points are too small by a factor of about 1.4 (empty-sky test); the page says
+- The errors listed for spectrum points are too small by a factor of about 1.3 to 1.4 (empty-sky test: 1.40 for aperture points, 1.32 for PSF-fit points); the page says
   so next to the spectrum.
 - The difference view leaves alignment residuals around bright stars.
 - Moving-object report: positions were checked against JPL Horizons on asteroids (433) Eros and
