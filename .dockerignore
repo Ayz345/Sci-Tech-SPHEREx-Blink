@@ -3,7 +3,6 @@
 cache/
 design/
 docs/
-probes/
 tests/
 .taste-skill/
 .pytest_cache/

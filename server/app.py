@@ -10,7 +10,7 @@ GET /api/gaia?key=     GET /api/spectrum?key=[&ra=&dec=]     GET /api/resolve?na
 Bands are the unit of work: asking for a band (or one of its frames) moves it to the front of the queue;
 the others keep filling in the background. Built files live in cache/fields/<version>/<key>/ with the same
 names as the static gallery, so a second request never downloads again.
-Settings (environment): SPX_MAX_FOV_DEG, SPX_LIVE_LAYERS (default "IMAGE,FLAGS"), SPX_BACKGROUND_S3_WORKERS, SPX_COLLECTIONS, SPX_CACHE.
+Settings (environment variables) and deployment: DEPLOY.md.
 """
 from __future__ import annotations
 
