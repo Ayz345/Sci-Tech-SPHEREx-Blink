@@ -148,7 +148,7 @@ of three queries; the server retries within a 25 s budget and says so when the a
   at short wavelengths is a fixed background star (Gaia DR3 5756956644387831296), and the page says so.
 - Frames built from fewer than 5 exposures are marked low coverage and skipped by default.
 - The automatic finder needs an object to move about 10″ (the width of a star image) over the time covered;
-  slower motion is mostly missed. WISE 0855 moved 8.6″ in the year of data, so it sits at that limit and is found
+  slower motion is mostly missed. WISE 0855 moved 8.6″ in the year of data, just under that limit, and is found
   because it is bright enough in each visit. In an injection test an object at S/N 12 per visit moving 15″ was
   recovered 18 times out of 18 in a sparse field and 8 out of 18 in a crowded one. Most single-band candidates
   are probably false alarms; their cause is not established.
