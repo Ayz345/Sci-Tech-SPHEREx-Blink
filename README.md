@@ -138,7 +138,7 @@ of three queries; the server retries within a 25 s budget and says so when the a
 
 - SPHEREx pixels are 6.15″. Zooming in the page is cosmetic and labelled so. There is no deconvolution and no
   AI sharpening; nothing is shown that is not in the data.
-- **R Draconis** is saturated in every exposure. Its brightness change is shown from the wings of the star's
+- **R Draconis** is saturated in every exposure measured (412 of 412). Its brightness change is shown from the wings of the star's
   image and is labelled "indicative only, not a formal detection of variability".
 - **Barnard's Star** has a saturated core; its spectrum points are lower limits.
 - **RW Aurigae** is measured as variable in all six detector bands against control stars in the same images;
@@ -147,8 +147,9 @@ of three queries; the server retries within a 25 s budget and says so when the a
 - **WISE 0855** is faint: it is seen in a custom 4.3–5.0 µm window, not in the short bands. The source seen there
   at short wavelengths is a fixed background star (Gaia DR3 5756956644387831296), and the page says so.
 - Frames built from fewer than 5 exposures are marked low coverage and skipped by default.
-- The automatic finder needs an object to move at least about 10″ (the width of a star image) over the time
-  covered; slower motion is mostly missed. In an injection test an object at S/N 12 per visit moving 15″ was
+- The automatic finder needs an object to move about 10″ (the width of a star image) over the time covered;
+  slower motion is mostly missed. WISE 0855 moved 8.6″ in the year of data, so it sits at that limit and is found
+  because it is bright enough in each visit. In an injection test an object at S/N 12 per visit moving 15″ was
   recovered 18 times out of 18 in a sparse field and 8 out of 18 in a crowded one. Most single-band candidates
   are probably false alarms; their cause is not established.
 - The errors listed for spectrum points are too small by a factor of about 1.4 (empty-sky test); the page says
@@ -177,6 +178,8 @@ Every source used is listed here, as the Space Apps rules ask.
 
 - IRSA SPHEREx tutorial notebooks: <https://caltech-ipac.github.io/irsa-tutorials/spherex/>.
 - JPL Horizons, for checking the measured asteroid positions (tests only): <https://ssd.jpl.nasa.gov/horizons/>.
+- IRSA's Moving Object Search Tool (MOST), to list the SPHEREx exposures of the two asteroids used in that check
+  (tests only).
 - WISE: AllWISE Atlas images (W1, W2) for the five gallery targets, read from IRSA's open copy on AWS
   (`nasa-irsa-wise`) and resampled to each target's grid; the CatWISE2020 catalogue from IRSA for the overlay and
   for the position of WISE 0855 (motion-solution position at MJD 57170); proper motion of WISE 0855 from
@@ -200,7 +203,8 @@ Every source used is listed here, as the Space Apps rules ask.
   > https://www.cosmos.esa.int/web/gaia/dpac/consortium). Funding for the DPAC has been provided by national
   > institutions, in particular the institutions participating in the Gaia Multilateral Agreement.
 
-- Name lookup: the Sesame name resolver of the CDS, Strasbourg (<https://cds.unistra.fr/>).
+- Name lookup: the Sesame name resolver of the CDS, Strasbourg (<https://cds.unistra.fr/>), which answers from
+  SIMBAD, NED and VizieR.
 - Minor Planet Center: observatory codes, reporting rules and the ADES format; IAU ADES master files and schema
   (<https://github.com/IAU-ADES/ADES-Master>), downloaded when needed and not stored in this repository.
 - WiseView (<http://byw.tools/wiseview>), as the model for the player.
@@ -218,13 +222,14 @@ Every source used is listed here, as the Space Apps rules ask.
 | Aladin Lite 3.8.2 (loaded on demand by the page) | LGPL v3 (see below) |
 
 The page itself contains no third-party JavaScript, fonts or images. One library is loaded from a CDN, and only
-when the "Sky context" panel is opened:
+when the "More surveys" panel is opened:
 
 - Aladin Lite 3.8.2 by the CDS, Strasbourg (<https://aladin.cds.unistra.fr/>,
   <https://github.com/cds-astro/aladin-lite>), from `cdn.jsdelivr.net/npm/aladin-lite@3.8.2`, not modified and not
   stored in this repository. The package's LICENSE file is the GNU LGPL v3 (its `package.json` says "GPL-3").
-- The panel shows other surveys through their public HiPS services (hosted by IRSA, ESA, MAST or the CDS):
-  AllWISE, 2MASS and DSS2. These images are not part of this repository.
+- The panel offers other surveys through their public HiPS services (hosted by IRSA, ESA, MAST, China-VO or the
+  CDS): AllWISE, unWISE, NEOWISE-R, 2MASS, DSS2 and Pan-STARRS DR1. On 14 and 15 November only AllWISE, 2MASS
+  and DSS2 answered; the panel says which survey does not load. These images are not part of this repository.
 
 ## Use of AI tools
 
