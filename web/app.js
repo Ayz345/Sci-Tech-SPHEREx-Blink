@@ -905,13 +905,17 @@ function parseTarget(q) {
   if (!s) return null;
   const hit = TARGETS.find((t) => t.name.toLowerCase().replace(/[^a-z0-9]/g, "") === s.toLowerCase().replace(/[^a-z0-9]/g, "") || t.id === s.toLowerCase());
   if (hit) return hit;
-  const nums = s.replace(/[hmsd°'":,]/gi, " ").trim().split(/\s+/).map(Number);
-  if (nums.some(Number.isNaN)) return { lookup: s };   // a name: the live server looks it up
+  // coordinates only when the text is made of numbers, signs and separators; h m s d count as separators only right
+  // after a digit (08h55m10.8s, -07d14m42s). Anything else is a name for the live server: M31, HD 189733, sn 1987a.
+  const c = s.replace(/−/g, "-").replace(/(\d)\s*[hmsd]/gi, "$1 ");
+  if (!/^[\s\d.+\-°'"′″:,]+$/.test(c)) return { lookup: s };
+  const nums = c.replace(/[°'"′″:,]/g, " ").trim().split(/\s+/).map(Number);
+  if (nums.some(Number.isNaN)) return { lookup: s };
   let ra, dec;
   if (nums.length === 2) [ra, dec] = nums;
   else if (nums.length === 6) {
     ra = (nums[0] + nums[1] / 60 + nums[2] / 3600) * 15;
-    const sg = /^\s*-|\s-/.test(s.split(/\s+/).slice(3).join(" ")) || nums[3] < 0 || Object.is(nums[3], -0) ? -1 : 1;
+    const sg = /^\s*-|\s-/.test(c.split(/\s+/).slice(3).join(" ")) || nums[3] < 0 || Object.is(nums[3], -0) ? -1 : 1;
     dec = sg * (Math.abs(nums[3]) + nums[4] / 60 + nums[5] / 3600);
   } else return { error: "Give RA and Dec, e.g. 133.79 -7.24, or 08 55 10.8 -07 14 42." };
   if (!(ra >= 0 && ra < 360 && dec >= -90 && dec <= 90)) return { error: "RA runs 0 to 360, Dec -90 to 90." };
