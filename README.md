@@ -15,10 +15,10 @@ the spectrum. The tool does not claim any discovery. It makes looking easier.
 
 ## Status (15 November 2026, v1.2)
 
-- **Online:** <https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/> opens the landing page; from its sky you reach the
+- **Online:** <https://sci-techspherex.com/> opens the landing page; from its sky you reach the
   five challenge targets and their real SPHEREx frames (prebuilt under `web/data/`, no server needed). Try
-  [WISE 0855](https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/?target=wise-0855). The full tool, with every view
-  and overlay, is at <https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/tool/>.
+  [WISE 0855](https://sci-techspherex.com/?target=wise-0855). The full tool, with every view
+  and overlay, is at <https://sci-techspherex.com/tool/>.
 - **The API server is online too** (Google Cloud Run, region us-east4, next to the data), so the published site
   takes any coordinate or name, your own wavelength window, the spectrum of a clicked point and the moving-object
   report. Fields are limited to 7′ there and requests are rate-limited. A new position needs the IRSA image-list
