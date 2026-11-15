@@ -19,9 +19,11 @@ the spectrum. The tool does not claim any discovery. It makes looking easier.
   five challenge targets and their real SPHEREx frames (prebuilt under `web/data/`, no server needed). Try
   [WISE 0855](https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/?target=wise-0855). The full tool, with every view
   and overlay, is at <https://ayz345.github.io/Sci-Tech-SPHEREx-Blink/tool/>.
-- Free coordinates, name lookup, your own wavelength window, larger fields and the moving-object report need the
-  API server. It works end to end on a local machine (see "Run it") and is not deployed yet; `Dockerfile` is
-  written but has not been built or run.
+- **The API server is online too** (Google Cloud Run, region us-east4, next to the data), so the published site
+  takes any coordinate or name, your own wavelength window, the spectrum of a clicked point and the moving-object
+  report. Fields are limited to 7′ there and requests are rate-limited. A new position needs the IRSA image-list
+  service; when IRSA does not answer the page says so, and the five gallery targets keep working. How it is
+  deployed: [`DEPLOY.md`](DEPLOY.md).
 - `web/` is the site exactly as it is served: the landing page at its root (the story of the project, a sky to
   click, the frames of the five targets), the full tool under `web/tool/`, the gallery under `web/data/`.
 
