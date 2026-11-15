@@ -82,8 +82,9 @@ body:not(.embed) #view { width: max(var(--stage-w, 560px), 460px); }
 #timeBox { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .timeRow { flex-wrap: wrap; }
 .timeRow #epochLabel { margin-left: auto; font-size: 11.5px; }
-#epochMarks { display: flex; gap: 6px; flex-wrap: wrap; align-items: stretch; margin: 10px 0 6px; }
-#epochMarks .stop { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; border-radius: 10px; padding: 6px 12px; text-align: left; min-width: 118px; }
+#epochMarks { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; align-items: stretch; margin: 10px 0 6px; padding-bottom: 4px; scrollbar-width: thin; }
+#epochMarks .stop { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; border-radius: 10px; padding: 6px 10px; text-align: left;
+  flex: 1 0 auto; min-width: 104px; }
 #epochMarks .stop b { font: 500 13px var(--mono); color: var(--fg); }
 #epochMarks .stop span { font: 400 11px var(--sans); color: var(--fg-2); }
 #epochMarks .stop small { font: 400 10.5px var(--mono); color: var(--fg-3); }
