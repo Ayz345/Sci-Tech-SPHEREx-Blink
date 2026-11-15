@@ -23,7 +23,7 @@ body { font: 300 16px/1.55 var(--sans); }
 button, select, input { font-size: 13.5px; }
 label { font-size: 15px; }
 
-/* ---------------------------------------------------------------- no top bar, no footer (Casper): the page opens like the
+/* ---------------------------------------------------------------- no top bar, no footer (the team): the page opens like the
    start page's plate screen. The right column's first row: "← Sky" on the left; search, server badge and More small and
    quiet on the right. */
 #topRow { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin: 0 0 22px; }
@@ -165,3 +165,60 @@ body:not(.embed) .timeRow #epochLabel { display: none; }          /* its words a
 #spec, #lc, #wing { background: none; border: 0; }
 .search input { min-width: 200px; }
 #fovButtons .lab { margin: 0 8px 0 0; }
+
+/* ================================================================ Designn, 15 Nov (the team: "the tool still does not
+   follow the start page"): the full tool takes the plate screen's look, so "Open the full tool" reads as the same
+   screen opening up. Same ground, same frame on the image, the pass line above it, the band ruler's rectangles, the
+   spectrum on the ground with no box, quiet labels. CSS only; no id, class or behaviour changes. */
+
+/* the ground: the plate screen's dark blue-grey, lighter at the top, with a faint grain */
+html { background: #05080c; }
+body { background: linear-gradient(180deg, #12171a 0%, #0b0f13 45%, #05080c 100%) fixed; }
+body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+body > * { position: relative; z-index: 1; }
+body.embed { background: var(--bg); padding-top: 6px; }
+body.embed::before { display: none; }
+
+body:not(.embed) #view { position: relative; }
+/* the frame of the plate: a hairline square and four corner marks */
+body:not(.embed) #view::after { content: ""; position: absolute; left: -1px; top: 31px; width: calc(var(--P) + 2px); height: calc(var(--P) + 2px);
+  box-sizing: border-box; pointer-events: none; border: 1px solid rgba(255, 255, 255, .3);
+  background: linear-gradient(#fff, #fff) left top / 22px 2px, linear-gradient(#fff, #fff) left top / 2px 22px,
+    linear-gradient(#fff, #fff) right top / 22px 2px, linear-gradient(#fff, #fff) right top / 2px 22px,
+    linear-gradient(#fff, #fff) left bottom / 22px 2px, linear-gradient(#fff, #fff) left bottom / 2px 22px,
+    linear-gradient(#fff, #fff) right bottom / 22px 2px, linear-gradient(#fff, #fff) right bottom / 2px 22px;
+  background-repeat: no-repeat; background-origin: border-box; }
+
+/* quiet labels: "field" and "speed" as the plate screen's mono caps */
+#fovButtons > .muted, .timeRow label { font: 400 12.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fg-3); }
+#fovButtons > .muted { margin-right: 6px; }
+
+/* the band picker as the plate screen's band ruler: square boxes, the chosen one filled */
+#bands button { border-radius: 2px; border-color: rgba(242, 242, 240, .45); }
+#bands button.on { border-color: var(--fg); }
+/* the passes as the ruler's boxes: square, a hairline, the current one filled */
+#epochMarks .stop { border-radius: 3px; border-color: rgba(242, 242, 240, .3); }
+/* all passes in view under the image: a grid of cards as wide as the image, a new row when they do not fit
+   (no sideways scroll); the "…" between 2010 and 2025 is left out, the 2010 card says "not SPHEREx" */
+body:not(.embed) #epochMarks { display: grid; grid-template-columns: repeat(auto-fill, minmax(102px, 1fr)); gap: 8px; overflow: visible; }
+body:not(.embed) #epochMarks .gap { display: none; }
+body:not(.embed) #epochMarks .stop { min-width: 0; padding: 8px 8px; }
+body:not(.embed) #epochMarks .stop { line-height: 1.35; overflow: hidden; }
+body:not(.embed) #epochMarks .stop b { font-size: 13px; white-space: normal; }
+body:not(.embed) #epochMarks .stop span, body:not(.embed) #epochMarks .stop small { font-size: 12.5px; }
+
+/* the spectrum on the ground, as on the plate screen: no box, no grid, the frame and the error bars faint */
+#plots svg line[stroke="rgba(242,242,240,0.07)"] { stroke: transparent; }
+#plots svg rect[stroke="rgba(242,242,240,0.32)"] { stroke: rgba(242, 242, 240, .14); }
+#plots svg line[stroke="#a3a3a0"], #plots svg line[stroke="#c9c9c5"] { stroke-opacity: .35; }
+
+/* the top row: the search gets the room (its long example ends in an ellipsis), the server badge is its dot */
+#coordForm { flex: 1 1 300px; max-width: 380px; }
+.search input { text-overflow: ellipsis; }
+.badge { font-size: 0; gap: 0; padding: 9px; }
+
+/* phones and narrow windows: the image as wide as the column again (the 46vw rule above would make it ~180 px on a phone) */
+@media (max-width: 999px) {
+  :root { --P: min(100vw - 2 * var(--gut), 640px) !important; }
+}
