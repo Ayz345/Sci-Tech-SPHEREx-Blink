@@ -152,36 +152,43 @@
     <div class="tabpane" data-pane="about" role="tabpanel">
       <details id="notesBox" open hidden><summary id="notesSum">Notes on this target</summary><ul id="notes"></ul></details>
       <details id="metaBox"><summary>About this field</summary><section id="meta"></section></details>
+      <details id="keysBox"><summary>Keyboard</summary><div class="muted">Keys: space play/pause · ←/→ epoch · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · m measure · +/− zoom. Pixel scale is read from the manifest grid; SPHEREx native pixel is 6.15″.</div></details>
+      <details id="logBox"><summary>Request log</summary><ol id="log" class="mono"></ol></details>
     </div>
+  <section id="plots">
+      <div id="plotTabs" role="tablist" aria-label="data">
+        <button type="button" role="tab" data-plot="specBox">Spectrum</button>
+        <button type="button" role="tab" data-plot="lcBox">Light curve</button>
+        <button type="button" role="tab" data-plot="wingBox" id="wingTab" hidden>PSF wings</button>
+      </div>
+    <div id="specBox" class="plotPane"><h3>Spectrum <span id="specWhere" class="muted"></span></h3><svg id="spec" viewBox="0 0 460 236"></svg>
+      <div id="winBox" class="row">
+        <span class="muted">window</span>
+        <input id="winLo" type="number" step="0.01" min="0.75" max="5" size="5" placeholder="µm"> –
+        <input id="winHi" type="number" step="0.01" min="0.75" max="5" size="5" placeholder="µm"> µm
+        <button id="winGo" type="button" title="drag across the spectrum or type two wavelengths">Blink this window</button>
+      </div>
+      <div id="winNote" class="muted"></div>
+      <div class="row"><button id="specCsv" type="button" disabled title="the spectrum on screen as a CSV file, made in your browser">Download spectrum (CSV)</button></div>
+      <details id="flagBox" hidden><summary id="flagSummary" class="muted">Flags</summary>
+        <div class="muted">Point at a spectrum point to see the FLAGS bits set in its aperture. Meanings as given by the data.</div>
+        <div id="flagSource" class="muted"></div>
+        <dl id="flagList"></dl></details>
+      <div id="specNote" class="muted"></div></div>
+    <div id="lcBox" class="plotPane"><h3>Light curve <span id="lcWhere" class="muted"></span></h3><svg id="lc" viewBox="0 0 460 236"></svg></div>
+    <div id="wingBox" class="plotPane" hidden><h3>Relative brightness from PSF wings <span id="wingWhere" class="muted"></span></h3>
+      <div class="muted">Indicative only, not a formal detection of variability.</div>
+      <div id="wingMissing" hidden></div>
+      <div id="wingPlot">
+        <svg id="wing" viewBox="0 0 460 236"></svg>
+        <div class="muted">Saturated exposures only. MJy/sr, relative; not comparable with the mJy axes.</div>
+      </div>
+      <div id="wingNote" class="muted"></div>
+      <details id="wingMethod" hidden><summary class="muted">Method details</summary><div id="wingMethodText" class="muted"></div></details></div>
+  </section>
   </aside>
 </main>
 
-<section id="plots">
-  <div><h3>Spectrum <span id="specWhere" class="muted"></span></h3><svg id="spec" viewBox="0 0 460 236"></svg>
-    <div id="winBox" class="row">
-      <span class="muted">window</span>
-      <input id="winLo" type="number" step="0.01" min="0.75" max="5" size="5" placeholder="µm"> –
-      <input id="winHi" type="number" step="0.01" min="0.75" max="5" size="5" placeholder="µm"> µm
-      <button id="winGo" type="button" title="drag across the spectrum or type two wavelengths">Blink this window</button>
-    </div>
-    <div id="winNote" class="muted"></div>
-    <div class="row"><button id="specCsv" type="button" disabled title="the spectrum on screen as a CSV file, made in your browser">Download spectrum (CSV)</button></div>
-    <details id="flagBox" hidden><summary id="flagSummary" class="muted">Flags</summary>
-      <div class="muted">Point at a spectrum point to see the FLAGS bits set in its aperture. Meanings as given by the data.</div>
-      <div id="flagSource" class="muted"></div>
-      <dl id="flagList"></dl></details></div>
-  <div><h3>Light curve <span id="lcWhere" class="muted"></span></h3><svg id="lc" viewBox="0 0 460 236"></svg></div>
-  <div id="wingBox" hidden><h3>Relative brightness from PSF wings <span id="wingWhere" class="muted"></span></h3>
-    <div class="muted">Indicative only, not a formal detection of variability.</div>
-    <div id="wingMissing" hidden></div>
-    <div id="wingPlot">
-      <svg id="wing" viewBox="0 0 460 236"></svg>
-      <div class="muted">Saturated exposures only. MJy/sr, relative; not comparable with the mJy axes.</div>
-    </div>
-    <div id="wingNote" class="muted"></div>
-    <details id="wingMethod" hidden><summary class="muted">Method details</summary><div id="wingMethodText" class="muted"></div></details></div>
-</section>
-<div id="specNote" class="muted"></div>
 
 <details id="aladinBox">
   <summary>More surveys (Aladin Lite) — other sky surveys at the same place</summary>
@@ -201,13 +208,9 @@
   <div id="aladinDiv"></div>
 </details>
 
-<details id="logBox"><summary>Request log</summary><ol id="log" class="mono"></ol></details>
 
 <footer class="muted">
-  Keys: space play/pause · ←/→ epoch · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · m measure · +/− zoom.
-  Pixel scale is read from the manifest grid; SPHEREx native pixel is 6.15″.
   <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink/blob/dev/handoff/results/methods_v2.md" target="_blank" rel="noopener">Methods</a>
-  · <a href="embed-example.html">Embed example</a>
   <div id="credits">
     <p id="creditWise" hidden>AllWISE makes use of data from WISE, which is a joint project of the University of California, Los Angeles, and the Jet Propulsion Laboratory/California Institute of Technology, and NEOWISE, which is a project of the Jet Propulsion Laboratory/California Institute of Technology. WISE and NEOWISE are funded by the National Aeronautics and Space Administration.</p>
     <p id="creditCat" hidden>CatWISE2020: Eisenhardt et al. (2020), Marocco et al. (2021); IRSA DOIs 10.26131/IRSA126, IRSA133, IRSA551, IRSA552.</p>

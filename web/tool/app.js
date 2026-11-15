@@ -383,7 +383,7 @@ async function loadTarget() {
   if (!params.get("zoom")) { // big image on the left: the largest whole zoom that fits (the embed keeps its compact size)
     // wide enough for the panel beside it, and low enough that the time strip stays on the first screen
     const nx = S.m.grid.shape[1], room = EMBED ? 420
-      : Math.min(760, Math.max(280, innerWidth < 1000 ? innerWidth - 40 : innerWidth - 2 * 40 - 470), Math.max(280, innerHeight - 380));
+      : Math.min(760, Math.max(280, innerWidth < 1000 ? innerWidth - 40 : innerWidth - 2 * 40 - 520), Math.max(280, innerHeight - 380));
     S.zoom = Math.max(1, Math.min(6, Math.floor(room / nx))); $("zoom").value = String(S.zoom);
   }
   const bigField = USE_API && (+S.m.query?.fov_deg || 0) > 0.2;
@@ -519,8 +519,8 @@ function renderEpochMarks() {
     const w = document.createElement("button");
     w.type = "button"; w.className = "stop wise" + (S.onWise ? " cur" : "");
     w.setAttribute("aria-pressed", String(!!S.onWise));
-    w.innerHTML = `<b>${escapeHtml(S.wise.date ? fmtDate(S.wise.date) : yr)}</b><span>WISE ${escapeHtml(S.wiseBand)}</span><small>different instrument</small>`;
-    w.title = `WISE ${S.wiseBand} ${S.wise.date || ""}: not SPHEREx; click to blink it with the SPHEREx passes`;
+    w.innerHTML = `<b>${escapeHtml(yr)}</b><span>WISE ${escapeHtml(S.wiseBand)}</span><small>different instrument</small>`;
+    w.title = `WISE ${S.wiseBand}, AllWISE tile middle ${S.wise.date ? fmtDate(S.wise.date) : "(date not given)"}: not SPHEREx; click to blink it with the SPHEREx passes`;
     w.onclick = () => {
       if (!S.wiseOn) { S.wiseOn = true; $("wiseOn").checked = true; wiseSlider(); }
       S.onWise = true; $("epoch").value = -1; draw(); syncUrl();
@@ -541,6 +541,8 @@ function renderEpochMarks() {
     return b;
   }));
   $("epochMarks").replaceChildren(...stops);
+  const cur = S.onWise ? null : S.m.epochs[S.epoch]?.id;
+  for (const id of ["spec", "lc"]) $(id).setAttribute("class", cur == null ? "" : `cur-${cur}`);
 }
 // legend under the image: only the layers that are switched on, drawn as on the image
 function renderLegend() {
@@ -1170,7 +1172,9 @@ function scatter(svg, pts, xk, yk, xlabel, ylabel, empty = "No points to show he
   if (!pts.length) { plotMessage(svg, empty); return; }
   const xs = pts.map((p) => p[xk]), good = pts.filter((p) => !p.flagged);
   const ys = (good.length ? good : pts).map((p) => p[yk]);
-  const [x0, x1] = [Math.min(...xs), Math.max(...xs)], [y0, y1] = percentile([Float32Array.from(ys)], [1, 99]);
+  // y: nearly all points (0.5–99.5 %) plus a margin, so the outermost points are not pressed against the frame
+  const [x0, x1] = [Math.min(...xs), Math.max(...xs)], [ya, yb] = percentile([Float32Array.from(ys)], [0.5, 99.5]);
+  const pad = (yb - ya) * 0.06 || Math.abs(yb) * 0.1 || 1, y0 = ya - pad, y1 = yb + pad;
   const sx = (x) => L + ((x - x0) / (x1 - x0 || 1)) * (W - L - R);
   Object.assign(svg.dataset, { x0, x1, L, R, W, T, B, H }); // for the wavelength-window drag on the spectrum
   const sy = (y) => H - B - ((y - y0) / (y1 - y0 || 1)) * (H - B - T);
@@ -1199,7 +1203,7 @@ function scatter(svg, pts, xk, yk, xlabel, ylabel, empty = "No points to show he
     const x = sx(p[xk]).toFixed(1), ya = Math.max(T, sy(p[yk] + +p.err)), yb = Math.min(H - B, sy(p[yk] - +p.err));
     if (yb - ya < 1.5) continue;
     kinds.err = true;
-    h += `<line x1="${x}" x2="${x}" y1="${ya.toFixed(1)}" y2="${yb.toFixed(1)}" stroke="${epochTone(p.epoch)}" stroke-width="0.8" opacity="${p.flagged ? 0.25 : 0.55}"/>`;
+    h += `<line data-ep="${p.epoch}" x1="${x}" x2="${x}" y1="${ya.toFixed(1)}" y2="${yb.toFixed(1)}" stroke="${epochTone(p.epoch)}" stroke-width="0.8" opacity="${p.flagged ? 0.25 : 0.55}"/>`;
   }
   for (const p of pts) {
     const c = epochTone(p.epoch);
@@ -1211,17 +1215,17 @@ function scatter(svg, pts, xk, yk, xlabel, ylabel, empty = "No points to show he
     const tip = `<title>${escapeHtml(pointTip(p, yk))}</title>`;
     if (p.saturated && yk === "flux") { // lower limit: open marker with an upward tick
       kinds.sat = true;
-      h += `<g stroke="${c}" fill="none" opacity="0.7">${epochMarker(p.epoch, cx, cy, 2.6, true)}` +
+      h += `<g data-ep="${p.epoch}" stroke="${c}" fill="none" opacity="0.7">${epochMarker(p.epoch, cx, cy, 2.6, true)}` +
         `<path d="M${cx} ${(cy - 2.6).toFixed(1)}v-7m-2.5 2.5l2.5-2.5 2.5 2.5"/>${tip}</g>`;
     } else if (p.overflow && yk === "flux") { // recovered from overflow: a valid measurement, filled diamond
       kinds.over = true;
-      h += `<path d="M${cx} ${(cy - 3.2).toFixed(1)}l3.2 3.2-3.2 3.2-3.2-3.2z" fill="${c}" opacity="${zero ? 0.3 : 1}">${tip}</path>`;
+      h += `<path data-ep="${p.epoch}" d="M${cx} ${(cy - 3.2).toFixed(1)}l3.2 3.2-3.2 3.2-3.2-3.2z" fill="${c}" opacity="${zero ? 0.3 : 1}">${tip}</path>`;
     } else if (flagged) { // flagged: the epoch's marker, open
       kinds.flagged = true;
-      h += `<g opacity="0.6">${epochMarker(p.epoch, cx, cy, 2.8, true)}${tip}</g>`;
+      h += `<g data-ep="${p.epoch}" opacity="0.6">${epochMarker(p.epoch, cx, cy, 2.8, true)}${tip}</g>`;
     } else {
       if (zero) kinds.zero = true;
-      h += `<g opacity="${faint ? 0.3 : 1}">${epochMarker(p.epoch, cx, cy, 2.8, false)}${tip}</g>`;
+      h += `<g data-ep="${p.epoch}" opacity="${faint ? 0.3 : 1}">${epochMarker(p.epoch, cx, cy, 2.8, false)}${tip}</g>`;
     }
   }
   svg.innerHTML = h;
@@ -1312,7 +1316,9 @@ function plots() {
     !inb.length ? `No spectrum points in ${S.band}.` : `All ${inb.length} points in ${S.band} are saturated or flagged, so there is no light curve here.`);
   // saturated stars: relative brightness from the PSF wings (MJy/sr) — its own plot, never on the mJy axis
   const wing = pts.filter((p) => Number.isFinite(p.wing_flux));
-  $("wingBox").hidden = !wing.length;
+  $("wingBox").hidden = !wing.length; $("wingTab").hidden = !wing.length;
+  if (!wing.length && S.plot === "wingBox") { S.plot = "specBox"; document.querySelectorAll(".plotPane").forEach((p) => p.classList.toggle("off", p.id !== "specBox"));
+    document.querySelectorAll("#plotTabs [data-plot]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.plot === "specBox"))); }
   if (wing.length) {
     const wbs = meta.wing_bands || {}, cur = wbs[S.band];
     // the selected band has no wing series: say so and offer the bands that have one (never switch by itself)
@@ -2167,6 +2173,17 @@ $("tabs").onkeydown = (e) => { // arrow keys move between tabs
   const bs = [...document.querySelectorAll("#tabs [data-tab]")], i = bs.findIndex((b) => b.getAttribute("aria-selected") === "true");
   const n = bs[(i + (e.key === "ArrowRight" ? 1 : bs.length - 1)) % bs.length]; setTab(n.dataset.tab); n.focus(); e.stopPropagation();
 };
+// the data box: one plot at a time (spectrum / light curve / PSF wings); drawn again at its width when shown
+S.plot = "specBox";
+function setPlot(name) {
+  if (name === "wingBox" && $("wingBox").hidden) name = "specBox";
+  S.plot = name;
+  document.querySelectorAll("#plotTabs [data-plot]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.plot === name)));
+  document.querySelectorAll(".plotPane").forEach((p) => p.classList.toggle("off", p.id !== name));
+  if (S.m) plots();
+}
+document.querySelectorAll("#plotTabs [data-plot]").forEach((b) => { b.onclick = () => setPlot(b.dataset.plot); });
+setPlot("specBox");
 { let t = null; try { t = localStorage.getItem("spx-tab"); } catch { /* storage off */ }
   setTab(["band", "view", "layers", "measure", "about"].includes(t) ? t : "band"); }
 loadIndex();
