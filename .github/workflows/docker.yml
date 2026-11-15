@@ -1,0 +1,49 @@
+# Builds the API server image and checks that it starts and answers.
+# This is the only place the Dockerfile is exercised: there is no Docker on the development machine.
+name: Server image
+
+on:
+  push:
+    branches: [dev]
+    paths: ["Dockerfile", "requirements.txt", "server/**", "spx/**", "scripts/make_submit_xsd.py", ".github/workflows/docker.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: docker build --build-arg SPX_COMMIT=${GITHUB_SHA::7} -t spx-blink .
+      - name: Start
+        run: |
+          docker run -d --name spx -p 8000:8000 spx-blink
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/api/health > health.json; then break; fi
+            sleep 2
+          done
+          cat health.json
+      - name: Health says what we expect
+        run: |
+          python3 - <<'PY'
+          import json
+          h = json.load(open("health.json"))
+          print({k: h.get(k) for k in ("ok", "commit", "ades_schema", "max_fov_deg", "astrometry_validation")})
+          assert h.get("ok") is True, "health not ok"
+          assert h.get("ades_schema") is True, "ADES schema missing in the image"
+          PY
+      - name: Gallery data and catalogue are served
+        run: |
+          curl -sS -o /dev/null -w "catwise wise-0855: %{http_code}\n" "http://127.0.0.1:8000/api/catwise?key=wise-0855"
+          curl -sS -o /dev/null -w "bad band: %{http_code}\n" "http://127.0.0.1:8000/api/band?key=wise-0855&band=w1_2"
+      - name: A field list from the archive (IRSA may be slow; reported, not required)
+        continue-on-error: true
+        run: |
+          curl -sS -m 60 -o manifest.json -w "manifest: %{http_code} %{time_total}s\n" "http://127.0.0.1:8000/api/manifest?target=wise-0855&queue=0"
+          python3 -c "import json;m=json.load(open('manifest.json'));print(m.get('key'), len(m.get('epochs',[])), 'epochs', m.get('n_images'), 'images', m.get('message'))"
+      - name: Server log
+        if: always()
+        run: docker logs spx 2>&1 | tail -40
