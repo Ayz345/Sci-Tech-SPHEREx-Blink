@@ -17,9 +17,17 @@ No top bar and no footer: target changes go back to the start page with "← Sky
   reads "not SPHEREx"). Dates are the selected band's own frames, as on the start page.
 - Right column: "← Sky" with a small search box (name, or RA Dec in any common form), the server badge and "More"
   (WiseView, IRSA, embed code, embed example, Methods, source); the big target name, its position, the field pills;
-  one row of band pills (the selected band's range in the label); the data box (Spectrum / Light curve / PSF wings,
-  the selected pass bright); then View / Layers / Measure / About as tabs that start closed. When the column is at
-  least 900 px wide it splits: name and bands on the left, the plot beside them. Credits are under About.
+  one row of band pills (the selected band's range in the label); then one tab line, Spectrum / Light curve /
+  PSF wings / View / Layers / Measure / About, over one slot of fixed height that scrolls inside itself (`--dock-h`).
+  Nothing that opens moves the image, the title or the time strip: messages and the 15′ question float at the
+  bottom of the window, the line under the image has a fixed height, band pills keep one height. When the column is
+  at least 900 px wide it splits: name and bands on the left, the slot beside them. Credits are under About.
+- "How to use this": six short steps in the start page's About style, opened once after the page change (300 ms
+  after the transition, 600 ms without one, at once with reduced motion), again with "?". "Don't show this again"
+  is kept in localStorage (`spx-howto-off`); closing it also sets sessionStorage `spx-howto-seen` so a Sky ↔ tool
+  round trip does not bring it back. Esc and a click outside close it. Not in the embed.
+- What can be clicked looks it (frame, hover, pointer, focus ring, chosen and off states); labels and the server
+  dot have no frame. The line under the image says what a click on it does.
 - Continuous page change: cross-document View Transitions with the start page's names (vt-plate, vt-title,
   vt-coords, vt-ruler, vt-spectrum, vt-back); off with reduced motion, plain where unsupported, none in the embed.
 - Phone: one column. `embed=1`: player, bands and time controls only, 560 px high.

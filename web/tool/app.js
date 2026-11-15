@@ -607,10 +607,15 @@ function renderLegend() {
 }
 // the side panel: one section at a time (the embed shows its few controls without tabs)
 // the extra tools under the data: closed at first; a tab opens its section, the same tab closes it again
+// one strip and one slot for the data and the tools (Spectrum / Light curve / PSF wings / View / Layers / Measure /
+// About): a tool opens in the slot where the plot was, so nothing else on the page moves; its tab again goes back
 function setTab(name) {
-  document.querySelectorAll("#tabs [data-tab]").forEach((b) => { const on = b.dataset.tab === name; b.setAttribute("aria-selected", String(on)); b.setAttribute("aria-expanded", String(on)); });
+  if (!name) { setPlot(S.plot || "specBox"); return; }
+  S.tab = name;
+  document.querySelectorAll("#plotTabs [data-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
+  document.querySelectorAll("#plotTabs [data-plot]").forEach((b) => b.setAttribute("aria-selected", "false"));
+  document.querySelectorAll(".plotPane").forEach((p) => p.classList.add("off"));
   document.querySelectorAll(".tabpane").forEach((p) => { p.hidden = !EMBED && p.dataset.pane !== name; });
-  S.tab = name || null;
 }
 // no data for this band/epoch: listed with 0 exposures, or the band file says n_used 0
 function emptyEpoch(band, i) {
@@ -889,8 +894,12 @@ function addMark(ra, dec) {
   renderMarks(); draw();
 }
 function removeMark(n) { S.marks = S.marks.filter((m) => m.n !== n); renderMarks(); draw(); }
+function clickHint() {
+  $("clickHint").textContent = S.measuring ? "Measure is on: click the object to mark it in this frame"
+    : NO_SERVER ? "Click the image: a spectrum at that point needs the live server" : "Click the image: the spectrum at that point";
+}
 function setMeasuring(on) {
-  S.measuring = on;
+  S.measuring = on; clickHint();
   $("measureBtn").classList.toggle("on", on);
   $("canvas").classList.toggle("measuring", on);
   $("measureHelp").textContent = on
@@ -1476,6 +1485,7 @@ function renderBands() {
     void dots;
     btn.title = `${b.id}: ${b.label || ""}; exposures per pass: ${(b.n_exposures || []).join(", ")}  (key ${i + 1})`;
     btn.className = b.id === S.band ? "on" : "";
+    btn.setAttribute("aria-pressed", String(b.id === S.band));
     btn.disabled = b.status === "empty";
     btn.onclick = () => selectBand(b.id);
     if (b.custom) { // user window: removable
@@ -2264,25 +2274,50 @@ try {
     }
     draw(); plots();
   }, 200); }); }
-if (EMBED) $("panel").prepend($("timeBox")); // the embed keeps its time controls beside the image, so it fits 560 px
-document.querySelectorAll("#tabs [data-tab]").forEach((b) => { b.onclick = () => setTab(S.tab === b.dataset.tab ? null : b.dataset.tab); });
-$("tabs").onkeydown = (e) => { // arrow keys move between tabs
+if (EMBED) { // the embed keeps its time controls, view and measure beside the image (no slot), so it fits 560 px
+  $("panel").prepend($("timeBox"));
+  $("panel").append(document.querySelector('.tabpane[data-pane="view"]'), document.querySelector('.tabpane[data-pane="measure"]'));
+}
+document.querySelectorAll("#plotTabs [data-tab]").forEach((b) => { b.onclick = () => setTab(S.tab === b.dataset.tab ? null : b.dataset.tab); });
+$("plotTabs").onkeydown = (e) => { // arrow keys move along the strip
   if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-  const bs = [...document.querySelectorAll("#tabs [data-tab]")], i = bs.findIndex((b) => b.getAttribute("aria-selected") === "true");
-  const n = bs[(i + (e.key === "ArrowRight" ? 1 : bs.length - 1)) % bs.length]; setTab(n.dataset.tab); n.focus(); e.stopPropagation();
+  const bs = [...document.querySelectorAll("#plotTabs button:not([hidden])")], i = bs.findIndex((b) => b.getAttribute("aria-selected") === "true");
+  const n = bs[(i + (e.key === "ArrowRight" ? 1 : bs.length - 1)) % bs.length];
+  n.dataset.tab ? setTab(n.dataset.tab) : setPlot(n.dataset.plot); n.focus(); e.stopPropagation(); e.preventDefault();
 };
 // the data box: one plot at a time (spectrum / light curve / PSF wings); drawn again at its width when shown
 S.plot = "specBox";
 function setPlot(name) {
   if (name === "wingBox" && $("wingBox").hidden) name = "specBox";
-  S.plot = name;
+  S.plot = name; S.tab = null;
+  document.querySelectorAll("#plotTabs [data-tab]").forEach((b) => b.setAttribute("aria-selected", "false"));
+  document.querySelectorAll(".tabpane").forEach((p) => { p.hidden = !EMBED; });
   document.querySelectorAll("#plotTabs [data-plot]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.plot === name)));
   document.querySelectorAll(".plotPane").forEach((p) => p.classList.toggle("off", p.id !== name));
   if (S.m) plots();
 }
 document.querySelectorAll("#plotTabs [data-plot]").forEach((b) => { b.onclick = () => setPlot(b.dataset.plot); });
 setPlot("specBox");
-setTab(null);
+// "How to use this": a short dialog in the start page's style; after the page change, not in the embed; remembered
+// in this browser when asked (without storage it simply shows each time)
+{
+  const KEY = "spx-howto-off", dlg = $("howto");
+  let from = null;
+  const save = () => { try { if ($("howtoNever").checked) localStorage.setItem(KEY, "1"); else localStorage.removeItem(KEY); } catch { /* storage off */ } };
+  const open = () => { if (dlg.open) return; from = document.activeElement; try { $("howtoNever").checked = localStorage.getItem(KEY) === "1"; } catch { /* storage off */ } dlg.showModal(); $("howtoOk").focus(); };
+  const close = () => { save(); try { sessionStorage.setItem("spx-howto-seen", "1"); } catch { /* storage off */ } dlg.close(); };
+  dlg.addEventListener("cancel", () => { save(); try { sessionStorage.setItem("spx-howto-seen", "1"); } catch { /* storage off */ } }); // Esc
+  dlg.addEventListener("close", () => { if (from && from.focus) from.focus(); });
+  dlg.addEventListener("click", (e) => { // a click outside the box (on the backdrop) closes it
+    const r = dlg.getBoundingClientRect();
+    if (e.target === dlg && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) close();
+  });
+  $("howtoOk").onclick = close; $("howtoClose").onclick = close; $("howtoBtn").onclick = open;
+  // not again in this tab once closed (a Sky <-> tool round trip would otherwise bring it back every time)
+  let off = false; try { off = localStorage.getItem(KEY) === "1" || sessionStorage.getItem("spx-howto-seen") === "1"; } catch { /* storage off */ }
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!EMBED && !off) (window.__vtDone || Promise.resolve()).then(() => setTimeout(open, still ? 0 : window.__vtHad ? 300 : 600));
+}
 loadIndex();
 loadTarget();
 // developer hook (?debug=1): place marks at exact positions/times, e.g. to replay a known asteroid passage

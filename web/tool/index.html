@@ -9,6 +9,8 @@
      until the last named element (#plots) is parsed, so all six names are there when the page is revealed -->
 <style>@view-transition { navigation: auto; } @media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }</style>
 <link rel="expect" href="#plots" blocking="render">
+<!-- resolves when the page change from the start page has finished (or at once without one), so dialogs open after it -->
+<script>window.__vtDone = new Promise((done) => { addEventListener("pagereveal", (e) => { window.__vtHad = !!e.viewTransition; (e.viewTransition ? e.viewTransition.finished : Promise.resolve()).then(done, done); }, { once: true }); setTimeout(done, 2500); });</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=DM+Sans:opsz,wght@9..40,300..500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -22,7 +24,7 @@
   <div id="view">
     <div id="plateCap" class="mono" aria-hidden="true"></div>
     <canvas id="canvas" width="420" height="420" aria-label="SPHEREx image of the field; move the pointer to read positions"></canvas>
-    <div id="underImage"><div id="layerLegend" class="mono" aria-label="what the marks on the image mean"></div><div id="readout" class="mono"></div></div>
+    <div id="underImage"><div id="layerLegend" class="mono" aria-label="what the marks on the image mean"></div><div id="readout" class="mono"></div><div id="clickHint" class="mono"></div></div>
     <div id="timeBox">
       <div class="row timeRow">
         <button id="play" type="button">Play</button>
@@ -47,6 +49,7 @@
         <button>Go</button>
       </form>
       <span id="source" class="badge"></span>
+      <button id="howtoBtn" type="button" class="help" title="How to use this tool" aria-haspopup="dialog">?</button>
       <details id="more"><summary>More</summary>
         <div class="menu">
           <span id="links"></span>
@@ -71,12 +74,16 @@
       <button id="swapBand" type="button" disabled title="switch back to the previous band (key t)">⇄ previous band (t)</button>
     </div>
   <section id="plots">
-        <div id="plotTabs" role="tablist" aria-label="data">
+        <div id="plotTabs" role="tablist" aria-label="data and tools">
           <button type="button" role="tab" data-plot="specBox">Spectrum</button>
           <button type="button" role="tab" data-plot="lcBox">Light curve</button>
           <button type="button" role="tab" data-plot="wingBox" id="wingTab" hidden>PSF wings</button>
+          <button type="button" role="tab" data-tab="view">View</button>
+          <button type="button" role="tab" data-tab="layers">Layers</button>
+          <button type="button" role="tab" data-tab="measure">Measure</button>
+          <button type="button" role="tab" data-tab="about">About</button>
         </div>
-      <div id="specBox" class="plotPane"><h3>Spectrum <span id="specWhere" class="muted"></span></h3><svg id="spec" viewBox="0 0 460 236"></svg>
+      <div id="specBox" class="plotPane"><h3>Spectrum <span id="specWhere" class="muted"></span></h3><svg id="spec" viewBox="0 0 460 236"></svg><p id="specHint" class="hint mono">Drag across the spectrum to blink that wavelength range. Point at a dot for its values.</p>
         <details id="specMore"><summary>Spectrum details and tools</summary>
           <div id="specNote" class="muted"></div>
           <div id="winBox" class="row">
@@ -102,107 +109,101 @@
         </div>
         <div id="wingNote" class="muted"></div>
         <details id="wingMethod" hidden><summary class="muted">Method details</summary><div id="wingMethodText" class="muted"></div></details></div>
-    </section>
-    <div id="tabs" role="tablist" aria-label="more tools">
-      <button type="button" role="tab" data-tab="view">View</button>
-      <button type="button" role="tab" data-tab="layers">Layers</button>
-      <button type="button" role="tab" data-tab="measure">Measure</button>
-      <button type="button" role="tab" data-tab="about">About</button>
-    </div>
     <div class="tabpane" data-pane="view" role="tabpanel">
-    <fieldset><legend>View</legend>
-      <label>mode <select id="mode">
-        <option value="blink">blink</option><option value="diff">difference (epoch − mean of others)</option>
-        <option value="sum">sum (mean of all epochs)</option>
-        <option value="rgb">false colour (3 bands)</option></select></label>
-      <div id="rgbBox" hidden>
-        <label>red <select id="rgbR"></select></label>
-        <label>green <select id="rgbG"></select></label>
-        <label>blue <select id="rgbB"></select></label>
-        <div class="muted">each channel uses its own band's shared scale</div>
-      </div>
-      <label>layer <select id="layer">
-        <option value="image">image</option><option value="weight">weight (exposures)</option>
-        <option value="flagfrac">flagfrac (masked fraction)</option></select></label>
-      <label>zoom <select id="zoom"><option>1</option><option>2</option><option selected>3</option>
-        <option>4</option><option>5</option><option>6</option></select> <span class="muted">(cosmetic, nearest-neighbour)</span></label>
-    </fieldset>
-
-    <fieldset><legend>Frames</legend>
-      <label class="muted"><input type="checkbox" id="showLow"> show low-coverage frames (fewer than 5 exposures)</label>
-    </fieldset>
-    <fieldset id="stretchBox"><legend>Stretch (asinh)</legend>
-      <label>vmin <input id="vmin" size="9"></label>
-      <label>vmax <input id="vmax" size="9"></label>
-      <label>soft <input id="soft" size="9"></label>
-      <button id="autoScale" type="button">reset</button>
-      <div id="scaleSrc" class="muted"></div>
-    </fieldset>
-
-    </div>
-    <div class="tabpane" data-pane="layers" role="tabpanel">
-      <fieldset><legend>WISE image</legend>
-        <div id="wiseBox" hidden>
-        <div class="row">
-          <label id="wiseToggle" class="toggle" title="add the WISE image to the blink, next to the SPHEREx epochs"><input type="checkbox" id="wiseOn"> <span id="wiseLabel">WISE</span></label>
-          <select id="wiseBand" title="WISE band"><option>W2</option><option>W1</option></select>
-          <span id="wiseShort" class="muted"></span>
+      <fieldset><legend>View</legend>
+        <label>mode <select id="mode">
+          <option value="blink">blink</option><option value="diff">difference (epoch − mean of others)</option>
+          <option value="sum">sum (mean of all epochs)</option>
+          <option value="rgb">false colour (3 bands)</option></select></label>
+        <div id="rgbBox" hidden>
+          <label>red <select id="rgbR"></select></label>
+          <label>green <select id="rgbG"></select></label>
+          <label>blue <select id="rgbB"></select></label>
+          <div class="muted">each channel uses its own band's shared scale</div>
         </div>
-        <details id="wiseMore"><summary class="muted">About the WISE image</summary><div id="wiseNote" class="muted"></div></details>
-      </div>
-        <div id="wiseNone" class="muted">This field has no WISE image.</div>
+        <label>layer <select id="layer">
+          <option value="image">image</option><option value="weight">weight (exposures)</option>
+          <option value="flagfrac">flagfrac (masked fraction)</option></select></label>
+        <label>zoom <select id="zoom"><option>1</option><option>2</option><option selected>3</option>
+          <option>4</option><option>5</option><option>6</option></select> <span class="muted">(cosmetic, nearest-neighbour)</span></label>
       </fieldset>
-    <fieldset id="overlayBox"><legend>Overlays</legend>
-      <label><input type="checkbox" id="ovQuery" checked> query position (+)</label>
-      <label><input type="checkbox" id="ovTrack" checked> target track</label>
-      <label><input type="checkbox" id="ovGaia"> Gaia DR3 (propagated to epoch)</label>
-      <div id="gaiaNote" class="muted"></div>
-      <div id="catBox" hidden>
-        <label><input type="checkbox" id="ovCat"> CatWISE2020 <span class="muted">(squares)</span></label>
-        <label class="muted"><input type="checkbox" id="catAll"> show all</label>
-        <div id="catCount" class="muted"></div>
-        <div id="catNote" class="muted"></div>
-        <details id="catMore" hidden><summary class="muted">About this catalogue</summary><div id="catMoreText" class="muted"></div></details>
+  
+      <fieldset><legend>Frames</legend>
+        <label class="muted"><input type="checkbox" id="showLow"> show low-coverage frames (fewer than 5 exposures)</label>
+      </fieldset>
+      <fieldset id="stretchBox"><legend>Stretch (asinh)</legend>
+        <label>vmin <input id="vmin" size="9"></label>
+        <label>vmax <input id="vmax" size="9"></label>
+        <label>soft <input id="soft" size="9"></label>
+        <button id="autoScale" type="button">reset</button>
+        <div id="scaleSrc" class="muted"></div>
+      </fieldset>
+  
       </div>
-      <div id="candBox" hidden>
-        <label><input type="checkbox" id="ovCand"> Automatic candidates</label>
-        <div id="candPending" class="muted"></div>
-        <div class="muted">Automatic candidates are places to look at, not detection claims.</div>
-        <div id="candLimits" class="muted"></div>
-        <div id="candList"></div>
-        <details><summary class="muted">How candidates are found</summary><div id="candHow" class="mono"></div></details>
+      <div class="tabpane" data-pane="layers" role="tabpanel">
+        <fieldset><legend>WISE image</legend>
+          <div id="wiseBox" hidden>
+          <div class="row">
+            <label id="wiseToggle" class="toggle" title="add the WISE image to the blink, next to the SPHEREx epochs"><input type="checkbox" id="wiseOn"> <span id="wiseLabel">WISE</span></label>
+            <select id="wiseBand" title="WISE band"><option>W2</option><option>W1</option></select>
+            <span id="wiseShort" class="muted"></span>
+          </div>
+          <details id="wiseMore"><summary class="muted">About the WISE image</summary><div id="wiseNote" class="muted"></div></details>
+        </div>
+          <div id="wiseNone" class="muted">This field has no WISE image.</div>
+        </fieldset>
+      <fieldset id="overlayBox"><legend>Overlays</legend>
+        <label><input type="checkbox" id="ovQuery" checked> query position (+)</label>
+        <label><input type="checkbox" id="ovTrack" checked> target track</label>
+        <label><input type="checkbox" id="ovGaia"> Gaia DR3 (propagated to epoch)</label>
+        <div id="gaiaNote" class="muted"></div>
+        <div id="catBox" hidden>
+          <label><input type="checkbox" id="ovCat"> CatWISE2020 <span class="muted">(squares)</span></label>
+          <label class="muted"><input type="checkbox" id="catAll"> show all</label>
+          <div id="catCount" class="muted"></div>
+          <div id="catNote" class="muted"></div>
+          <details id="catMore" hidden><summary class="muted">About this catalogue</summary><div id="catMoreText" class="muted"></div></details>
+        </div>
+        <div id="candBox" hidden>
+          <label><input type="checkbox" id="ovCand"> Automatic candidates</label>
+          <div id="candPending" class="muted"></div>
+          <div class="muted">Automatic candidates are places to look at, not detection claims.</div>
+          <div id="candLimits" class="muted"></div>
+          <div id="candList"></div>
+          <details><summary class="muted">How candidates are found</summary><div id="candHow" class="mono"></div></details>
+        </div>
+      </fieldset>
       </div>
-    </fieldset>
-    </div>
-    <div class="tabpane" data-pane="measure" role="tabpanel">
-    <fieldset id="measureBox"><legend>Measure</legend>
-      <button id="measureBtn" type="button" title="click an object in one frame, then the same object in another frame (key m)">Measure / mark (m)</button>
-      <button id="clearMarks" type="button">clear marks</button>
-      <div id="measureHelp" class="muted"></div>
-      <ol id="markList" class="mono"></ol>
-      <div id="measureResult" class="mono"></div>
-      <div class="row">
-        <button id="refineBtn" type="button" disabled>Refine on single exposures</button>
-        <button id="reportBtn" type="button" disabled>Download report…</button>
+      <div class="tabpane" data-pane="measure" role="tabpanel">
+      <fieldset id="measureBox"><legend>Measure</legend>
+        <button id="measureBtn" type="button" title="click an object in one frame, then the same object in another frame (key m)">Measure / mark (m)</button>
+        <button id="clearMarks" type="button">clear marks</button>
+        <div id="measureHelp" class="muted"></div>
+        <ol id="markList" class="mono"></ol>
+        <div id="measureResult" class="mono"></div>
+        <div class="row">
+          <button id="refineBtn" type="button" disabled>Refine on single exposures</button>
+          <button id="reportBtn" type="button" disabled>Download report…</button>
+        </div>
+        <div id="refineWhy" class="muted"></div>
+        <div id="refineResult"></div>
+      </fieldset>
+  
       </div>
-      <div id="refineWhy" class="muted"></div>
-      <div id="refineResult"></div>
-    </fieldset>
-
+      <div class="tabpane" data-pane="about" role="tabpanel">
+        <details id="notesBox" open hidden><summary id="notesSum">Notes on this target</summary><ul id="notes"></ul></details>
+        <details id="metaBox"><summary>About this field</summary><section id="meta"></section></details>
+        <details id="keysBox"><summary>Keyboard</summary><div class="muted">Keys: space play/pause · ←/→ epoch · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · m measure · +/− zoom. Pixel scale is read from the manifest grid; SPHEREx native pixel is 6.15″.</div></details>
+        <details id="creditsBox"><summary>Credits</summary>
+          <div id="credits">
+      <p id="creditWise" hidden>AllWISE makes use of data from WISE, which is a joint project of the University of California, Los Angeles, and the Jet Propulsion Laboratory/California Institute of Technology, and NEOWISE, which is a project of the Jet Propulsion Laboratory/California Institute of Technology. WISE and NEOWISE are funded by the National Aeronautics and Space Administration.</p>
+      <p id="creditCat" hidden>CatWISE2020: Eisenhardt et al. (2020), Marocco et al. (2021); IRSA DOIs 10.26131/IRSA126, IRSA133, IRSA551, IRSA552.</p>
+      <p id="creditGaia" hidden>This work has made use of data from the European Space Agency (ESA) mission Gaia (https://www.cosmos.esa.int/gaia), processed by the Gaia Data Processing and Analysis Consortium (DPAC, https://www.cosmos.esa.int/web/gaia/dpac/consortium). Funding for the DPAC has been provided by national institutions, in particular the institutions participating in the Gaia Multilateral Agreement.</p>
     </div>
-    <div class="tabpane" data-pane="about" role="tabpanel">
-      <details id="notesBox" open hidden><summary id="notesSum">Notes on this target</summary><ul id="notes"></ul></details>
-      <details id="metaBox"><summary>About this field</summary><section id="meta"></section></details>
-      <details id="keysBox"><summary>Keyboard</summary><div class="muted">Keys: space play/pause · ←/→ epoch · 1–9 band · t previous band · b/d/s/c mode (c = false colour) · m measure · +/− zoom. Pixel scale is read from the manifest grid; SPHEREx native pixel is 6.15″.</div></details>
-      <details id="creditsBox"><summary>Credits</summary>
-        <div id="credits">
-    <p id="creditWise" hidden>AllWISE makes use of data from WISE, which is a joint project of the University of California, Los Angeles, and the Jet Propulsion Laboratory/California Institute of Technology, and NEOWISE, which is a project of the Jet Propulsion Laboratory/California Institute of Technology. WISE and NEOWISE are funded by the National Aeronautics and Space Administration.</p>
-    <p id="creditCat" hidden>CatWISE2020: Eisenhardt et al. (2020), Marocco et al. (2021); IRSA DOIs 10.26131/IRSA126, IRSA133, IRSA551, IRSA552.</p>
-    <p id="creditGaia" hidden>This work has made use of data from the European Space Agency (ESA) mission Gaia (https://www.cosmos.esa.int/gaia), processed by the Gaia Data Processing and Analysis Consortium (DPAC, https://www.cosmos.esa.int/web/gaia/dpac/consortium). Funding for the DPAC has been provided by national institutions, in particular the institutions participating in the Gaia Multilateral Agreement.</p>
-  </div>
-      </details>
-      <details id="logBox"><summary>Request log</summary><ol id="log" class="mono"></ol></details>
-    </div>
+        </details>
+        <details id="logBox"><summary>Request log</summary><ol id="log" class="mono"></ol></details>
+      </div>
+      </section>
    </div>
   </aside>
 </main>
@@ -227,6 +228,25 @@
 </details>
 
 
+
+<dialog id="howto" aria-labelledby="howto-h">
+  <button id="howtoClose" class="about-close" type="button" aria-label="Close">Close &times;</button>
+  <p class="k">SPHEREx Blink &middot; the full tool</p>
+  <h2 id="howto-h">How to use this</h2>
+  <ol class="steps">
+    <li><b>Blink.</b> Press Play under the image, or the space bar. Click a card to stop on one pass; the arrow keys step through them.</li>
+    <li><b>Band.</b> Choose D1&hellip;D6 or W. To blink a wavelength range of your own, drag across the spectrum.</li>
+    <li><b>Spectrum of a point.</b> Click the image to measure the spectrum there. It can take a few minutes.</li>
+    <li><b>Layers.</b> Put Gaia DR3 stars, CatWISE2020 sources or the automatic candidates on the image. Candidates are places to look at, not detections.</li>
+    <li><b>Measure and report.</b> In Measure, mark the object in two passes, refine on single exposures, then download a report. Nothing is sent anywhere.</li>
+    <li><b>2010 &middot; WISE.</b> Where a field has one, the first card is an AllWISE image from 2010: another instrument, shown for comparison.</li>
+  </ol>
+  <p class="again">The <b>?</b> at the top opens this again.</p>
+  <div class="row howto-foot">
+    <button id="howtoOk" type="button" class="ok">Got it</button>
+    <label class="muted"><input type="checkbox" id="howtoNever"> Don&rsquo;t show this again</label>
+  </div>
+</dialog>
 
 <dialog id="reportDlg">
   <h3>Download measurements</h3>
