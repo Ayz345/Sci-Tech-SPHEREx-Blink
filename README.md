@@ -261,6 +261,10 @@ The Space Apps rules ask teams to say where and how AI tools were used (the rule
   (made with 3D Jutsu), which is labelled as such where it appears.
 - **Data.** No data is AI-generated. Every number on the page is measured or computed from the archive data;
   the result files under `handoff/results/` are written by the tests and scripts in this repository.
+- **Demo video.** The 30-second demo is a screen recording of these pages with simple motion graphics; its
+  sound effects are synthesized in code. If the version with background music is the one submitted, that
+  music is AI-generated (Eleven Music, made through Higgsfield) and is said so on the video's last card. The
+  video and its music are not part of this repository.
 
 ## Licence
 
