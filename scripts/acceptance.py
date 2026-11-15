@@ -601,7 +601,7 @@ class OwnServer:
 
     def __enter__(self):
         self.cache.mkdir(parents=True, exist_ok=True)
-        env = dict(os.environ, SPX_CACHE=str(self.cache))
+        env = dict(os.environ, SPX_CACHE=str(self.cache), SPX_RATE_LIMIT="0")   # timings, not request limits
         self.proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "server.app:app", "--host", "127.0.0.1",
                                       "--port", str(self.port), "--log-level", "warning"], cwd=ROOT, env=env,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -834,7 +834,7 @@ def check_no_coverage(rep: Report, tmp: Path):
     """A second server that searches only spherex_qr3, where WISE 0855's position has no image."""
     import requests
     port = free_port()
-    env = dict(os.environ, SPX_COLLECTIONS="spherex_qr3", SPX_CACHE=str(tmp / "cache_qr3"))
+    env = dict(os.environ, SPX_COLLECTIONS="spherex_qr3", SPX_CACHE=str(tmp / "cache_qr3"), SPX_RATE_LIMIT="0")
     p = subprocess.Popen([sys.executable, "-m", "uvicorn", "server.app:app", "--host", "127.0.0.1", "--port", str(port),
                           "--log-level", "warning"], cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:

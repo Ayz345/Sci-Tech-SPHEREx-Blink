@@ -84,6 +84,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(P, "gaia_sources", lambda f, **k: [{"ra": RA0, "dec": DEC0, "pmra": 0.0, "pmdec": 0.0,
                                                              "g_mag": 12.0, "ref_epoch": 2016.0}])
     monkeypatch.setattr(A, "_spec_cache", A.OrderedDict())
+    monkeypatch.setattr(A, "RATE_ON", False)            # request limits are tested on their own (B1)
+    monkeypatch.setattr(A, "_rate_hits", {})
     regs = []
 
     def new_registry():
@@ -713,3 +715,40 @@ def test_track_cost_rule():
     from server import app as A
     cost = A.track_cost(MARKS)
     assert cost["within_visit"] and cost["sia_points"] == 2 and cost["window_days"] < 5
+
+
+
+# --------------------------------------------------------------------------- public server: request limits (B1)
+
+def test_rate_limit_per_ip(client, monkeypatch):
+    from server import app as A
+    monkeypatch.setattr(A, "RATE_ON", True)
+    monkeypatch.setattr(A, "RATE_PER_MIN", dict(A.RATE_PER_MIN, manifest=3))
+    for _ in range(3):
+        assert client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "queue": 0}).status_code == 200
+    r = client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "queue": 0})
+    assert r.status_code == 429 and int(r.headers["retry-after"]) >= 1 and "per minute" in r.json()["message"]
+    assert r.headers["access-control-allow-origin"] == "*"
+
+
+def test_new_field_limits(client, monkeypatch):
+    from server import app as A
+    monkeypatch.setattr(A, "RATE_ON", True)
+    monkeypatch.setattr(A, "NEW_FIELDS_PER_IP", 2)
+    ok = [client.get("/api/manifest", params={"ra": RA0 + i, "dec": DEC0, "queue": 0}).status_code for i in range(2)]
+    assert ok == [200, 200]
+    assert client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "queue": 0}).status_code == 200   # open: free
+    r = client.get("/api/manifest", params={"ra": RA0 + 5, "dec": DEC0, "queue": 0})
+    assert r.status_code == 429 and "new fields" in r.json()["message"]
+    # server-wide: fields still building block a new one
+    monkeypatch.setattr(A, "NEW_FIELDS_PER_IP", 100)
+    monkeypatch.setattr(A, "MAX_ACTIVE_FIELDS", 1)
+    with A.REG.lock:
+        fs = next(iter(A.REG.fields.values()))
+        job = next(iter(fs.jobs.values()))
+        job.event.clear()
+    try:
+        r = client.get("/api/manifest", params={"ra": RA0 + 7, "dec": DEC0, "queue": 0})
+        assert r.status_code == 429 and "building" in r.json()["message"] and r.headers["retry-after"] == "60"
+    finally:
+        job.event.set()

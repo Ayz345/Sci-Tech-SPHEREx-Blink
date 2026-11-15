@@ -65,6 +65,71 @@ MAX_WINDOWS_PER_FIELD = int(os.environ.get("SPX_MAX_WINDOWS_PER_FIELD") or 12)
 MAX_CUTOUT_SETS = int(os.environ.get("SPX_MAX_CUTOUT_SETS") or 2)
 
 
+# --------------------------------------------------------------------------- request limits (public server, B1)
+
+#: Requests per client IP per minute on the expensive endpoints (a page opening one field asks the manifest a few
+#: times, 6-7 bands and polls candidates every 5 s). SPX_RATE_LIMIT=0 turns all limits off.
+RATE_ON = (os.environ.get("SPX_RATE_LIMIT") or "1") != "0"
+RATE_PER_MIN = {"manifest": 20, "band": 60, "spectrum": 20, "candidates": 30, "track": 6}
+#: New fields (not yet on the server) per client IP per NEW_FIELD_WINDOW_S, and fields with unfinished bands at once.
+NEW_FIELDS_PER_IP = int(os.environ.get("SPX_NEW_FIELDS_PER_IP") or 10)
+NEW_FIELD_WINDOW_S = 600.0
+MAX_ACTIVE_FIELDS = int(os.environ.get("SPX_MAX_ACTIVE_FIELDS") or 4)
+_rate_lock = threading.Lock()
+_rate_hits: dict = {}      # (ip, group) -> deque of times
+
+
+def client_ip(request) -> str:
+    """The client's address; behind the host's proxy uvicorn --proxy-headers has put X-Forwarded-For here."""
+    return (request.client.host if request is not None and request.client else None) or "unknown"
+
+
+def _hit(ip: str, group: str, limit: int, window: float) -> float | None:
+    """Count one request; seconds to wait when over the limit, else None."""
+    from collections import deque
+    now = time.monotonic()
+    with _rate_lock:
+        q = _rate_hits.setdefault((ip, group), deque())
+        while q and now - q[0] > window:
+            q.popleft()
+        if len(q) >= limit:
+            return max(1.0, window - (now - q[0]))
+        q.append(now)
+        if len(_rate_hits) > 20000:            # forget idle clients
+            for k in [k for k, v in _rate_hits.items() if not v or now - v[-1] > 3600][:10000]:
+                _rate_hits.pop(k, None)
+    return None
+
+
+def rate_limit(request, group: str) -> None:
+    if not RATE_ON:
+        return
+    wait = _hit(client_ip(request), group, RATE_PER_MIN[group], 60.0)
+    if wait is not None:
+        raise ApiError(429, f"too many {group} requests from your address ({RATE_PER_MIN[group]} per minute); "
+                            f"try again in {wait:.0f} s", {"Retry-After": f"{wait:.0f}"})
+
+
+def new_field_allowed(request, key: str) -> None:
+    """A field not yet on the server costs downloads: per-IP and server-wide limits before it is opened."""
+    if not RATE_ON:
+        return
+    reg = registry()
+    with reg.lock:
+        if key in reg.fields or key in reg.opening:
+            return
+        active = sum(1 for fs in reg.fields.values()
+                     if any(not j.event.is_set() for b, j in fs.jobs.items() if b not in fs.windows))
+    if active >= MAX_ACTIVE_FIELDS:
+        raise ApiError(429, f"the server is building {active} fields; try again in a minute (or open a gallery "
+                            "target, which needs no download)", {"Retry-After": "60"})
+    wait = _hit(client_ip(request), "new_field", NEW_FIELDS_PER_IP, NEW_FIELD_WINDOW_S)
+    if wait is not None:
+        raise ApiError(429, f"too many new fields from your address ({NEW_FIELDS_PER_IP} per "
+                            f"{NEW_FIELD_WINDOW_S / 60:.0f} min); try again in {wait:.0f} s",
+                       {"Retry-After": f"{wait:.0f}"})
+
+
 # --------------------------------------------------------------------------- errors / json
 
 def error_id(what: str, exc: BaseException | None = None) -> str:
@@ -80,9 +145,9 @@ def error_id(what: str, exc: BaseException | None = None) -> str:
 
 
 class ApiError(Exception):
-    def __init__(self, status: int, message: str):
+    def __init__(self, status: int, message: str, headers: dict | None = None):
         super().__init__(message)
-        self.status, self.message = status, message
+        self.status, self.message, self.headers = status, message, headers or {}
 
 
 def jresp(obj, status: int = 200, cache: str | None = None) -> Response:
@@ -517,7 +582,10 @@ async def _cors(request: Request, call_next):
 
 @app.exception_handler(ApiError)
 async def _api_error(request: Request, exc: ApiError):
-    return jresp({"schema": P.SCHEMA, "message": exc.message}, exc.status)
+    resp = jresp({"schema": P.SCHEMA, "message": exc.message}, exc.status)
+    for k, v in exc.headers.items():
+        resp.headers[k] = v
+    return resp
 
 
 @app.exception_handler(Exception)
@@ -548,7 +616,7 @@ async def _field(key: str, open_kw: dict | None = None, queue: bool = True) -> F
 
 
 @app.get("/api/manifest")
-async def api_manifest(target: str | None = None, ra: str | None = None, dec: str | None = None,
+async def api_manifest(request: Request, target: str | None = None, ra: str | None = None, dec: str | None = None,
                        fov: float | None = None, pmra: float | None = None, pmdec: float | None = None,
                        ref_epoch: float | None = None, name: str | None = None, queue: int = 1):
     """pmra/pmdec (mas/yr) and ref_epoch (Julian year, default 2000.0) make a free position move like a
@@ -574,13 +642,16 @@ async def api_manifest(target: str | None = None, ra: str | None = None, dec: st
             key = registry().near_key(key, r, d) or key
         kw = {"ra": r, "dec": d, "fov_deg": fv, "pm": pm, "name": name,
               "source": "SIMBAD via CDS Sesame (proper motion given)" if pm else None}
+    rate_limit(request, "manifest")
+    new_field_allowed(request, key)
     fs = await _field(key, kw, bool(queue))
     registry().touch(fs.field.key)
     return jresp(registry().manifest(fs))
 
 
 @app.get("/api/band")
-async def api_band(key: str, band: str):
+async def api_band(request: Request, key: str, band: str):
+    rate_limit(request, "band")
     fs = await _field(key)
     job = await asyncio.to_thread(registry().wait_band, fs, band, BAND_WAIT_S)
     if job.state == "error":
@@ -609,9 +680,10 @@ async def api_frame(key: str, epoch: int, band: str, kind: str | None = None):
 
 
 @app.get("/api/candidates")
-async def api_candidates(key: str):
+async def api_candidates(request: Request, key: str):
     """Automatic candidates (spx.detect, PLAN 17 F2), made once all listed bands of the field are built.
     202 {"status": "pending"} until then; 503 when the detector is missing or failed."""
+    rate_limit(request, "candidates")
     fs = await _field(key)
     path = fs.out / "candidates.json"
     if path.exists():
@@ -656,7 +728,8 @@ _spec_cache: OrderedDict = OrderedDict()
 
 
 @app.get("/api/spectrum")
-async def api_spectrum(key: str, ra: float | None = None, dec: float | None = None):
+async def api_spectrum(request: Request, key: str, ra: float | None = None, dec: float | None = None):
+    rate_limit(request, "spectrum")
     fs = await _field(key)
     f = fs.field
     if (ra is None) != (dec is None):
@@ -852,6 +925,7 @@ async def api_track(request: Request):
     """Measure a marked moving object on single exposures. Body: {"band": "D1".."D6", "marks": [{ra, dec, mjd}, ...]}
     (>= 2 marks, same object, different times). Downloads the cutouts it needs (S3), never contacts the MPC."""
     import uuid
+    rate_limit(request, "track")
     raw = await request.body()
     if len(raw) > TRACK_MAX_BODY_BYTES:
         raise ApiError(413, f"body too large ({len(raw)} bytes; at most {TRACK_MAX_BODY_BYTES})")
