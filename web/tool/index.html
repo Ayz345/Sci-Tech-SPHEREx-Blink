@@ -16,19 +16,23 @@
   <section id="pick">
   <div id="targets"></div>
   <form id="coordForm">
-    <label>Name <input name="name" size="14" placeholder="e.g. RW Aur"></label>
-    <span class="muted">or</span>
-    <label>RA <input name="ra" size="12" placeholder="deg or hh:mm:ss"></label>
-    <label>Dec <input name="dec" size="12" placeholder="deg or dd:mm:ss"></label>
-    <label>FOV <input name="fov" size="6" placeholder="deg" value="0.1"></label>
+    <label class="search"><span class="vh">Name or coordinates</span><input name="name" size="30" placeholder="Name, or RA Dec (e.g. RW Aur · 08:55:10.8 −07:14:43)" autocomplete="off"></label>
+    <input type="hidden" name="ra"><input type="hidden" name="dec">
+    <input type="hidden" name="fov" value="0.1">
     <button>Go</button>
   </form>
   </section>
   <div id="headRight">
     <span id="source" class="badge"></span>
-    <span id="links"></span>
-    <button id="copyEmbed" type="button" disabled title="copy an iframe snippet for this view">copy embed code</button>
-    <a class="muted" href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink" target="_blank" rel="noopener">source code</a>
+    <details id="more"><summary>More</summary>
+      <div class="menu">
+        <span id="links"></span>
+        <button id="copyEmbed" type="button" disabled title="copy an iframe snippet for this view">copy embed code</button>
+        <a href="embed-example.html">Embed example</a>
+        <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink/blob/dev/handoff/results/methods_v2.md" target="_blank" rel="noopener">Methods</a>
+        <a href="https://github.com/Ayz345/Sci-Tech-SPHEREx-Blink" target="_blank" rel="noopener">Source code</a>
+      </div>
+    </details>
   </div>
 </header>
 <div id="fovConfirm" class="row" hidden></div>
@@ -36,7 +40,7 @@
 
 <main>
   <div id="view">
-    <div id="stageHead"><h1 id="tname"></h1><span id="tcoord" class="mono"></span><div id="fovButtons" class="row"><span class="muted">field</span></div></div>
+    <div id="stageHead"><div><h1 id="tname"></h1><span id="tcoord" class="mono"></span></div><div id="fovButtons" class="row"><span class="muted">field</span></div></div>
     <canvas id="canvas" width="420" height="420" aria-label="SPHEREx image of the field; move the pointer to read positions"></canvas>
     <div id="readout" class="mono">move the mouse over the image</div>
     <div id="layerLegend" class="mono" aria-label="what the marks on the image mean"></div>
@@ -48,15 +52,6 @@
       </div>
       <input id="epoch" type="range" min="0" max="0" value="0" aria-label="epoch">
       <div id="epochMarks" class="mono" role="group" aria-label="passes over this field"></div>
-      <label class="muted"><input type="checkbox" id="showLow"> show low-coverage frames (fewer than 5 exposures)</label>
-      <div id="wiseBox" hidden>
-        <div class="row">
-          <label id="wiseToggle" class="toggle" title="add the WISE image to the blink, next to the SPHEREx epochs"><input type="checkbox" id="wiseOn"> <span id="wiseLabel">WISE</span></label>
-          <select id="wiseBand" title="WISE band"><option>W2</option><option>W1</option></select>
-          <span id="wiseShort" class="muted"></span>
-        </div>
-        <details id="wiseMore"><summary class="muted">About the WISE image</summary><div id="wiseNote" class="muted"></div></details>
-      </div>
     </div>
     <div id="embedLine" class="muted"><a id="fullView" target="_blank" rel="noopener">open full view</a> · <span id="ackLine"></span></div>
   </div>
@@ -92,6 +87,9 @@
         <option>4</option><option>5</option><option>6</option></select> <span class="muted">(cosmetic, nearest-neighbour)</span></label>
     </fieldset>
 
+    <fieldset><legend>Frames</legend>
+      <label class="muted"><input type="checkbox" id="showLow"> show low-coverage frames (fewer than 5 exposures)</label>
+    </fieldset>
     <fieldset id="stretchBox"><legend>Stretch (asinh)</legend>
       <label>vmin <input id="vmin" size="9"></label>
       <label>vmax <input id="vmax" size="9"></label>
@@ -102,6 +100,17 @@
 
     </div>
     <div class="tabpane" data-pane="layers" role="tabpanel">
+      <fieldset><legend>WISE image</legend>
+        <div id="wiseBox" hidden>
+        <div class="row">
+          <label id="wiseToggle" class="toggle" title="add the WISE image to the blink, next to the SPHEREx epochs"><input type="checkbox" id="wiseOn"> <span id="wiseLabel">WISE</span></label>
+          <select id="wiseBand" title="WISE band"><option>W2</option><option>W1</option></select>
+          <span id="wiseShort" class="muted"></span>
+        </div>
+        <details id="wiseMore"><summary class="muted">About the WISE image</summary><div id="wiseNote" class="muted"></div></details>
+      </div>
+        <div id="wiseNone" class="muted">This field has no WISE image.</div>
+      </fieldset>
     <fieldset id="overlayBox"><legend>Overlays</legend>
       <label><input type="checkbox" id="ovQuery" checked> query position (+)</label>
       <label><input type="checkbox" id="ovTrack" checked> target track</label>

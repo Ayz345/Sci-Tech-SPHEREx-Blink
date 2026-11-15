@@ -24,7 +24,20 @@ a:hover { text-decoration-color: var(--fg); }
 /* one top row: the product name, target choice and coordinates, the server badge */
 header { display: flex; gap: 12px 22px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 #headRight { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-left: auto; }
-header strong { font: 350 30px/1 var(--display); letter-spacing: -.01em; }
+/* links, embed code and source live in one small menu */
+#more { position: relative; }
+#more > summary { list-style: none; font: 400 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--fg-2);
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; }
+#more > summary::-webkit-details-marker { display: none; }
+#more[open] > summary { color: var(--fg); border-color: var(--line-2); }
+#more .menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  min-width: 220px; padding: 14px 16px; background: var(--raise); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+#more .menu #links { display: flex; flex-direction: column; gap: 8px; }
+#more .menu a { color: var(--fg); font-size: 13.5px; }
+header strong { font: 350 26px/1 var(--display); letter-spacing: -.01em; white-space: nowrap; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#targets button { font-size: 11.5px; padding: 3px 10px; }
+.search input { width: clamp(220px, 22vw, 340px); border-radius: 999px; padding: 5px 14px; }
 #home { color: var(--fg); text-decoration: none; }
 #home:hover { text-decoration: underline; text-decoration-color: var(--line-2); }
 /* server state: a short badge; the details are in its tooltip */
@@ -55,11 +68,13 @@ label { color: var(--fg-2); }
 #notes li { padding: .3rem 0 .3rem .9rem; border-left: 1px solid var(--line-2); margin-bottom: .35rem; font-size: 13.5px; }
 
 /* the image large on the left, the controls in groups on the right */
-main { display: grid; grid-template-columns: minmax(0, auto) minmax(320px, 420px); gap: clamp(24px, 3vw, 48px); align-items: start; justify-content: center; margin-top: 8px; }
-#stageHead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin: 4px 0 12px; }
-#tname { margin: 0; font: 350 clamp(30px, 3vw, 46px)/1 var(--display); letter-spacing: -.02em; }
-#tcoord { color: var(--fg-2); }
-#stageHead #fovButtons { margin-left: auto; }
+main { display: grid; grid-template-columns: auto minmax(320px, 420px); gap: clamp(28px, 3.5vw, 56px); align-items: start; justify-content: center; margin-top: 8px; }
+/* the stage column is as wide as the image (set from the canvas), so the panel sits beside it */
+body:not(.embed) #view { width: max(var(--stage-w, 560px), 460px); }
+#stageHead { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; margin: 2px 0 10px; }
+#tname { margin: 0 0 2px; font: 350 clamp(28px, 2.6vw, 40px)/1 var(--display); letter-spacing: -.02em; }
+#tcoord { color: var(--fg-2); font-size: 11.5px; }
+
 #layerLegend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0 2px; color: var(--fg-2); font-size: 11.5px; }
 #layerLegend span { display: inline-flex; align-items: center; gap: 6px; }
 #layerLegend svg { width: 14px; height: 14px; background: none; border: 0; }
@@ -112,8 +127,15 @@ fieldset label { display: block; margin: 5px 0; }
 #bands { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
 [hidden] { display: none !important; }
 #bands button { border-radius: 8px; text-align: left; }
-#bands button small { display: block; font-size: 10px; color: var(--fg-3); }
-#bands button.on small { color: #333; }
+#bands button { display: flex; flex-direction: column; gap: 2px; min-width: 92px; padding: 7px 11px; }
+#bands button b { font: 500 13px var(--mono); color: var(--fg); }
+#bands button small { display: block; font-size: 11.5px; color: var(--fg-2); }
+#bands button .dots { display: flex; gap: 4px; align-items: center; margin-top: 3px; }
+#bands button .dots i { width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--fg-3); }
+#bands button .dots i.has { background: var(--fg-2); border-color: var(--fg-2); }
+#bands button .dots em { font: 400 10.5px var(--mono); font-style: normal; color: var(--fg-3); margin-left: 4px; }
+#bands button.on b, #bands button.on small { color: #000; }
+#bands button.on .dots i { border-color: #555; } #bands button.on .dots i.has { background: #222; border-color: #222; }
 .row { display: flex; gap: 10px; align-items: center; }
 #epoch { width: 100%; margin-top: 10px; }
 #epochLabel { color: var(--fg-2); }

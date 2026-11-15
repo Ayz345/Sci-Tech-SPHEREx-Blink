@@ -234,6 +234,21 @@ function parseAngle(str, isRa) {
   const v = +m[2] + (+m[3] || 0) / 60 + (+m[4] || 0) / 3600, sign = m[1] === "-" ? -1 : 1;
   return sign * v * (isRa ? 15 : 1);
 }
+// "133.79 -7.24", "133.79, -7.24", "08:55:10.8 -07:14:43", "08h55m10.8s −07d14m43s", "08 55 10.8 -07 14 43"
+// -> [ra, dec] in degrees (as text), or null when the text is not a position
+function splitCoords(text) {
+  const t = String(text || "").trim().replace(/[−‒–]/g, "-");
+  if (!t) return null;
+  let parts = t.includes(",") ? t.split(",").map((x) => x.trim()) : null;
+  if (!parts) {
+    const tok = t.split(/\s+/);
+    parts = tok.length === 2 ? tok : tok.length === 6 ? [tok.slice(0, 3).join(" "), tok.slice(3).join(" ")] : null;
+  }
+  if (!parts || parts.length !== 2) return null;
+  const ra = parseAngle(parts[0], true), dec = parseAngle(parts[1], false);
+  if (!(ra >= 0 && ra < 360 && dec >= -90 && dec <= 90)) return null;
+  return [ra.toFixed(6), dec.toFixed(6)];
+}
 // without a server: does a position fall inside one of the gallery fields? -> {key, name, ra, dec} of the best one
 async function galleryFieldAt(ra, dec) {
   if (!Number.isFinite(ra) || !Number.isFinite(dec)) return null;
@@ -368,7 +383,7 @@ async function loadTarget() {
   if (!params.get("zoom")) { // big image on the left: the largest whole zoom that fits (the embed keeps its compact size)
     // wide enough for the panel beside it, and low enough that the time strip stays on the first screen
     const nx = S.m.grid.shape[1], room = EMBED ? 420
-      : Math.min(760, Math.max(280, innerWidth < 1000 ? innerWidth - 40 : innerWidth - 2 * 40 - 470), Math.max(280, innerHeight - 330));
+      : Math.min(760, Math.max(280, innerWidth < 1000 ? innerWidth - 40 : innerWidth - 2 * 40 - 470), Math.max(280, innerHeight - 380));
     S.zoom = Math.max(1, Math.min(6, Math.floor(room / nx))); $("zoom").value = String(S.zoom);
   }
   const bigField = USE_API && (+S.m.query?.fov_deg || 0) > 0.2;
@@ -468,6 +483,13 @@ function bandEpoch(band, i) {
   return bj && !(bj instanceof Promise) ? bj.epochs?.find((e) => e.id === S.m.epochs[i].id) : null;
 }
 const isLow = (band, i) => bandEpoch(band, i)?.quality === "low";
+// a pass's date and time are those of the selected band's own frame (each band is a different set of exposures);
+// the manifest's epoch values only stand in until the band file is loaded
+const frameDate = (band, i) => bandEpoch(band, i)?.date || S.m.epochs[i].date;
+const frameMjd = (band, i) => +(bandEpoch(band, i)?.mjd_mid ?? S.m.epochs[i].mjd_mid);
+// "12 Nov 2025", as on the start page
+const fmtDate = (iso) => { const d = new Date(String(iso).slice(0, 10) + "T00:00:00Z");
+  return isNaN(d) ? String(iso || "") : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }); };
 const allowed = (band, i) => S.showLow || !isLow(band, i);
 // playback and arrow keys also skip epochs with no data in this band (0 exposures), whatever the low option;
 // the slider can still reach them and shows "no data", so the epoch is seen to exist
@@ -497,7 +519,7 @@ function renderEpochMarks() {
     const w = document.createElement("button");
     w.type = "button"; w.className = "stop wise" + (S.onWise ? " cur" : "");
     w.setAttribute("aria-pressed", String(!!S.onWise));
-    w.innerHTML = `<b>${escapeHtml(yr)}</b><span>WISE ${escapeHtml(S.wiseBand)}</span><small>different instrument</small>`;
+    w.innerHTML = `<b>${escapeHtml(S.wise.date ? fmtDate(S.wise.date) : yr)}</b><span>WISE ${escapeHtml(S.wiseBand)}</span><small>different instrument</small>`;
     w.title = `WISE ${S.wiseBand} ${S.wise.date || ""}: not SPHEREx; click to blink it with the SPHEREx passes`;
     w.onclick = () => {
       if (!S.wiseOn) { S.wiseOn = true; $("wiseOn").checked = true; wiseSlider(); }
@@ -510,9 +532,10 @@ function renderEpochMarks() {
     const n = bandEpoch(S.band, i)?.n_used, cur = i === S.epoch && !S.onWise;
     b.type = "button"; b.className = "stop" + (empty ? " empty" : low ? " low" : "") + (cur ? " cur" : "");
     b.setAttribute("aria-pressed", String(cur));
-    b.innerHTML = `<b>${escapeHtml(String(e.date))}</b><span>SPHEREx pass ${i + 1}</span><small>${empty ? "no data" : `${n ?? "?"} exposures${low ? " · low" : ""}`}</small>`;
-    b.title = empty ? `${e.date}: no data in this band (skipped in playback)`
-      : low ? `low coverage: ${n ?? "?"} exposures — ${S.showLow ? "shown" : "skipped"}` : e.date;
+    const day = fmtDate(frameDate(S.band, i));
+    b.innerHTML = `<b>${escapeHtml(day)}</b><span>SPHEREx pass ${i + 1}</span><small>${empty ? "no data" : `${n ?? "?"} exposures${low ? " · low" : ""}`}</small>`;
+    b.title = empty ? `${day}: no data in ${S.band} (skipped in playback)`
+      : low ? `low coverage: ${n ?? "?"} exposures — ${S.showLow ? "shown" : "skipped"}` : `${S.band} frame of ${day}, MJD ${frameMjd(S.band, i).toFixed(2)}`;
     b.disabled = empty;
     b.onclick = () => { $("epoch").value = i; $("epoch").oninput({ target: $("epoch") }); };
     return b;
@@ -720,10 +743,12 @@ function draw() {
   updateCredits();
   const [ny, nx] = S.m.grid.shape, z = S.zoom, cv = $("canvas"), ctx = cv.getContext("2d");
   cv.width = nx * z; cv.height = ny * z;
+  $("view").style.setProperty("--stage-w", `${cv.width}px`);
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, cv.width, cv.height);
   if (S.onWise && wiseActive()) { // the WISE frame: its own image, overlays at the WISE date, no SPHEREx processing
     $("epoch").value = -1; renderEpochMarks();
-    $("epochLabel").textContent = `WISE ${S.wiseBand}  ${S.wise.date || ""}${S.wise.mjd != null ? `  MJD ${(+S.wise.mjd).toFixed(2)}` : ""}\nnot SPHEREx: ${S.wise.survey}`;
+    $("epochLabel").textContent = `WISE ${S.wiseBand} · ${fmtDate(S.wise.date) || "date not given"} · not SPHEREx (${S.wise.survey})`;
+    $("epochLabel").title = S.wise.mjd != null ? `MJD ${(+S.wise.mjd).toFixed(2)}` : "";
     drawWise(ctx, nx, ny, z);
     overlays(ctx, { id: "wise", mjd_mid: S.wise.mjd, date: S.wise.date });
     wiseBanner(ctx);
@@ -735,8 +760,11 @@ function draw() {
   const n = S.m.bands.find((b) => b.id === S.band)?.n_exposures?.[S.epoch];
   const bj = S.bandInfo.get(S.band);
   const used = bj?.epochs?.find((e) => e.id === ep.id)?.n_used;
-  $("epochLabel").textContent = `${S.epoch + 1}/${S.m.epochs.length}  ${ep.date}  MJD ${(+ep.mjd_min).toFixed(2)}–${(+ep.mjd_max).toFixed(2)}` +
-    `\n${S.band}: ${n ?? "?"} exposures listed` + (used != null ? `, ${used} used` : "");
+  // "Pass 1 of 3 · 6 May 2025 · 5 exposures stacked"; the MJD details are in the tooltip
+  $("epochLabel").textContent = `Pass ${S.epoch + 1} of ${S.m.epochs.length} · ${fmtDate(frameDate(S.band, S.epoch))} · ` +
+    (used != null ? `${used} exposure${used === 1 ? "" : "s"} stacked` : `${n ?? "?"} exposures listed`);
+  $("epochLabel").title = `${S.band} frame MJD ${frameMjd(S.band, S.epoch).toFixed(2)}; pass MJD ${(+ep.mjd_min).toFixed(2)}–${(+ep.mjd_max).toFixed(2)}` +
+    `; ${n ?? "?"} exposures listed` + (used != null ? `, ${used} used` : "");
 
   if (S.mode === "rgb") { drawRGB(ctx, ep, nx, ny, z); overlays(ctx, ep); return; }
   const a = displayArray();
@@ -783,7 +811,10 @@ function addMark(ra, dec) {
     renderMarks(); draw(); return;
   }
   const ep = S.m.epochs[S.epoch];
-  S.marks.push({ n: ++S.markSeq, ra, dec, mjd: ep.mjd_mid, epoch: S.epoch, date: ep.date, band: S.mode === "rgb" ? "rgb" : S.band });
+  // the time of the frame on screen: the band's own frame (rgb mixes bands, so the pass's middle)
+  const rgb = S.mode === "rgb";
+  S.marks.push({ n: ++S.markSeq, ra, dec, mjd: rgb ? ep.mjd_mid : frameMjd(S.band, S.epoch), epoch: S.epoch,
+    date: rgb ? ep.date : frameDate(S.band, S.epoch), band: rgb ? "rgb" : S.band });
   renderMarks(); draw();
 }
 function removeMark(n) { S.marks = S.marks.filter((m) => m.n !== n); renderMarks(); draw(); }
@@ -1356,8 +1387,11 @@ function renderBands() {
     const btn = document.createElement("button");
     const loaded = S.m.epochs.filter((e) => frameOf(b.id, e.id)).length;
     const pct = b.status === "pending" && b.progress != null ? ` ${Math.round(b.progress * 100)}%` : "";
-    btn.innerHTML = `${escapeHtml(String(b.id))}<small>${escapeHtml(String(b.label || ""))}</small>` +
-      `<small>${escapeHtml(String(b.status))}${pct} · ${loaded}/${S.m.epochs.length}</small>`;
+    // one dot per pass: filled = its frame is here; a band still being built says so
+    const dots = S.m.epochs.map((e) => `<i class="${frameOf(b.id, e.id) ? "has" : ""}"></i>`).join("");
+    const state = b.status === "pending" ? `building${pct}` : b.status === "empty" ? "no data" : "";
+    btn.innerHTML = `<b>${escapeHtml(String(b.id))}</b><small>${escapeHtml(String(b.label || ""))}</small>` +
+      `<span class="dots" aria-label="${loaded} of ${S.m.epochs.length} passes loaded">${dots}${state ? ` <em>${escapeHtml(state)}</em>` : ""}</span>`;
     btn.title = `exposures per epoch: ${(b.n_exposures || []).join(", ")}  (key ${i + 1})`;
     btn.className = b.id === S.band ? "on" : "";
     btn.disabled = b.status === "empty";
@@ -1462,7 +1496,7 @@ async function loadWise() {
   S.wise = { mjd: meta.epoch_mjd ?? meta.mjd ?? null, date: meta.date || "", survey: meta.survey || "WISE", note: meta.note || "",
     scale: Object.fromEntries(bands.map((b) => [b.id, b.scale])), frames };
   if (!frames[S.wiseBand]) S.wiseBand = Object.keys(frames)[0];
-  $("wiseBox").hidden = false; $("wiseOn").checked = S.wiseOn; $("wiseBand").value = S.wiseBand;
+  $("wiseBox").hidden = false; $("wiseNone").hidden = true; $("wiseOn").checked = S.wiseOn; $("wiseBand").value = S.wiseBand;
   [...$("wiseBand").options].forEach((o) => { o.disabled = !frames[o.value]; });
   const unit = bands.find((b) => b.id === S.wiseBand)?.unit;
   const yr = (S.wise.date || "").slice(0, 4);
@@ -1650,7 +1684,8 @@ async function loadCandidates() {
 function candidateToMarks(c) {
   S.marks = (c.positions || []).map((p) => {
     const i = S.m.epochs.findIndex((e) => e.id === p.epoch), ep = S.m.epochs[i];
-    return ep && { n: ++S.markSeq, ra: +p.ra, dec: +p.dec, mjd: ep.mjd_mid, epoch: i, date: ep.date, band: (c.bands || [])[0] || S.band };
+    const b = (c.bands || [])[0] || S.band; // the time of that band's frame (the pass's middle until its file is loaded)
+    return ep && { n: ++S.markSeq, ra: +p.ra, dec: +p.dec, mjd: frameMjd(b, i), epoch: i, date: frameDate(b, i), band: b };
   }).filter(Boolean);
   if (c.bands?.[0] && c.bands[0] !== S.band && S.m.bands.some((b) => b.id === c.bands[0])) selectBand(c.bands[0]);
   renderMarks(); draw();
@@ -1885,7 +1920,10 @@ function wire() {
   $("coordForm").onsubmit = async (e) => {
     e.preventDefault();
     const f = new FormData(e.target), name = (f.get("name") || "").trim();
-    if (!name) { navigate({ ra: f.get("ra"), dec: f.get("dec"), fov: f.get("fov") }); return; }
+    // one box: two angles are a position, anything else is a name
+    const pos = splitCoords(name);
+    if (pos) { navigate({ ra: pos[0], dec: pos[1], fov: f.get("fov") }); return; }
+    if (!name) { if (f.get("ra") && f.get("dec")) navigate({ ra: f.get("ra"), dec: f.get("dec"), fov: f.get("fov") }); return; }
     if (!(await serverReady)) { // no live server: match a gallery entry by key or name
       const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
       const hit = [...$("targets").children].find((b) => norm(b.dataset.key) === norm(name) || norm(b.textContent) === norm(name));
@@ -2069,7 +2107,8 @@ function wire() {
 }
 
 if (params.get("embed") === "1") document.body.classList.add("embed");
-if (params.get("ra")) { const f = $("coordForm"); f.ra.value = params.get("ra"); f.dec.value = params.get("dec"); f.fov.value = params.get("fov") || "0.1"; }
+if (params.get("ra")) { const f = $("coordForm"); f.ra.value = params.get("ra"); f.dec.value = params.get("dec"); f.fov.value = params.get("fov") || "0.1";
+  if (!params.get("name")) f.name.value = `${params.get("ra")} ${params.get("dec")}`; }
 // header: which source the page uses (gallery files, live server or both)
 // header: a short badge for the server; the details (address, version, data folder) are in its tooltip
 function renderSource(probing) {
