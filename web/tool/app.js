@@ -575,7 +575,17 @@ function loadFrame(band, epoch, kind, known_empty) {
   if (S.frames.has(k)) return Promise.resolve(S.frames.get(k));
   if (known_empty) { S.frames.set(k, null); return Promise.resolve(null); }
   const p = fetchLogged(src.frame(S.key, epoch, band, kind), "f32").then(
-    (a) => { S.frames.set(k, a); if (band === S.band) draw(); return a; },
+    (a) => {
+      // a frame of another grid size must never be drawn on this grid (it would come out sheared)
+      const [ny, nx] = S.m.grid.shape;
+      if (a.length !== nx * ny) {
+        S.frames.set(k, null); S.gridMismatch = true; (S.badFrames ||= new Set()).add(k);
+        status(`A ${band} frame does not match this field's grid (${a.length * 4} bytes, expected ${nx * ny * 4} for ${nx}×${ny}); ` +
+          "it is not drawn. Reloading the page usually fixes this.", true);
+        if (band === S.band) draw(); return null;
+      }
+      S.frames.set(k, a); if (band === S.band) draw(); return a;
+    },
     () => { S.frames.delete(k); if (band === S.band) draw(); return null; }); // not cached: retried on the next request
   S.frames.set(k, p);
   return p;
@@ -794,7 +804,9 @@ function draw() {
   } else {
     ctx.fillStyle = INK.fg4; ctx.font = "14px system-ui";
     const pending = S.frames.get(`${S.band}|${ep.id}|${S.layer}`) instanceof Promise;
-    ctx.fillText(pending ? "loading…" : offline ? "server not reachable, retrying…" : "no data for this band/epoch", 12, 24);
+    const bad = S.badFrames?.has(`${S.band}|${S.m.epochs[S.epoch].id}|${S.layer}`);
+    ctx.fillText(pending ? "loading…" : offline ? "server not reachable, retrying…"
+      : bad ? "this frame does not match the field's grid, so it is not drawn" : "no data for this band/epoch", 12, 24);
   }
   overlays(ctx, ep);
   lowLabel(ctx);
@@ -1497,7 +1509,8 @@ async function loadWise() {
   for (const b of bands) {
     try {
       const r = await fetch(`${DATA}/${S.key}/${b.file || `wise_${b.id}.f32`}`);
-      if (r.ok) frames[b.id] = new Float32Array(littleEndian(await r.arrayBuffer()));
+      if (r.ok) { const a = new Float32Array(littleEndian(await r.arrayBuffer()));
+        if (a.length === S.m.grid.shape[0] * S.m.grid.shape[1]) frames[b.id] = a; } // a WISE file for another grid is left out
     } catch { /* that band is left out */ }
   }
   if (!Object.keys(frames).length) return;
