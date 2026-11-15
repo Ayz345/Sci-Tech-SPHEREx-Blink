@@ -385,8 +385,11 @@ async function loadTarget() {
   if (S.mode === "rgb") loadRGB();
   if (!params.get("zoom")) { // big image on the left: the largest whole zoom that fits (the embed keeps its compact size)
     // wide enough for the panel beside it, and low enough that the time strip stays on the first screen
-    const nx = S.m.grid.shape[1], room = EMBED ? 420 : stageSize();
-    S.zoom = Math.max(1, Math.min(6, EMBED ? Math.floor(room / nx) : Math.ceil(room / nx))); $("zoom").value = String(S.zoom);
+    // the stage's size comes from the skin (CSS --P); the drawing takes the whole zoom that covers it
+    const cssW = parseFloat(getComputedStyle($("canvas")).width) || 0;
+    const nx = S.m.grid.shape[1], room = EMBED ? 420 : cssW > 100 ? cssW : stageSize();
+    // round down: the drawing is scaled up a little to the stage (scaling down would break the thin marks and text)
+    S.zoom = Math.max(1, Math.min(6, Math.floor(room / nx))); $("zoom").value = String(S.zoom);
   }
   const bigField = USE_API && (+S.m.query?.fov_deg || 0) > 0.2;
   status(bigField
@@ -765,7 +768,7 @@ function draw() {
   updateCredits();
   const [ny, nx] = S.m.grid.shape, z = S.zoom, cv = $("canvas"), ctx = cv.getContext("2d");
   cv.width = nx * z; cv.height = ny * z;
-  if (!EMBED) document.documentElement.style.setProperty("--P", `${stageSize()}px`);
+
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, cv.width, cv.height);
   if (S.onWise && wiseActive()) { // the WISE frame: its own image, overlays at the WISE date, no SPHEREx processing
     $("epoch").value = -1; renderEpochMarks();
@@ -1185,7 +1188,7 @@ function plotSize(svg) {
 function plotMessage(svg, text) {
   const [W, H] = plotSize(svg);
   svg.innerHTML = `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" fill="none" stroke="${INK.rule}" stroke-dasharray="3 4"/>` +
-    `<text x="${W / 2}" y="${H / 2}" fill="${INK.fg3}" font-size="12.5" text-anchor="middle">${escapeHtml(text)}</text>`;
+    `<text x="${W / 2}" y="${H / 2}" fill="${INK.fg3}" font-size="14" text-anchor="middle">${escapeHtml(text)}</text>`;
   document.getElementById(svg.id + "Legend")?.replaceChildren();
 }
 function scatter(svg, pts, xk, yk, xlabel, ylabel, empty = "No points to show here.") {
@@ -1206,17 +1209,17 @@ function scatter(svg, pts, xk, yk, xlabel, ylabel, empty = "No points to show he
   for (const v of yt.ticks) {
     const y = sy(v).toFixed(1);
     h += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="rgba(242,242,240,0.07)"/>` +
-      `<text x="${L - 5}" y="${(+y + 4).toFixed(1)}" fill="${INK.fg3}" font-size="11" text-anchor="end">${fmt(v, yt.step)}</text>`;
+      `<text x="${L - 5}" y="${(+y + 4).toFixed(1)}" fill="${INK.fg3}" font-size="13" text-anchor="end">${fmt(v, yt.step)}</text>`;
   }
   for (const v of xt.ticks) {
     const x = sx(v).toFixed(1);
     h += `<line x1="${x}" x2="${x}" y1="${T}" y2="${H - B}" stroke="rgba(242,242,240,0.07)"/>` +
-      `<text x="${x}" y="${H - B + 15}" fill="${INK.fg3}" font-size="11" text-anchor="middle">${fmt(v, xt.step)}</text>`;
+      `<text x="${x}" y="${H - B + 15}" fill="${INK.fg3}" font-size="13" text-anchor="middle">${fmt(v, xt.step)}</text>`;
   }
   const xTitle = xlabel === "µm" ? "wavelength (µm)" : xlabel === "MJD" ? "date (MJD)" : String(xlabel);
   const yTitle = /^flux|brightness/i.test(String(ylabel)) ? String(ylabel) : `flux (${ylabel})`;
-  h += `<text x="${((L + W - R) / 2).toFixed(0)}" y="${H - 6}" fill="${INK.fg2}" font-size="11.5" text-anchor="middle">${escapeHtml(xTitle)}</text>`;
-  h += `<text transform="translate(13 ${((T + H - B) / 2).toFixed(0)}) rotate(-90)" fill="${INK.fg2}" font-size="11.5" text-anchor="middle">${escapeHtml(yTitle)}</text>`;
+  h += `<text x="${((L + W - R) / 2).toFixed(0)}" y="${H - 6}" fill="${INK.fg2}" font-size="13" text-anchor="middle">${escapeHtml(xTitle)}</text>`;
+  h += `<text transform="translate(13 ${((T + H - B) / 2).toFixed(0)}) rotate(-90)" fill="${INK.fg2}" font-size="13" text-anchor="middle">${escapeHtml(yTitle)}</text>`;
   const kinds = {};
   // error bars first, under the markers (not for lower limits)
   if (yk === "flux") for (const p of pts) {

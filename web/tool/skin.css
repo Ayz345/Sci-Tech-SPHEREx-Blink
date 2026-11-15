@@ -1,0 +1,137 @@
+/* SPHEREx Blink, full tool: the skin of the start page (design/release) laid over web/tool/style.css.
+   Load it after style.css (or merge it in). It changes no id, class or behaviour; it sets the shell:
+   a two-tier top bar, the image large on the left, one readable column on the right, a 13 px floor for text,
+   fewer things at first sight. Values and names follow design/release/style.css (:root). */
+
+:root {
+  /* the start page's tokens */
+  --paper: #fbfbf9; --ink: #0d0d0f;
+  --bg: #060607; --panel: #0b0b0d; --raise: #141416;
+  --fg: #f2f2f0; --fg-2: #b4b4b0; --fg-3: #8a8a85;            /* fg-3 is the smallest grey: 5.7:1 on --bg */
+  --line: rgba(242, 242, 240, .14); --line-2: rgba(242, 242, 240, .3);
+  --gut: clamp(16px, 3.2vw, 48px);                          /* the side margin of every row, as on the start page */
+  --bar: 64px;                                              /* top bar, first tier */
+  --gap: clamp(32px, 3.6vw, 64px);                          /* between the image and the column */
+  /* the image: as tall as the window allows under the bar and above the time strip, at most 46% of the width */
+  --P: min(calc(100vh - var(--bar) - 48px - 240px), 46vw, 760px) !important; /* web/tool: 240 (was 210) keeps the strip on a 1440x1000 screen */
+}
+
+/* ---------------------------------------------------------------- type: a floor of 13 px; mono labels 12.5 px caps */
+body { font: 300 16px/1.55 var(--sans); }
+.mono, code, #log { font-size: 13.5px; }
+.lab, legend { font: 400 12.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fg-3); margin: 0 0 10px; }
+button, select, input { font-size: 13.5px; }
+label { font-size: 15px; }
+
+/* ---------------------------------------------------------------- top bar: two tiers
+   tier 1 (64 px): ← Sky pill · SPHEREx Blink (Fraunces 22) ............ live badge · More
+   tier 2 (48 px, under a hairline): the five targets as text tabs ...... the underlined search */
+header { display: grid; grid-template-columns: auto auto 1fr auto; grid-template-rows: var(--bar) 48px; align-items: center;
+  column-gap: 20px; min-height: 0; padding: 0; border-bottom: 1px solid var(--line); }
+header > #home { grid-column: 1; grid-row: 1; }
+header .brand { grid-column: 2; grid-row: 1; font: 350 22px/1 var(--display); letter-spacing: -.01em; }
+#headRight { grid-column: 4; grid-row: 1; margin: 0; gap: 10px; }
+#pick { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px 32px;
+  height: 48px; border-top: 1px solid var(--line); flex-wrap: nowrap; min-width: 0; }
+#targets { display: flex; gap: 0 28px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+#targets button { font: 400 15px var(--sans); color: var(--fg-2); padding: 12px 0 11px; border: 0; border-bottom: 1px solid transparent;
+  border-radius: 0; white-space: nowrap; }
+#targets button.on, #targets button[aria-current="true"] { color: var(--fg); background: none; border-bottom-color: var(--fg); }
+#coordForm { flex: 0 1 380px; min-width: 220px; border-bottom: 1px solid var(--line-2); }
+.search { flex: 1 1 auto; display: block; }
+.search input { width: 100%; font: 400 14px var(--mono); padding: 9px 2px; color: var(--fg); }
+.search input::placeholder { color: var(--fg-3); }
+#coordForm button { font: 400 13.5px var(--mono); color: var(--fg-2); padding: 6px 4px 6px 12px; }
+.badge, #more > summary { font: 400 12.5px var(--mono); letter-spacing: .12em; padding: 6px 14px; }
+#fovConfirm { margin: 16px 0 0; font-size: 15px; }
+
+/* ---------------------------------------------------------------- stage: image left, one column right, full width */
+main { grid-template-columns: var(--P) minmax(0, 1fr); gap: var(--gap); margin-top: 32px; }
+body:not(.embed) canvas { width: var(--P); height: var(--P); }
+#underImage { margin-top: 10px; }
+#layerLegend, #readout { font-size: 13.5px; }
+
+/* the time strip under the image: the pass cards, no second slider */
+#timeBox { margin-top: 18px; padding-top: 16px; }
+#epoch { display: none; }                                   /* the cards below are the same choice, bigger */
+.timeRow #epochLabel { font-size: 13.5px; }
+#epochMarks { gap: 8px; margin: 14px 0 4px; }
+#epochMarks .stop { border-radius: 10px; padding: 9px 14px; min-width: 132px; }
+#epochMarks .stop b { font: 500 14px var(--mono); }
+#epochMarks .stop span, #epochMarks .stop small { font: 400 13px var(--mono); color: var(--fg-3); }
+#epochMarks .stop.wise { border-color: var(--line-2); border-style: solid; }   /* one ink: the 2010 card is not coloured */
+#epochMarks .gap { color: var(--fg-3); }
+
+/* the right column: one readable measure; the plots no taller than about a third of the window */
+#panel { max-width: none; }
+#panelGrid { max-width: 860px; }   /* web/tool: the measure limit sits on the inner grid, so the column itself can be measured */
+#tname { font: 350 clamp(44px, 4.2vw, 72px)/.98 var(--display); letter-spacing: -.02em; margin: 0 0 8px; }
+#tcoord { font-size: 14px; color: var(--fg-2); margin: 0 0 16px; }
+#status { font-size: 17px; line-height: 1.55; color: #cfcfcb; max-width: 40rem; margin: 0 0 18px; }
+#fovButtons { gap: 6px; }
+#fovButtons button { padding: 5px 13px; }
+#bandRow { margin-top: 24px; }
+#bands { gap: 6px; }
+#bands button { padding: 7px 15px; min-width: 56px; }
+#bands button b { font-size: 14px; }
+#bands button small { font-size: 12.5px; }               /* the band's range sits under its name, quieter */
+#swapBand { font-size: 13px; }
+#plots { margin-top: 28px; max-width: 640px; }            /* a 460:236 plot at 640 px is 328 px tall */
+#plotTabs, #tabs { gap: 2px; margin-bottom: 12px; }
+#plotTabs button, #tabs button { font: 400 13px var(--mono); letter-spacing: .12em; padding: 10px 14px; color: var(--fg-3); }
+#plots h3 { font-size: 0; margin: 0 0 8px; }               /* the tab names the plot; only "where" stays */
+#plots h3 .muted { font: 400 13px var(--mono); letter-spacing: .02em; color: var(--fg-3); }
+svg { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; }
+.plotLegend { font-size: 13.5px; }
+#specMore > summary, #wingMethod > summary, #flagBox > summary { font-size: 14px; }
+
+/* more tools: closed sections, one line each, until asked for */
+#tabs { margin-top: 32px; }
+fieldset { padding: 12px 0 14px; margin: 0 0 12px; }
+fieldset label { font-size: 15px; }
+.tabpane .muted, #candLimits, #catNote, #catCount, #candPending, #gaiaNote { font-size: 14px; }
+#candList table, #candList td small, #candList td button, #refineResult table, #markList { font-size: 13.5px; }
+#notes li { font-size: 15px; }
+#meta dt { font-size: 12.5px; }
+
+/* sky context and foot: last, quiet */
+#aladinBox { margin-top: 40px; }
+#aladinBox > summary { font: 400 12.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fg-2); }
+footer { margin-top: 32px; padding: 16px 0 8px; font-size: 14px; color: var(--fg-3); }
+
+/* wide screens: the column splits in two, the name and the bands on the left, the plot beside them; the tools below
+   span both. Nothing waits below the fold that fits next to the title. */
+/* web/tool: split by the column's own width, not the window's (at 1440 px the column is ~620 px and could not hold a
+   600 px plot beside the title) */
+#panel { container-type: inline-size; }
+@container (min-width: 900px) {
+  #panelGrid { max-width: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 600px); column-gap: var(--gap); align-items: start; }
+  #info { grid-column: 1; grid-row: 1; }
+  #bandRow { grid-column: 1; grid-row: 2; }
+  #plots { grid-column: 2; grid-row: 1 / span 3; margin-top: 4px; max-width: none; }
+  #tabs, .tabpane { grid-column: 1 / -1; }
+  #tabs { grid-row: 4; }
+}
+/* ---------------------------------------------------------------- narrower screens */
+@media (max-width: 1200px) {
+  #panel { max-width: none; }
+}
+@media (max-width: 999px) {
+  :root { --P: min(100vw - 2 * var(--gut), 640px) !important; }
+  main { grid-template-columns: minmax(0, 1fr); }
+  #plots { max-width: none; }
+}
+@media (max-width: 640px) {
+  header { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: 56px auto; column-gap: 12px; }
+  header > * { min-width: 0; }
+  header .brand { font-size: 19px; }
+  #headRight { grid-column: 3; }
+  #more > summary { padding: 5px 11px; }
+  .badge { font-size: 0; gap: 0; padding: 9px; }              /* the live dot alone; its title still says it */
+  #pick { flex-direction: column; align-items: stretch; height: auto; padding: 4px 0 10px; gap: 4px; width: 100%; min-width: 0; overflow: hidden; }
+  #coordForm { min-width: 0; }
+  #targets { max-width: 100%; min-width: 0; }
+  #coordForm { flex-basis: auto; }
+  #targets { gap: 0 20px; }
+  #epochMarks .stop { min-width: 120px; }
+}
