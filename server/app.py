@@ -639,7 +639,7 @@ def registry() -> Registry:
 
 # --------------------------------------------------------------------------- keys and coordinates
 
-_KEY_RE = re.compile(r"^r(\d+p\d+)_d([pm])(\d+p\d+)_f(\d+p\d+)"
+_KEY_RE = re.compile(r"^r(\d+p\d+)_d([pm])(\d+p\d+)_(?:n(\d+)|f(\d+p\d+))"
                      r"(?:_pm(m?\d+p\d+)_(m?\d+p\d+)_e(m?\d+p\d+))?$")
 
 
@@ -655,11 +655,14 @@ def parse_key(key: str) -> dict:
         raise ApiError(404, f"unknown key {key!r}")
     ra = float(m.group(1).replace("p", "."))
     dec = float(m.group(3).replace("p", ".")) * (-1 if m.group(2) == "m" else 1)
-    fov = float(m.group(4).replace("p", "."))
+    if m.group(4):                 # grid pixels across (current keys)
+        fov = (int(m.group(4)) * P.PIX_ARCSEC - 1e-6) / 3600.0
+    else:                          # field in degrees (keys before 15 Nov)
+        fov = P.canonical_fov(float(m.group(5).replace("p", ".")))
     check_fov(fov)
     out = {"ra": ra, "dec": dec, "fov_deg": fov}
-    if m.group(5):
-        out["pm"] = (_dec_num(m.group(5)), _dec_num(m.group(6)), _dec_num(m.group(7)))
+    if m.group(6):
+        out["pm"] = (_dec_num(m.group(6)), _dec_num(m.group(7)), _dec_num(m.group(8)))
     return out
 
 
@@ -681,7 +684,7 @@ def parse_coord(ra: str, dec: str) -> tuple[float, float]:
 
 
 def check_fov(fov: float) -> None:
-    if not (0.01 <= fov <= P.MAX_FOV_DEG + 0.0005):  # keys carry the field rounded to 0.001 deg
+    if not (0.01 <= fov <= P.MAX_FOV_DEG + 0.0005):
         raise ApiError(400, f"fov must be within [0.01, {P.MAX_FOV_DEG:.4f}] deg on this server, got {fov}")
 
 
@@ -742,7 +745,7 @@ async def _start_janitor(request: Request, call_next):
 
 
 #: Response headers the browser may read across origins (/api/report: file name, schema check).
-EXPOSE_HEADERS = "Content-Disposition, X-ADES-Schema-Checked"
+EXPOSE_HEADERS = "Content-Disposition, X-ADES-Schema-Checked, X-Shape"
 
 
 @app.middleware("http")
@@ -812,6 +815,7 @@ async def api_manifest(request: Request, target: str | None = None, ra: str | No
         r, d = parse_coord(ra, dec)
         fv = float(fov) if fov else P.DEFAULT_FOV_DEG
         check_fov(fv)
+        fv = P.canonical_fov(fv)       # key and grid from the same value (grid_px pixels)
         pm = None
         if pmra is not None or pmdec is not None:
             pm = (float(pmra or 0.0), float(pmdec or 0.0), float(ref_epoch if ref_epoch is not None else 2000.0))
@@ -904,8 +908,9 @@ async def api_frame(key: str, epoch: int, band: str, kind: str | None = None):
     path = fs.out / (f"{epoch}_{band}" + (f"_{kind}" if kind else "") + ".f32")
     if not path.exists():
         raise ApiError(404, f"no frame for epoch {epoch} in band {band}")
+    shape = fs.field.grid.shape
     return Response(path.read_bytes(), media_type="application/octet-stream",
-                    headers={"Cache-Control": "public, max-age=3600"})
+                    headers={"Cache-Control": "public, max-age=3600", "X-Shape": f"{shape[0]},{shape[1]}"})
 
 
 @app.get("/api/candidates")

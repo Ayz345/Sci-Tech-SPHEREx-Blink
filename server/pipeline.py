@@ -168,8 +168,23 @@ def _enc(x: float, nd: int) -> str:
     return ("m" if x < 0 else "") + f"{abs(x):.{nd}f}".replace(".", "p")
 
 
+def grid_px(fov_deg: float) -> int:
+    """Grid pixels across for a requested field (even, as spx.coadd.make_grid makes them). A 0.01 px tolerance makes
+    0.1166, 0.116666 and 0.11667 deg (all meant as 7') give the same 140."""
+    n = int(math.ceil(float(fov_deg) * 3600.0 / PIX_ARCSEC - 0.01))
+    return max(2, n + n % 2)
+
+
+def canonical_fov(fov_deg: float) -> float:
+    """The field size the key and the grid both come from: exactly grid_px(fov_deg) pixels in make_grid (a hair
+    under n pixels, so its ceil gives n). A free field is opened, keyed and reopened with this value only."""
+    return (grid_px(fov_deg) * PIX_ARCSEC - 1e-6) / 3600.0
+
+
 def free_key(ra: float, dec: float, fov_deg: float, pm: tuple | None = None) -> str:
-    """r133p7951_dm7p2451_f0p100 (p = decimal point, dp/dm = Dec sign, f = field in degrees).
+    """r133p7951_dm7p2451_n140 (p = decimal point, dp/dm = Dec sign, n = grid pixels across, 3 arcsec each).
+    The key carries the grid size itself, so a field reopened from its key gets the same grid (with the field in
+    degrees rounded to 0.001, 0.1166 deg gave a 140-pixel grid and its key, reopened, 142).
 
     With a proper motion (pmra, pmdec mas/yr at ref_epoch, e.g. from /api/resolve) the key gets
     _pm<pmra>_<pmdec>_e<epoch> (m = minus), e.g. ..._pmm3781p74_769p47_e2000p000.
@@ -177,7 +192,7 @@ def free_key(ra: float, dec: float, fov_deg: float, pm: tuple | None = None) -> 
     ra = round(float(ra) % 360.0, 4) % 360.0  # 359.99999 -> 0.0000, never 360.0000
     dec = round(float(dec), 4) + 0.0  # -0.0 -> 0.0
     s = "dm" if dec < 0 else "dp"
-    key = (f"r{ra:.4f}_{s}{abs(dec):.4f}_f{fov_deg:.3f}").replace(".", "p")
+    key = (f"r{ra:.4f}_{s}{abs(dec):.4f}").replace(".", "p") + f"_n{grid_px(fov_deg)}"
     if pm is not None:
         key += f"_pm{_enc(pm[0], 2)}_{_enc(pm[1], 2)}_e{_enc(pm[2], 3)}"
     return key
@@ -503,7 +518,7 @@ def build_band(f: Field, band_id: str, out_dir: Path, layers=("IMAGE", "FLAGS", 
         write_f32(out_dir / f"{stem}.f32", fr.image)
         write_f32(out_dir / f"{stem}_weight.f32", fr.weight)
         write_f32(out_dir / f"{stem}_flagfrac.f32", fr.flag_frac)
-    bj = {"schema": SCHEMA, "key": f.key, "band": band_id}
+    bj = {"schema": SCHEMA, "key": f.key, "band": band_id, "shape": list(f.grid.shape)}
     if frames:
         vmin, vmax, soft = common_scale(frames)[band_id]
         bj["scale"] = {"vmin": vmin, "vmax": vmax, "soft": soft}

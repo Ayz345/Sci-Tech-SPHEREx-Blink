@@ -122,7 +122,7 @@ def test_manifest_band_frame(client):
     r = client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "fov": 0.1})
     assert r.status_code == 200 and r.headers["access-control-allow-origin"] == "*"
     m = _strict(r)
-    assert m["schema"] == 1 and m["key"] == "r210p1230_dm35p4560_f0p100"
+    assert m["schema"] == 1 and m["key"] == "r210p1230_dm35p4560_n120"
     assert len(m["epochs"]) == 3 and [b["id"] for b in m["bands"]] == [f"D{d}" for d in range(1, 7)]
     assert all(b["n_exposures"] == [4, 4, 4] for b in m["bands"])
     assert m["grid"]["shape"] == [120, 120] and m["grid"]["ctype"] == ["RA---TAN", "DEC--TAN"]
@@ -185,7 +185,7 @@ def test_no_coverage_and_errors(client):
 
 def test_coordinate_forms_and_wrap(client):
     a = client.get("/api/manifest", params={"ra": "14:00:29.52", "dec": "-35:27:21.6", "fov": 0.1}).json()
-    assert a["key"] == "r210p1230_dm35p4560_f0p100"
+    assert a["key"] == "r210p1230_dm35p4560_n120"
     b = client.get("/api/manifest", params={"ra": -0.5, "dec": 10}).json()
     assert b["key"].startswith("r359p5000_dp10p0000")
 
@@ -197,7 +197,10 @@ def test_key_roundtrip_reopens_after_restart(client, monkeypatch):
     client.new_registry()  # a restarted server: only the disk is left
     r = client.get("/api/band", params={"key": m["key"], "band": "D2"})
     assert r.status_code == 200 and _strict(r)["band"] == "D2"
-    assert A.parse_key(m["key"]) == {"ra": 210.123, "dec": -35.456, "fov_deg": 0.1}
+    k = A.parse_key(m["key"])
+    assert (k["ra"], k["dec"]) == (210.123, -35.456) and m["key"].endswith("_n120")
+    from server import pipeline as P
+    assert P.grid_px(k["fov_deg"]) == 120 == m["grid"]["shape"][0]      # the key gives back the same grid
 
 
 def test_resolve_named_target_offline(client):
@@ -222,7 +225,7 @@ def test_json_safe():
     from server import pipeline as P
     assert P.dumps({"a": float("nan"), "b": [np.float32(np.inf), 1.5], "c": np.int64(3)}) == \
         '{"a": null, "b": [null, 1.5], "c": 3}'
-    assert P.free_key(-0.00001, -0.0, 0.11666) == "r0p0000_dp0p0000_f0p117"
+    assert P.free_key(-0.00001, -0.0, 0.11666) == "r0p0000_dp0p0000_n140"
 
 
 def test_free_position_with_proper_motion(client):
@@ -547,16 +550,16 @@ def test_rounding_boundary_reuses_the_open_field(client):
     from server import app as A
     a = _strict(client.get("/api/manifest", params={"ra": 288.770496, "dec": 3.059049, "queue": 0}))
     b = _strict(client.get("/api/manifest", params={"ra": 288.7705, "dec": 3.05905, "queue": 0}))
-    assert a["key"] == "r288p7705_dp3p0590_f0p117" and b["key"] == a["key"]          # was _dp3p0591 on 14 Nov
+    assert a["key"] == "r288p7705_dp3p0590_n140" and b["key"] == a["key"]          # was _dp3p0591 on 14 Nov
     assert client.calls["sia"] == 1
     # 2 arcsec away (more than half a 3" grid pixel): a field of its own; another fov too
     c = _strict(client.get("/api/manifest", params={"ra": 288.770496, "dec": 3.059049 + 2.0 / 3600, "queue": 0}))
     d = _strict(client.get("/api/manifest", params={"ra": 288.7705, "dec": 3.05905, "fov": 0.05, "queue": 0}))
     assert len({a["key"], c["key"], d["key"]}) == 3 and client.calls["sia"] == 3
-    assert A.REG.near_key("r288p7705_dp3p0591_f0p117", 288.7705, 3.05905) == a["key"]
-    assert d["key"] == "r288p7705_dp3p0591_f0p050"
-    assert A.REG.near_key("r288p7705_dp3p0590_f0p050", 288.770496, 3.059049) == d["key"]   # same fov: found
-    assert A.REG.near_key("r288p7705_dp3p0591_f0p117_pm1p00_0p00_e2000p000", 288.7705, 3.05905) is None
+    assert A.REG.near_key("r288p7705_dp3p0591_n140", 288.7705, 3.05905) == a["key"]
+    assert d["key"] == "r288p7705_dp3p0591_n60"
+    assert A.REG.near_key("r288p7705_dp3p0590_n60", 288.770496, 3.059049) == d["key"]   # same fov: found
+    assert A.REG.near_key("r288p7705_dp3p0591_n140_pm1p00_0p00_e2000p000", 288.7705, 3.05905) is None
 
 
 # --------------------------------------------------------------------------- automatic candidates (F2)
@@ -1072,3 +1075,36 @@ def test_track_inside_a_gallery_field_needs_no_irsa(tmp_path, monkeypatch):
         assert sia_calls == [] and r.json()["n_exposures_found"] > 0
         far = [{"ra": 140.0, "dec": 10.0, "mjd": t}, {"ra": 140.0001, "dec": 10.0, "mjd": t + 0.05}]   # outside
         assert c.post("/api/track", json={"band": "D6", "marks": far}).status_code == 503
+
+
+# --------------------------------------------------------------------------- key and grid from one value
+
+def test_key_and_grid_agree(client):
+    # (a) the same 7' asked two ways: one key, one grid, also after a restart (reopened from the key)
+    a = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "fov": 0.1166}))
+    b = _strict(client.get("/api/manifest", params={"ra": RA0, "dec": DEC0, "fov": 0.116666}))
+    assert a["key"] == b["key"] and a["key"].endswith("_n140") and a["grid"]["shape"] == b["grid"]["shape"] == [140, 140]
+    _wait_idle()
+    client.new_registry()
+    c = _strict(client.get("/api/band", params={"key": a["key"], "band": "D1"}))
+    assert c["shape"] == [140, 140]
+    # (b) frames are exactly the manifest's grid, and say so
+    for fov in (0.05, 0.11667, 0.25):
+        m = _strict(client.get("/api/manifest", params={"ra": RA0 + 1, "dec": DEC0, "fov": fov}))
+        ny, nx = m["grid"]["shape"]
+        bj = _strict(client.get("/api/band", params={"key": m["key"], "band": "D2"}))
+        assert bj["shape"] == [ny, nx] and m["key"].endswith(f"_n{ny}")
+        f = client.get("/api/frame", params={"key": m["key"], "band": "D2", "epoch": 0},
+                       headers={"Origin": "https://sci-techspherex.com"})
+        assert len(f.content) == 4 * ny * nx and f.headers["x-shape"] == f"{ny},{nx}"
+        assert "x-shape" in f.headers["access-control-expose-headers"].lower()
+    # (c) gallery keys are names and keep their 7' grid
+    g = _strict(client.get("/api/manifest", params={"target": "wise-0855", "queue": 0}))
+    assert g["key"] == "wise-0855" and g["grid"]["shape"] == [140, 140]
+
+
+def test_old_style_keys_still_open_consistently():
+    from server import app as A
+    from server import pipeline as P
+    k = A.parse_key("r10p0000_dp20p0000_f0p117")
+    assert P.grid_px(k["fov_deg"]) == 142            # an old key reopens with the grid its own value gives
