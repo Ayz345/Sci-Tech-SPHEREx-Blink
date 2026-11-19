@@ -1,6 +1,6 @@
 # Deploying the live server
 
-The project has two parts:
+The project has two parts: 
 
 - **The site** (`web/`): static files, published by `.github/workflows/pages.yml` to GitHub Pages. With no server
   it still shows the five gallery targets from `web/data/`.
